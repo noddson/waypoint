@@ -72,6 +72,82 @@ Time Zone: Europe/Dublin`
     expect(result.drafts[1]).toMatchObject({start:'2026-08-01T09:20',end:'2026-08-01T11:25',flightNumber:'AC 801'})
   })
 
+  it('selects the itinerary-rich MIME alternative instead of an incomplete plain-text fallback',()=>{
+    const raw=`From: Air Canada <bookings@aircanada.example>
+Date: Sun, 12 Apr 2026 09:00:00 -0400
+Subject: Air Canada - 18 Jul 2026: Toronto - Dublin (Booking reference: AHPSU8)
+Content-Type: multipart/alternative; boundary="air-canada"
+
+--air-canada
+Content-Type: text/plain; charset=UTF-8
+
+Manage your email preferences
+To: 60 min
+--air-canada
+Content-Type: text/html; charset=UTF-8
+
+<table>
+<tr><td>Flight Number</td><td>AC 800</td></tr>
+<tr><td>Departure Date</td><td>July 18, 2026</td></tr>
+<tr><td>Departure Time</td><td>8:50 PM</td></tr>
+<tr><td>Departure Airport</td><td>Toronto Pearson (YYZ)</td></tr>
+<tr><td>Departure Time Zone</td><td>America/Toronto</td></tr>
+<tr><td>Arrival Date</td><td>July 19, 2026</td></tr>
+<tr><td>Arrival Time</td><td>8:15 AM</td></tr>
+<tr><td>Arrival Airport</td><td>Dublin (DUB)</td></tr>
+<tr><td>Arrival Time Zone</td><td>Europe/Dublin</td></tr>
+<tr><td>Duration</td><td>6 h 25 min</td></tr>
+</table>
+--air-canada--`
+    expect(parseEmail(raw).drafts[0]).toMatchObject({type:'flight',start:'2026-07-18T20:50',end:'2026-07-19T08:15',timeZone:'America/Toronto',endTimeZone:'Europe/Dublin',location:'Toronto Pearson (YYZ)',endLocation:'Dublin (DUB)',confirmation:'AHPSU8',flightNumber:'AC 800',durationMinutes:385})
+  })
+
+  it('pairs adjacent airline date, time, and airport rows without depending on HTML classes',()=>{
+    const raw=`From: Air Canada <bookings@aircanada.example>
+Date: Sun, 12 Apr 2026 09:00:00 -0400
+Subject: Air Canada - 18 Jul 2026: Toronto - Dublin (Booking reference: AHPSU8)
+Content-Type: text/html; charset=UTF-8
+
+<div class="redesigned-flight-card"><div>Flight AC800</div><div>Toronto Pearson (YYZ)</div><div>8:50 PM EDT</div><div>Sat, Jul 18, 2026</div><div>Dublin Airport (DUB)</div><div>8:15 AM</div><div>Sun, Jul 19, 2026</div><div>Duration: 6h 25m</div></div>`
+    expect(parseEmail(raw).drafts[0]).toMatchObject({type:'flight',start:'2026-07-18T20:50',end:'2026-07-19T08:15',timeZone:'America/Toronto',location:'Toronto Pearson (YYZ)',endLocation:'Dublin Airport (DUB)',confirmation:'AHPSU8',flightNumber:'AC800',durationMinutes:385})
+  })
+
+  it('reads standards-based calendar parts without executing attachment content',()=>{
+    const raw=`From: Example Rail <booking@rail.example>
+Subject: Ticket confirmation RAIL42
+Content-Type: multipart/mixed; boundary="calendar-test"
+
+--calendar-test
+Content-Type: text/plain
+
+Your ticket is attached.
+--calendar-test
+Content-Type: text/calendar; charset=UTF-8
+Content-Disposition: attachment; filename="trip.ics"
+
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART;TZID=Europe/London:20310904T091500
+DTEND;TZID=Europe/London:20310904T104500
+SUMMARY:Rail ticket from London to York
+LOCATION:London King's Cross
+DESCRIPTION:Confirmation: RAIL42
+END:VEVENT
+END:VCALENDAR
+--calendar-test--`
+    expect(parseEmail(raw).drafts[0]).toMatchObject({start:'2031-09-04T09:15',end:'2031-09-04T10:45',timeZone:'Europe/London',location:"London King's Cross",confirmation:'RAIL42'})
+  })
+
+  it('never substitutes the email sent date for a missing flight date',()=>{
+    expect(()=>parseEmail('From: Airline <booking@example.test>\nDate: Sun, 12 Apr 2026 09:00:00 -0400\nSubject: Your flight confirmation\n\nWe will send the itinerary later.')).toThrow(/No travel date was found/i)
+  })
+
+  it('uses a subject travel date only as an explicitly time-unspecified fallback',()=>{
+    const draft=parseEmail('From: Air Canada <bookings@aircanada.example>\nDate: Sun, 12 Apr 2026 09:00:00 -0400\nSubject: Air Canada - 18 Jul 2026: Toronto - Dublin (Booking reference: AHPSU8)\n\nYour detailed itinerary is unavailable.').drafts[0]
+    expect(draft).toMatchObject({start:'2026-07-18T12:00',allDay:true,location:'Toronto',endLocation:'Dublin',confirmation:'AHPSU8'})
+    expect(draft.start).not.toContain('2026-04-12')
+  })
+
   it('extracts generic itinerary and policy identifiers from subjects',()=>{
     expect(parseEmail('From: Expedia <travel@expedia.example>\nSubject: Flight purchase confirmation - Itinerary no. 73115345225870\n\nDeparture Date: July 4, 2026').drafts[0]).toMatchObject({type:'flight',confirmation:'73115345225870'})
     expect(parseEmail('From: Allianz <confirmation@allianz.example>\nSubject: Travel Insurance Confirmation for Policy 971738711\n\nCoverage begins July 18, 2026').drafts[0]).toMatchObject({type:'insurance',confirmation:'971738711'})
@@ -83,7 +159,7 @@ Time Zone: Europe/Dublin`
   })
 
   it('keeps only safe HTTPS booking links and reassembles quoted-printable links',()=>{
-    const raw='From: Hotel <stay@example.test>\nSubject: Hotel confirmation\nContent-Type: text/html\nContent-Transfer-Encoding: quoted-printable\n\n<a href=3D"javascript:alert(1)">bad</a><a href=3D"https://example.test/booking/123/=\nmanage">Manage booking</a>'
+    const raw='From: Hotel <stay@example.test>\nSubject: Hotel confirmation\nContent-Type: text/html\nContent-Transfer-Encoding: quoted-printable\n\n<p>Check-in Date: July 20, 2026</p><a href=3D"javascript:alert(1)">bad</a><a href=3D"https://example.test/booking/123/=\nmanage">Manage booking</a>'
     expect(parseEmail(raw).drafts[0].link).toBe('https://example.test/booking/123/manage')
   })
 
