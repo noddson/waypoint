@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseEmail } from './parsers'
+import { parseDocumentText, parseEmail } from './parsers'
 describe('email adapters', () => {
   it('creates complete Air Canada legs', () => { const r=parseEmail('From: Air Canada <notification@notification.aircanada.ca>\nSubject: Air Canada booking reference: TEST42\n\nToronto YYZ Dublin DUB'); expect(r.drafts).toHaveLength(2); expect(r.drafts[0]).toMatchObject({type:'flight',end:'2026-07-19T08:15',flightNumber:'AC 800',durationMinutes:385}) })
   it('extracts a Rock of Cashel event', () => { const r=parseEmail('From: noreply@admit-one.eu\nSubject: Rock of Cashel: Online Booking Confirmation\n\nYour booking reference is: 577086'); expect(r.drafts[0]).toMatchObject({type:'event',provider:'Rock of Cashel',confirmation:'577086'}) })
@@ -8,4 +8,5 @@ describe('email adapters', () => {
   it('recognizes insurance policy confirmation subjects', () => { const r=parseEmail('From: confirmation@example.test\nSubject: Travel Insurance Confirmation for Policy 971738711\n\nCoverage'); expect(r.drafts[0]).toMatchObject({type:'insurance',confirmation:'971738711'}) })
   it('keeps a provider booking link on imported items', () => { const r=parseEmail('From: Expedia <expedia@eg.expedia.com>\nSubject: Expedia travel confirmation\n\n<a href="https://www.expedia.test/trips/123/manage">Manage booking</a>'); expect(r.drafts[0].link).toBe('https://www.expedia.test/trips/123/manage') })
   it('reassembles quoted-printable booking links before storing them', () => { const r=parseEmail('From: Expedia <expedia@eg.expedia.com>\nSubject: Expedia travel confirmation\n\n<a href=3D"https://www.expedia.test/trips/123/=\nmanage">Manage booking</a>'); expect(r.drafts[0].link).toBe('https://www.expedia.test/trips/123/manage') })
+  it('creates reviewable drafts from dated PDF text', () => { const r=parseDocumentText('Flight AC 800 departing July 18, 2026 booking reference TEST42','itinerary.pdf'); expect(r.drafts[0]).toMatchObject({type:'flight',confirmation:'TEST42',provider:'PDF import'}) })
 })
