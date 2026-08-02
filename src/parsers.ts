@@ -9,7 +9,10 @@ const iso = (month:string, day:string, year:string, time='12:00') => `${year}-${
 function firstDate(body:string, fallback:string) { const m=body.match(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)?\w*,?\s*(?:July|Jul|August|Aug)\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s*(2026)?/i); if(!m)return fallback; return iso(m[0].match(/August|Aug/i)?'Aug':'Jul',m[1],m[2]||'2026') }
 function detectDate(headers:Record<string,string>) { const d=new Date(headers.date||''); return isNaN(+d)?'2026-07-01T12:00':d.toISOString().slice(0,16) }
 function bookingLink(raw:string) {
-  const urls = [...raw.matchAll(/https?:\/\/[^\s"'<>]+/gi)].map(match => match[0].replace(/&amp;/g,'&').replace(/=3D/g,'='))
+  const normalized = raw.replace(/=\r?\n/g,'').replace(/=3D/gi,'=').replace(/&amp;/g,'&')
+  const urls = [...normalized.matchAll(/https?:\/\/[^\s"'<>]+/gi)].map(match => match[0].replace(/[),.;]+$/,'')).filter(url => {
+    try { const parsed = new URL(url); return parsed.hostname.includes('.') && !url.endsWith('=') } catch { return false }
+  })
   const useful = urls.filter(url => !/unsubscribe|privacy|facebook|instagram|twitter|\.png|\.jpg/i.test(url))
   return useful.sort((a,b) => Number(/ticket|booking|reservation|manage|trips|download\.pdf|admit-one|ventrata/i.test(b)) - Number(/ticket|booking|reservation|manage|trips|download\.pdf|admit-one|ventrata/i.test(a)))[0]
 }
