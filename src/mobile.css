@@ -1,5 +1,6 @@
 .mobile-header,.mobile-nav,.mobile-sheet-backdrop{display:none}
 .arrival-time{display:block;margin-top:5px;color:#234a3e}.flight-meta{margin-top:6px!important;color:#315d50!important;font:700 12px ui-monospace,SFMono-Regular,Menlo,monospace}
+.checkbox-label{display:flex;flex-direction:row;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px}.checkbox-label input{width:18px;height:18px;accent-color:#245a47}
 
 @media (max-width: 720px) {
   body{background:#f5f1e9}
