@@ -33,3 +33,14 @@ export const typeLabels: Record<ItemType,string> = { flight:'Flight', stay:'Stay
 export const uid = () => crypto.randomUUID()
 export function scheduleTime(value:string, allDay=false) { const match=value.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);if(!match)return Number.MAX_SAFE_INTEGER;const [,year,month,day,hour='00',minute='00']=match;return Date.UTC(Number(year),Number(month)-1,Number(day),allDay?0:Number(hour),allDay?0:Number(minute)) }
 export const sortTripItems = (items:TripItem[]) => [...items].sort((a,b)=>scheduleTime(a.start,a.allDay)-scheduleTime(b.start,b.allDay)||a.title.localeCompare(b.title))
+export function overlappingEventIds(items:TripItem[]) {
+  const events=sortTripItems(items.filter(item=>item.type==='event'))
+  const overlaps=new Set<string>()
+  for(const [index,event] of events.entries()){
+    if(!event.end)continue
+    for(const other of events.slice(index+1)){
+      if(event.timeZone===other.timeZone&&scheduleTime(event.end)>scheduleTime(other.start)){overlaps.add(event.id);overlaps.add(other.id)}
+    }
+  }
+  return overlaps
+}
