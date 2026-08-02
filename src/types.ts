@@ -7,8 +7,27 @@ export interface TripItem {
   notes?: string; link?: string; status: Status; quantity?: string; flightNumber?: string; durationMinutes?: number; allDay?: boolean
   conflictOf?: string; conflictSource?: 'local'|'drive'
 }
-export interface Trip { id: string; name: string; destination: string; createdAt: string; updatedAt: string; items: TripItem[] }
-export interface TripExport { schemaVersion: typeof SCHEMA_VERSION; exportedAt: string; trip: Trip; collaboration?: {revision:string;parentRevision?:string} }
+export interface Trip { id: string; name: string; destination: string; createdAt: string; updatedAt: string; archivedAt?: string; items: TripItem[] }
+export interface DrivePermissionSnapshot {
+  id: string
+  type: 'user'|'group'|'domain'|'anyone'|string
+  role: string
+  displayName?: string
+  emailAddress?: string
+  photoLink?: string
+  domain?: string
+  allowFileDiscovery?: boolean
+}
+export interface TripExport {
+  schemaVersion: typeof SCHEMA_VERSION
+  exportedAt: string
+  trip: Trip
+  collaboration?: {
+    revision: string
+    parentRevision?: string
+    drive?: {fileId:string;resourceKey?:string;permissions:DrivePermissionSnapshot[];capturedAt:string}
+  }
+}
 export const types: ItemType[] = ['flight','stay','car','transport','insurance','event','plan','reference']
 export const typeLabels: Record<ItemType,string> = { flight:'Flight', stay:'Stay', car:'Car rental', transport:'Transport', insurance:'Insurance', event:'Event', plan:'Plan', reference:'Reference' }
 export const uid = () => crypto.randomUUID()

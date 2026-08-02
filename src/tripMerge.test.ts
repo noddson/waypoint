@@ -27,4 +27,10 @@ describe('collaborative trip merging',()=>{
     expect(merged.conflicts).toBe(0)
     expect(merged.trip.items[0].title).toBe('Drive edit')
   })
+
+  it('carries archive state across devices',()=>{
+    const base=trip([]),archived={...base,archivedAt:'2026-08-02T12:00:00Z'}
+    expect(mergeTripVersions(base,base,archived).trip.archivedAt).toBe(archived.archivedAt)
+    expect(mergeTripVersions(base,archived,base).trip.archivedAt).toBe(archived.archivedAt)
+  })
 })

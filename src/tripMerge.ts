@@ -3,7 +3,7 @@ import { Trip, TripItem, sortTripItems } from './types'
 const same = (a:unknown,b:unknown) => JSON.stringify(a)===JSON.stringify(b)
 const byId = (items:TripItem[]) => new Map(items.map(item=>[item.id,item]))
 
-const chooseField = (base:string,local:string,remote:string) => {
+const chooseField = <T,>(base:T,local:T,remote:T) => {
   if(local===remote)return local
   if(local===base)return remote
   return local
@@ -37,7 +37,7 @@ export function mergeTripVersions(base:Trip,local:Trip,remote:Trip) {
   }
 
   return {
-    trip:{...remote,name:chooseField(base.name,local.name,remote.name),destination:chooseField(base.destination,local.destination,remote.destination),updatedAt:new Date().toISOString(),items:sortTripItems(items)},
+    trip:{...remote,name:chooseField(base.name,local.name,remote.name),destination:chooseField(base.destination,local.destination,remote.destination),archivedAt:chooseField(base.archivedAt,local.archivedAt,remote.archivedAt),updatedAt:new Date().toISOString(),items:sortTripItems(items)},
     conflicts,
   }
 }
