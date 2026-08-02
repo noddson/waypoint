@@ -3,8 +3,8 @@ export type ItemType = 'flight' | 'stay' | 'car' | 'transport' | 'insurance' | '
 export type Status = 'confirmed' | 'pending' | 'planned'
 export interface TripItem {
   id: string; type: ItemType; title: string; provider?: string; confirmation?: string
-  start: string; end?: string; timeZone: string; location?: string; endLocation?: string
-  notes?: string; link?: string; status: Status; quantity?: string
+  start: string; end?: string; timeZone: string; endTimeZone?: string; location?: string; endLocation?: string
+  notes?: string; link?: string; status: Status; quantity?: string; flightNumber?: string; durationMinutes?: number
 }
 export interface Trip { id: string; name: string; destination: string; createdAt: string; updatedAt: string; items: TripItem[] }
 export interface TripExport { schemaVersion: typeof SCHEMA_VERSION; exportedAt: string; trip: Trip }

@@ -1,4 +1,5 @@
 .mobile-header,.mobile-nav,.mobile-sheet-backdrop{display:none}
+.arrival-time{display:block;margin-top:5px;color:#234a3e}.flight-meta{margin-top:6px!important;color:#315d50!important;font:700 12px ui-monospace,SFMono-Regular,Menlo,monospace}
 
 @media (max-width: 720px) {
   body{background:#f5f1e9}
