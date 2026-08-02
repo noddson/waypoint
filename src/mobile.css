@@ -1,0 +1,25 @@
+@media (max-width: 720px) {
+  main { padding: 20px 14px 48px; }
+  header { gap: 18px; }
+  header .actions, .tripbar, .agenda-head { width: 100%; }
+  header .actions > *, .agenda-head > button { flex: 1 1 calc(50% - 6px); text-align: center; justify-content: center; }
+  .tripbar { padding: 12px; gap: 10px; }
+  .tripbar label { flex-basis: 100%; }
+  .tripbar .danger { width: 100%; }
+  .filters { margin: 0 -14px; padding: 14px; }
+  .agenda { margin: 0 -4px; padding: 14px; }
+  .agenda-head > button { width: 100%; }
+  .day { padding: 16px 0; }
+  .item { display: grid; grid-template-columns: 78px minmax(0, 1fr); align-items: start; padding: 14px 0; }
+  .time { padding-top: 17px; line-height: 1.25; }
+  .item-main { min-width: 0; }
+  .item h4 { font-size: 15px; overflow-wrap: anywhere; }
+  .item p { line-height: 1.4; overflow-wrap: anywhere; }
+  .booking-link { min-height: 36px; padding-top: 7px; }
+  .importer { padding: 18px; margin: 14px 0; }
+  .importer .actions { justify-content: stretch; }
+  .importer .actions > * { flex: 1; justify-content: center; text-align: center; }
+  .modal-backdrop { padding: 0; align-items: end; }
+  .modal { max-width: none; max-height: 92vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 20px 16px max(20px, env(safe-area-inset-bottom)); }
+  .modal button { min-height: 44px; }
+}
