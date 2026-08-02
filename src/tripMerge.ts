@@ -1,4 +1,5 @@
 import { Trip, TripItem, sortTripItems } from './types'
+import { tripDestinations } from './destinations'
 
 const same = (a:unknown,b:unknown) => JSON.stringify(a)===JSON.stringify(b)
 const byId = (items:TripItem[]) => new Map(items.map(item=>[item.id,item]))
@@ -36,8 +37,9 @@ export function mergeTripVersions(base:Trip,local:Trip,remote:Trip) {
     }else items.push(remoteChanged?theirs:ours)
   }
 
+  const sortedItems=sortTripItems(items)
   return {
-    trip:{...remote,name:chooseField(base.name,local.name,remote.name),destination:chooseField(base.destination,local.destination,remote.destination),archivedAt:chooseField(base.archivedAt,local.archivedAt,remote.archivedAt),updatedAt:new Date().toISOString(),items:sortTripItems(items)},
+    trip:{...remote,name:chooseField(base.name,local.name,remote.name),destination:tripDestinations(sortedItems).map(stop=>stop.label).join(' → '),archivedAt:chooseField(base.archivedAt,local.archivedAt,remote.archivedAt),updatedAt:new Date().toISOString(),items:sortedItems},
     conflicts,
   }
 }

@@ -6,13 +6,18 @@ const exportData = () => ({
   exportedAt:'2026-08-02T12:00:00.000Z',
   trip:{
     id:'trip-1',name:'Ireland',destination:'Ireland',createdAt:'2026-08-02T12:00:00.000Z',updatedAt:'2026-08-02T12:00:00.000Z',
-    items:[{id:'item-1',type:'flight',title:'Toronto → Dublin',start:'2026-07-18T20:50',timeZone:'America/Toronto',status:'confirmed',bookedBy:'Nick',link:'https://airline.example/manage'}],
+    items:[{id:'item-1',type:'flight',title:'Toronto → Dublin',start:'2026-07-18T20:50',timeZone:'America/Toronto',status:'confirmed',bookedBy:'Nick',link:'https://airline.example/manage',emailLink:'https://mail.google.com/mail/#all/message-1'}],
   },
 })
 
 describe('Waypoint JSON validation', () => {
   it('accepts a detailed item with booker attribution and an HTTPS link', () => {
     expect(validTripExport(exportData())).toBe(true)
+  })
+
+  it('requires a source-email link to use HTTPS when present',()=>{
+    const activeLink=exportData();activeLink.trip.items[0].emailLink='javascript:alert(1)'
+    expect(validTripExport(activeLink)).toBe(false)
   })
 
   it('rejects active links, malformed optional fields, and duplicate IDs', () => {

@@ -4,7 +4,7 @@ export type Status = 'confirmed' | 'pending' | 'planned'
 export interface TripItem {
   id: string; type: ItemType; title: string; provider?: string; confirmation?: string
   start: string; end?: string; timeZone: string; endTimeZone?: string; location?: string; endLocation?: string
-  notes?: string; link?: string; bookedBy?: string; status: Status; quantity?: string; flightNumber?: string; durationMinutes?: number; allDay?: boolean
+  notes?: string; link?: string; emailLink?: string; bookedBy?: string; status: Status; quantity?: string; flightNumber?: string; durationMinutes?: number; allDay?: boolean
   conflictOf?: string; conflictSource?: 'local'|'drive'
 }
 export interface Trip { id: string; name: string; destination: string; createdAt: string; updatedAt: string; archivedAt?: string; items: TripItem[] }

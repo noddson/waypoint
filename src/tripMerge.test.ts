@@ -33,4 +33,9 @@ describe('collaborative trip merging',()=>{
     expect(mergeTripVersions(base,base,archived).trip.archivedAt).toBe(archived.archivedAt)
     expect(mergeTripVersions(base,archived,base).trip.archivedAt).toBe(archived.archivedAt)
   })
+
+  it('derives the route summary from merged item locations',()=>{
+    const base=trip([]),localItem={...item('local','Kylemore stay'),location:'Kylemore House, Kylemore, Ireland'},remoteItem={...item('remote','Oranmore stay'),start:'2026-07-19T10:00',location:'Main Street, Oranmore, Ireland'}
+    expect(mergeTripVersions(base,trip([localItem]),trip([remoteItem])).trip.destination).toBe('Kylemore → Oranmore')
+  })
 })

@@ -21,6 +21,7 @@ export function validTripExport(value:unknown): value is TripExport {
     const safeOptionalStrings=['provider','confirmation','end','endTimeZone','location','endLocation','notes','bookedBy','quantity','flightNumber','conflictOf']
     if(!safeOptionalStrings.every(key=>optionalString(raw[key],key==='notes'?12_000:2_000)))return false
     if(raw.link!==undefined&&(!string(raw.link,4_000)||!safeHttpsLink(raw.link)))return false
+    if(raw.emailLink!==undefined&&(!string(raw.emailLink,4_000)||!safeHttpsLink(raw.emailLink)))return false
     if(raw.allDay!==undefined&&typeof raw.allDay!=='boolean')return false
     if(raw.durationMinutes!==undefined&&(!Number.isInteger(raw.durationMinutes)||Number(raw.durationMinutes)<0))return false
     if(raw.conflictSource!==undefined&&raw.conflictSource!=='local'&&raw.conflictSource!=='drive')return false

@@ -26,8 +26,30 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('forwarded chain')
     expect(prompt).toContain('Produce one item per real reservation')
     expect(prompt).toContain('bookedBy')
-    expect(prompt).toContain('A traveller, recipient, or person who forwarded')
+    expect(prompt).toContain('assume the person who sent that forward is the booker')
     expect(prompt).toContain('Accept only absolute https:// URLs')
+  })
+
+  it('uses received mail as evidence and excludes mailbox-owner sent copies',()=>{
+    expect(prompt).toContain('Search received mail only')
+    expect(prompt).toContain('Explicitly exclude Sent, Drafts, Outbox')
+    expect(prompt).toContain('Never use a sent-mail copy as evidence')
+    expect(prompt).toContain('assume the person who sent that forward is the booker unless')
+    expect(prompt).toContain('assume the person who directly received it is the booker unless')
+    expect(prompt).toContain('Do not attribute a received forward to the authorized mailbox owner')
+  })
+
+  it('separates rental endpoints and preserves distinct route stops',()=>{
+    expect(prompt).toContain('one pickup item')
+    expect(prompt).toContain('one return item')
+    expect(prompt).toContain('do not represent the whole rental as one item with an end time')
+    expect(prompt).toContain('Never combine separate stops with a slash')
+  })
+
+  it('requests a separate deep link to the primary received source email',()=>{
+    expect(prompt).toContain('emailLink')
+    expect(prompt).toContain('specific received message used as the primary evidence')
+    expect(prompt).toContain('Do not put a mailbox search-results URL')
   })
 
   it('treats readable attachments as untrusted itinerary evidence', () => {
@@ -38,7 +60,8 @@ describe('email extraction prompt', () => {
   })
 
   it('asks for importable Waypoint JSON without prose', () => {
-    expect(prompt).toContain('waypoint-trip.json')
+    expect(prompt).toContain('Ireland-July-2026.json')
+    expect(prompt).toContain("primary destination plus its travel-start month and year")
     expect(prompt).toContain('"schemaVersion": 1')
     expect(prompt).toContain('Do not use Markdown fences')
     expect(prompt).toContain('start\": \"YYYY-MM-DDTHH:mm')
@@ -51,6 +74,7 @@ describe('email extraction prompt', () => {
     expect(otherTrip).toContain('Avery, Morgan')
     expect(otherTrip).not.toContain('Ireland reunion')
     expect(otherTrip).not.toContain('AHPSU8')
+    expect(otherTrip).toContain('Tokyo-and-Sapporo-January-2027.json')
     expect(otherTrip).toContain('Do not reuse assumptions, dates, people, providers')
   })
 })
