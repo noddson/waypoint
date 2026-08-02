@@ -1,0 +1,29 @@
+import { ItemType, SCHEMA_VERSION, Status, TripExport, types } from './types'
+
+const statuses:Status[] = ['confirmed','pending','planned']
+const object = (value:unknown): value is Record<string,unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const string = (value:unknown,max=12_000): value is string => typeof value === 'string' && value.length <= max
+const optionalString = (value:unknown,max?:number) => value === undefined || string(value,max)
+
+export const safeHttpsLink = (value?:string) => {
+  if(!value)return undefined
+  try{const url=new URL(value);return url.protocol==='https:'?url.toString():undefined}catch{return undefined}
+}
+
+export function validTripExport(value:unknown): value is TripExport {
+  if(!object(value)||value.schemaVersion!==SCHEMA_VERSION||!string(value.exportedAt,100)||!object(value.trip))return false
+  const trip=value.trip
+  if(!string(trip.id,200)||!string(trip.name,300)||!string(trip.destination,500)||!string(trip.createdAt,100)||!string(trip.updatedAt,100)||!optionalString(trip.archivedAt,100)||!Array.isArray(trip.items)||trip.items.length>5000)return false
+  const ids=new Set<string>()
+  return trip.items.every(raw=>{
+    if(!object(raw)||!string(raw.id,200)||ids.has(raw.id)||!types.includes(raw.type as ItemType)||!string(raw.title,500)||!string(raw.start,50)||!string(raw.timeZone,100)||!statuses.includes(raw.status as Status))return false
+    ids.add(raw.id)
+    const safeOptionalStrings=['provider','confirmation','end','endTimeZone','location','endLocation','notes','bookedBy','quantity','flightNumber','conflictOf']
+    if(!safeOptionalStrings.every(key=>optionalString(raw[key],key==='notes'?12_000:2_000)))return false
+    if(raw.link!==undefined&&(!string(raw.link,4_000)||!safeHttpsLink(raw.link)))return false
+    if(raw.allDay!==undefined&&typeof raw.allDay!=='boolean')return false
+    if(raw.durationMinutes!==undefined&&(!Number.isInteger(raw.durationMinutes)||Number(raw.durationMinutes)<0))return false
+    if(raw.conflictSource!==undefined&&raw.conflictSource!=='local'&&raw.conflictSource!=='drive')return false
+    return true
+  })
+}
