@@ -42,7 +42,14 @@ describe('email extraction prompt', () => {
   it('separates rental endpoints and preserves distinct route stops',()=>{
     expect(prompt).toContain('one pickup item')
     expect(prompt).toContain('one return item')
-    expect(prompt).toContain('do not represent the whole rental as one item with an end time')
+    expect(prompt).toContain('Do not represent the whole rental as one item with an end time')
+    expect(prompt).toContain('actual make and model')
+    expect(prompt).toContain('automatic or manual transmission')
+    expect(prompt).toContain('fuel type (unleaded, diesel, or EV)')
+    expect(prompt).not.toContain('powertrain')
+    expect(prompt).toContain('mileage or kilometre allowance (including unlimited mileage)')
+    expect(prompt).toContain('registration/license plate')
+    expect(prompt).toContain('distance driven and fuel/charge return status')
     expect(prompt).toContain('Never combine separate stops with a slash')
   })
 

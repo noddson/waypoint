@@ -13,16 +13,16 @@ const travelBoundaryDates = (items: TripItem[]) => {
   const firstFlight = flights.reduce((first, flight) => flight.start < first.start ? flight : first)
   const lastFlight = flights.reduce((last, flight) => flight.end! > last.end! ? flight : last)
   const dates = new Set<string>()
-  // A boundary remains a trip day only when no more than 25% of it is spent away from the destination.
-  const minimumDestinationMinutes = 24 * 60 * 0.75
+  // A boundary is a trip day once at least half of it is spent in the location reached by that flight.
+  const minimumNewLocationMinutes = 24 * 60 * 0.5
 
   const departureDate = firstFlight.start.slice(0, 10)
   const outboundDestinationMinutes = firstFlight.end!.slice(0, 10) === departureDate ? 24 * 60 - minutesOfDay(firstFlight.end!) : 0
-  if (outboundDestinationMinutes < minimumDestinationMinutes) dates.add(departureDate)
+  if (outboundDestinationMinutes < minimumNewLocationMinutes) dates.add(departureDate)
 
   const returnDate = lastFlight.end!.slice(0, 10)
-  const returnDestinationMinutes = lastFlight.start.slice(0, 10) === returnDate ? minutesOfDay(lastFlight.start) : 0
-  if (returnDestinationMinutes < minimumDestinationMinutes) dates.add(returnDate)
+  const returnNewLocationMinutes = 24 * 60 - minutesOfDay(lastFlight.end!)
+  if (returnNewLocationMinutes < minimumNewLocationMinutes) dates.add(returnDate)
 
   return dates
 }

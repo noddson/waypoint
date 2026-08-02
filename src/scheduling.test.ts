@@ -11,7 +11,7 @@ describe('scheduling helpers', () => {
       make('early','2026-07-28T09:00'),
       make('unspecified','2026-07-28T12:00',true),
     ])
-    expect(sorted.map(item=>item.id)).toEqual(['unspecified','early','late','next day'])
+    expect(sorted.map(item=>item.id)).toEqual(['early','unspecified','late','next day'])
   })
 
   it('opens Air Canada check-in only during the 24-hour window in the departure time zone', () => {

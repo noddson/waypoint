@@ -26,6 +26,14 @@ export interface DriveSyncRecord {
   permissions?: DrivePermissionSnapshot[]
 }
 
+export interface DriveTripSummary {
+  id: string
+  name: string
+  modifiedTime?: string
+  resourceKey?: string
+  tripId?: string
+}
+
 const storedToken=(()=>{try{return JSON.parse(sessionStorage.getItem(TOKEN_STORAGE_KEY)||'{}') as {accessToken?:string;expiresAt?:number}}catch{return {}}})()
 let accessToken = storedToken.accessToken||''
 let accessTokenExpiresAt = storedToken.expiresAt||0
@@ -49,6 +57,18 @@ function loadGoogleIdentity() {
 export function prepareGoogleDrive(){return loadGoogleIdentity()}
 
 export function isGoogleDriveConnected(){return !!accessToken&&Date.now()<accessTokenExpiresAt}
+
+export async function listDriveTrips():Promise<DriveTripSummary[]> {
+  const query=new URLSearchParams({
+    q:"appProperties has { key='waypoint' and value='trip' } and trashed=false",
+    spaces:'drive',
+    pageSize:'100',
+    orderBy:'modifiedTime desc',
+    fields:'files(id,name,modifiedTime,resourceKey,appProperties)',
+  })
+  const result=await driveFetch(`${DRIVE_API}/files?${query}`).then(response=>response.json()) as {files?:Array<{id:string;name:string;modifiedTime?:string;resourceKey?:string;appProperties?:{tripId?:string}}>}
+  return (result.files||[]).map(file=>({id:file.id,name:file.name.replace(/\.waypoint\.json$/i,''),modifiedTime:file.modifiedTime,resourceKey:file.resourceKey,tripId:file.appProperties?.tripId}))
+}
 
 export async function connectGoogleDrive(clientId:string) {
   if(!clientId)throw new Error('Google Drive is not configured for this deployment.')
