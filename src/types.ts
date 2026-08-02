@@ -11,3 +11,5 @@ export interface TripExport { schemaVersion: typeof SCHEMA_VERSION; exportedAt: 
 export const types: ItemType[] = ['flight','stay','car','transport','insurance','event','plan','reference']
 export const typeLabels: Record<ItemType,string> = { flight:'Flight', stay:'Stay', car:'Car rental', transport:'Transport', insurance:'Insurance', event:'Event', plan:'Plan', reference:'Reference' }
 export const uid = () => crypto.randomUUID()
+export function scheduleTime(value:string, allDay=false) { const match=value.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);if(!match)return Number.MAX_SAFE_INTEGER;const [,year,month,day,hour='00',minute='00']=match;return Date.UTC(Number(year),Number(month)-1,Number(day),allDay?0:Number(hour),allDay?0:Number(minute)) }
+export const sortTripItems = (items:TripItem[]) => [...items].sort((a,b)=>scheduleTime(a.start,a.allDay)-scheduleTime(b.start,b.allDay)||a.title.localeCompare(b.title))

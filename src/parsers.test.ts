@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseDocumentText, parseEmail } from './parsers'
+import { sortTripItems, TripItem } from './types'
 describe('email adapters', () => {
   it('creates complete Air Canada legs', () => { const r=parseEmail('From: Air Canada <notification@notification.aircanada.ca>\nSubject: Air Canada booking reference: TEST42\n\nToronto YYZ Dublin DUB'); expect(r.drafts).toHaveLength(2); expect(r.drafts[0]).toMatchObject({type:'flight',end:'2026-07-19T08:15',flightNumber:'AC 800',durationMinutes:385}) })
   it('extracts a Rock of Cashel event', () => { const r=parseEmail('From: noreply@admit-one.eu\nSubject: Rock of Cashel: Online Booking Confirmation\n\nYour booking reference is: 577086'); expect(r.drafts[0]).toMatchObject({type:'event',provider:'Rock of Cashel',confirmation:'577086'}) })
@@ -10,4 +11,5 @@ describe('email adapters', () => {
   it('reassembles quoted-printable booking links before storing them', () => { const r=parseEmail('From: Expedia <expedia@eg.expedia.com>\nSubject: Expedia travel confirmation\n\n<a href=3D"https://www.expedia.test/trips/123/=\nmanage">Manage booking</a>'); expect(r.drafts[0].link).toBe('https://www.expedia.test/trips/123/manage') })
   it('creates reviewable drafts from dated PDF text', () => { const r=parseDocumentText('Flight AC 800 departing July 18, 2026 booking reference TEST42','itinerary.pdf'); expect(r.drafts[0]).toMatchObject({type:'flight',confirmation:'TEST42',provider:'PDF import'}) })
   it('decodes Bunratty MIME and does not invent a ticket time', () => { const encoded=btoa('The booking on 28 July 2026 has been completed. The reference number is TEST42. Ticket Time: Combination BCFP & Cragg');const r=parseEmail(`From: noreply@notifications.bunrattycastle.ie\nSubject: Booking Confirmation\nContent-Type: multipart/alternative; boundary="test"\n\n--test\nContent-Type: text/plain\nContent-Transfer-Encoding: base64\n\n${encoded}\n--test--`);expect(r.drafts[0]).toMatchObject({start:'2026-07-28T12:00',timeZone:'Europe/Dublin',allDay:true,confirmation:'TEST42'}) })
+  it('sorts rows explicitly by date and then time', () => { const make=(id:string,start:string,allDay=false):TripItem=>({id,type:'event',title:id,start,timeZone:'Europe/Dublin',status:'confirmed',allDay});const sorted=sortTripItems([make('late','2026-07-28T18:00'),make('next day','2026-07-29T08:00'),make('early','2026-07-28T09:00'),make('unspecified','2026-07-28T12:00',true)]);expect(sorted.map(item=>item.id)).toEqual(['unspecified','early','late','next day']) })
 })
