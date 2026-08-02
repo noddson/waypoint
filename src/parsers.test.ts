@@ -1,0 +1,9 @@
+import { describe, expect, it } from 'vitest'
+import { parseEmail } from './parsers'
+describe('email adapters', () => {
+  it('creates both legs for Air Canada', () => { const r=parseEmail('From: Air Canada <notification@notification.aircanada.ca>\nSubject: Air Canada booking reference: TEST42\n\nToronto YYZ Dublin DUB'); expect(r.drafts).toHaveLength(2); expect(r.drafts[0].type).toBe('flight') })
+  it('extracts a Rock of Cashel event', () => { const r=parseEmail('From: noreply@admit-one.eu\nSubject: Rock of Cashel: Online Booking Confirmation\n\nYour booking reference is: 577086'); expect(r.drafts[0]).toMatchObject({type:'event',provider:'Rock of Cashel',confirmation:'577086'}) })
+  it('uses a safe generic draft for unknown mail', () => { const r=parseEmail('From: someone@example.test\nSubject: Museum booking\n\nSee you July 25, 2026'); expect(r.drafts[0].type).toBe('reference'); expect(r.drafts[0].status).toBe('planned') })
+  it('recognizes Expedia flight confirmation subjects', () => { const r=parseEmail('From: Expedia <expedia@eg.expedia.com>\nSubject: Expedia flight purchase confirmation – Winnipeg, MB, Canada (YWG) – Fri, Jul 4 – (Itinerary no. 73115345225870)\n\nFlight details'); expect(r.drafts[0]).toMatchObject({type:'flight',confirmation:'73115345225870'}) })
+  it('recognizes insurance policy confirmation subjects', () => { const r=parseEmail('From: confirmation@example.test\nSubject: Travel Insurance Confirmation for Policy 971738711\n\nCoverage'); expect(r.drafts[0]).toMatchObject({type:'insurance',confirmation:'971738711'}) })
+})
