@@ -21,6 +21,9 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('2026-08-03')
     expect(prompt).toContain('Do not search, open, or process messages outside that range')
     expect(prompt).toContain('Never silently search all of my mail')
+    expect(prompt).toContain('Lock the mailbox scope to exactly 2026-01-01 through 2026-08-03, inclusive')
+    expect(prompt).toContain('Do not substitute a default, round to a month, or change either boundary')
+    expect(prompt).toContain('If the audit scope or any query scope differs from these exact values')
   })
 
   it('requires cross-message reconciliation, attribution, and useful safe links', () => {
@@ -66,6 +69,11 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('Never treat the first page or a capped result set as complete')
     expect(prompt).toContain('each confirmed reservation, ticket, order, admission, tour, experience, dining event')
     expect(prompt).toContain('the number of include dispositions reconciles with the final items')
+    expect(prompt).toContain('Event/admission minimum: run ticket, e-ticket, voucher, admission, tour, experience, attraction, visit, order, receipt, banquet, dining, and entrance as separate received-mail searches')
+    expect(prompt).toContain('Do not combine these minimum concepts into one OR query')
+    expect(prompt).toContain('Record a discoveryQueries entry for every concept, including zero-result searches')
+    expect(prompt).toContain('Finding one or several valid events does not prove this lane is complete')
+    expect(prompt).toContain('never a reason to skip the remaining event concepts, results, pages, or date slices')
   })
 
   it('preserves distinct sibling reservations from the same provider',()=>{
@@ -117,6 +125,10 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('Ireland-July-2026-discovery-audit.json')
     expect(prompt).toContain('This audit is proof of search coverage and reconciliation')
     expect(prompt).toContain('"groundTransport": "complete"')
+    expect(prompt).toContain('"discoveryQueries"')
+    expect(prompt).toContain('"providerNativeQuery"')
+    expect(prompt).toContain('"scopeStart": "2026-01-01"')
+    expect(prompt).toContain('"scopeEnd": "2026-08-03"')
     expect(prompt).toContain('"transportQueries"')
     expect(prompt).toContain('"transportHypotheses"')
     expect(prompt).toContain('"tripCandidates"')
@@ -124,6 +136,8 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('Every plausible trip candidate, including cancellations and superseded bookings')
     expect(prompt).toContain('Every laneStatus value must be "complete" before creating the itinerary JSON')
     expect(prompt).toContain('unrelated search results appear only as counts')
+    expect(prompt).toContain('a lane may be marked complete only when all of its mandatory concept and discovered-anchor entries exist and are complete')
+    expect(prompt).toContain('If any required query, page, date slice, candidate, or exact-scope check is incomplete, fail closed')
   })
 
   it('separates rental endpoints and preserves distinct route stops',()=>{

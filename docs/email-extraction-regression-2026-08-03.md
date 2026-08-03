@@ -8,10 +8,19 @@ The extra-high-reasoning diagnostic run retrieved all known Ireland candidates, 
 - Regressed v2 extraction: 17 of 22 confirmed itinerary items (77.3% recall).
 - Extra-high-reasoning revised-prompt diagnostic: 22 of 22 confirmed itinerary items discovered (100% candidate recall).
 - Medium-reasoning end-to-end extraction: 19 of 22 confirmed active itinerary items emitted (86.4% recall).
+- Audited medium-reasoning extraction: 20 of 22 confirmed active itinerary items emitted (90.9% recall).
 
 The 22-item benchmark is the union of the two prior outputs after verifying every disagreement against authoritative received-mail evidence. Its category totals are 2 car endpoints, 6 events, 2 flights, 1 insurance policy, 9 stays, and 2 ground-transport items.
 
 The 2026-08-03 medium-reasoning output total is explained by item identity, not by a simple two-item reduction: the 21-item original lost three active items (two United Taxi journeys and the Bunratty banquet) while gaining Brú na Bóinne, producing 19 items. The later prompt revisions already address the taxi discovery failure; the sibling-reservation rule added afterward separately targets the banquet omission. The union is therefore 22 distinct supported active items.
+
+## Audited medium-reasoning follow-up
+
+`Dublin-Northern-Ireland-West-Coast-Limerick-July-2026.json`, exported at 2026-08-03T10:40:00-04:00, contains 20 items. It restores both active United Taxi journeys and its audit correctly records Wright Limousine references `84271` and `84272` as found but cancelled. This demonstrates that the transport revision changed the observable medium-reasoning outcome as intended.
+
+The run successfully found four of the six verified events—Titanic Belfast, Brú na Bóinne, Cliffs of Moher, and Rock of Cashel—but omitted both Bunratty reservations: medieval banquet `B03738074` and combination ticket `B03738073`. This is a selective event-recall failure, not a general event-classification failure. Neither Bunratty reference appears in `tripCandidates`, so the audit proves they were missed during discovery rather than found and dismissed. The 18 included candidate records otherwise reconcile exactly to all 20 final item IDs.
+
+The audit nevertheless marks `eventsAndAdmissions` complete without recording any event/admission queries, and its mailbox scope begins on February 1 instead of the required January 1. The boundary mismatch did not cause the Bunratty omissions—the relevant bookings were made on June 21, which is inside both ranges—but it still means the audit did not execute the exact authorized scope it claims to prove. Because the audit lacks query-level event evidence, it cannot establish whether a required search was skipped, capped, incompletely paginated, or otherwise failed to surface the Bunratty cluster. The observable defect is that partial event success was allowed to become an unsupported completion claim. The prompt now requires exact scope equality and query-level proof for every discovery lane, including separate full-window searches for each minimum event/admission concept. A lane cannot be marked complete from a bare status assertion.
 
 ## Medium-reasoning follow-up failure
 

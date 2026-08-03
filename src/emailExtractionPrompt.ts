@@ -40,15 +40,17 @@ PRIVACY AND SEARCH BOUNDARY
 1. Search received mail only, including messages forwarded to the authorized mailbox and received replies, but only within the mailbox date range above. Explicitly exclude Sent, Drafts, Outbox, and other mailbox-owner-authored copies. A message sent by the mailbox owner is never authoritative evidence for extraction or bookedBy attribution. Do not search, open, or process messages outside that range.
 2. If the date range or trip identity is missing, ambiguous, or too narrow to finish reliably, stop and ask me for clarification or permission to expand it. Never silently search all of my mail or widen the date range.
 3. Extract itinerary facts only. Do not retain unrelated personal correspondence, payment-card data, loyalty numbers, or full email bodies.
+4. Lock the mailbox scope to exactly ${line(input.emailStart)} through ${line(input.emailEnd)}, inclusive. Do not substitute a default, round to a month, or change either boundary. Translate inclusive dates carefully when a provider uses exclusive after/before operators, and record the user-facing inclusive dates—not translated query boundaries—in every audit entry. If the audit scope or any query scope differs from these exact values, the run is incomplete and must fail closed.
 
 MANDATORY DISCOVERY LANES
 Use several small, independent searches rather than one giant combined query. Large OR queries can be capped, poorly ranked, or incomplete. Adapt syntax to the connected provider, search subjects and message bodies when possible, and keep every query inside the permitted mailbox window.
 
-1. Direct-provider confirmations and receipts. Search received mail independently for small groups of these terms:
+1. Direct-provider confirmations and receipts. Search received mail independently for small groups of these terms, and record every executed concept in discoveryQueries:
    - confirmation, confirmed, reservation, booking, itinerary, reference, check-in;
    - ticket, e-ticket, voucher, admission, tour, experience, attraction, visit, order, receipt, and banquet;
    - flight, airline, hotel, accommodation, apartment, car rental, train, rail, ferry, bus, taxi, transfer, and restaurant.
    A direct message from a provider is a first-class candidate even when it does not name the destination in its subject or snippet. Do not let forwarded-message searches replace this lane. In particular, tickets, admissions, attractions, tours, experiences, and dining events are itinerary items, not optional extras.
+   Event/admission minimum: run ticket, e-ticket, voucher, admission, tour, experience, attraction, visit, order, receipt, banquet, dining, and entrance as separate received-mail searches across the entire authorized mailbox window. Do not combine these minimum concepts into one OR query or treat a general confirmation search as a substitute. Record a discoveryQueries entry for every concept, including zero-result searches. Finding one or several valid events does not prove this lane is complete and is never a reason to skip the remaining event concepts, results, pages, or date slices.
 2. Ground transport and trip continuity. Run every one of these received-mail search concepts independently even when ground transport is absent from the supplied clues; record each query's completion in the discovery audit:
    - taxi; cab; limousine; limo; chauffeur;
    - ride booking; rideshare; Uber; Lyft; Bolt; FREE NOW;
@@ -71,6 +73,9 @@ CANDIDATE CONTROL AND COMPLETION CHECK
 2. Exhaust every result set. Paginate through the final page. If the connector caps results, omits pagination, or reports a truncated set, repeat that search over smaller non-overlapping mailbox-date slices until every slice is fully reviewable. Never treat the first page or a capped result set as complete.
 3. Before final output, verify all of the following:
    - the direct-provider, ground-transport, supplied-anchor, forwarded, attachment, event/admission, and travel-insurance lanes were each completed;
+   - mailboxScope and every recorded query scope exactly match the authorized inclusive mailbox dates;
+   - every mandatory discovery concept in every lane has its own completed discoveryQueries entry with the actual provider-native query, result count, and pagination or date-slice count;
+   - the separate event/admission searches for ticket, e-ticket, voucher, admission, tour, experience, attraction, visit, order, receipt, banquet, dining, and entrance were all completed across the full mailbox window;
    - every named ground-transport search concept was run and recorded as complete;
    - every flight boundary, foreign or regional arrival, rental endpoint, and gap between distinct route stops generated the required transport hypotheses, and every hypothesis search is recorded as complete;
    - every candidate was opened, relevant readable attachments were inspected, and every candidate has one disposition;
@@ -129,8 +134,22 @@ Use this discovery-audit shape:
     "eventsAndAdmissions": "complete",
     "travelInsurance": "complete"
   },
+  "discoveryQueries": [
+    {
+      "lane": "directProvider | suppliedAndDiscoveredAnchors | forwardedConfirmations | attachments | eventsAndAdmissions | travelInsurance | followUpStatus",
+      "concept": "one mandatory concept or discovered anchor",
+      "providerNativeQuery": "exact received-mail query that was executed",
+      "scopeStart": "${line(input.emailStart)}",
+      "scopeEnd": "${line(input.emailEnd)}",
+      "complete": true,
+      "pagesOrDateSlices": 1,
+      "resultCount": 0,
+      "plausibleTripCandidates": 0,
+      "unrelatedResultCount": 0
+    }
+  ],
   "transportQueries": [
-    {"concept": "taxi", "complete": true, "pagesOrDateSlices": 1, "plausibleTripCandidates": 0, "unrelatedResultCount": 0}
+    {"concept": "taxi", "providerNativeQuery": "exact received-mail query that was executed", "scopeStart": "${line(input.emailStart)}", "scopeEnd": "${line(input.emailEnd)}", "complete": true, "pagesOrDateSlices": 1, "resultCount": 0, "plausibleTripCandidates": 0, "unrelatedResultCount": 0}
   ],
   "transportHypotheses": [
     {
@@ -160,7 +179,7 @@ Use this discovery-audit shape:
   ]
 }
 
-Every laneStatus value must be "complete" before creating the itinerary JSON. transportQueries must contain one completed entry for every named transport concept. transportHypotheses must contain one completed entry for every inferred flight boundary, foreign or regional arrival, rental endpoint, and distinct-route gap, including hypotheses that found no evidence. Every plausible trip candidate, including cancellations and superseded bookings, must appear in tripCandidates; unrelated search results appear only as counts. If the environment cannot create files, return the two raw JSON objects under their exact filenames without Markdown fences or other commentary.
+mailboxScope must exactly equal the authorized inclusive mailbox dates shown in TRIP SCOPE. Every discoveryQueries and transportQueries entry must repeat that exact scope and identify the actual provider-native query; never fabricate a query record for a search that was not executed. Every laneStatus value must be "complete" before creating the itinerary JSON, and a lane may be marked complete only when all of its mandatory concept and discovered-anchor entries exist and are complete. discoveryQueries must include separate completed eventsAndAdmissions entries for ticket, e-ticket, voucher, admission, tour, experience, attraction, visit, order, receipt, banquet, dining, and entrance, including zero-result searches. transportQueries must contain one completed entry for every named transport concept. transportHypotheses must contain one completed entry for every inferred flight boundary, foreign or regional arrival, rental endpoint, and distinct-route gap, including hypotheses that found no evidence. Every plausible trip candidate, including cancellations and superseded bookings, must appear in tripCandidates; unrelated search results appear only as counts. If any required query, page, date slice, candidate, or exact-scope check is incomplete, fail closed instead of asserting complete coverage. If the environment cannot create files, return the two raw JSON objects under their exact filenames without Markdown fences or other commentary.
 
 Use exactly this Waypoint schema (schemaVersion must remain 1):
 {
@@ -201,5 +220,5 @@ Use exactly this Waypoint schema (schemaVersion must remain 1):
 
 Omit optional keys that have no supported value. durationMinutes must be a non-negative integer and is normally only useful for timed travel. If a real date is known but no reliable time exists, use 12:00 local time, set allDay to true, and state "Time not specified in confirmation" in notes. Do not use allDay merely because an item lasts several days.
 
-Before producing the two files, audit them: every discovery lane and follow-up search was completed through all results or fully reviewable date slices; every named transport concept has a completed transportQueries entry; every itinerary-derived transport hypothesis has a completed transportHypotheses entry and used the full mailbox window plus buffered service-date variants; every booking-like candidate was opened and accounted for in the discovery audit; every relevant forward triggered a same-forwarder, same-calendar-day forwarding-burst search; every source message and attachment was received within the mailbox window; no Sent, Draft, or Outbox message was used as evidence; the independent travel-insurance searches were completed and plausible coverage dates were compared with the trip window even when the destination was absent; direct provider confirmations, ground transport, and event/admission tickets were not displaced by forwarded bookings; every confirmed transport journey maps to an itinerary item; cancelled transport remains excluded from the itinerary but visible in the audit; every trip-continuity edge is accounted for without invention; relevant readable attachments were inspected; inaccessible evidence was not guessed; every itinerary date is supported by trip-related evidence; updated/forwarded messages are deduplicated; cancelled or superseded details are handled; car pickup and return are separate items; distinct sequential destinations remain distinct; item IDs are unique; bookedBy follows the evidence hierarchy; time zones and cross-zone durations are coherent; provider links and source-email links are safe and in their correct fields; both files parse as strict JSON; and the itinerary mappedItemIds in the audit exist in the Waypoint JSON.`
+Before producing the two files, audit them: mailboxScope and every recorded query scope exactly match ${line(input.emailStart)} through ${line(input.emailEnd)} inclusive; every discovery lane and follow-up search was completed through all results or fully reviewable date slices; every mandatory and discovered query has a truthful completed discoveryQueries entry with its provider-native query and counts; every event/admission minimum concept was searched independently; every named transport concept has a completed transportQueries entry; every itinerary-derived transport hypothesis has a completed transportHypotheses entry and used the full mailbox window plus buffered service-date variants; every booking-like candidate was opened and accounted for in the discovery audit; every relevant forward triggered a same-forwarder, same-calendar-day forwarding-burst search; every source message and attachment was received within the mailbox window; no Sent, Draft, or Outbox message was used as evidence; the independent travel-insurance searches were completed and plausible coverage dates were compared with the trip window even when the destination was absent; direct provider confirmations, ground transport, and event/admission tickets were not displaced by forwarded bookings; every confirmed transport journey maps to an itinerary item; cancelled transport remains excluded from the itinerary but visible in the audit; every trip-continuity edge is accounted for without invention; relevant readable attachments were inspected; inaccessible evidence was not guessed; every itinerary date is supported by trip-related evidence; updated/forwarded messages are deduplicated; cancelled or superseded details are handled; car pickup and return are separate items; distinct sequential destinations remain distinct; item IDs are unique; bookedBy follows the evidence hierarchy; time zones and cross-zone durations are coherent; provider links and source-email links are safe and in their correct fields; both files parse as strict JSON; and the itinerary mappedItemIds in the audit exist in the Waypoint JSON.`
 }
