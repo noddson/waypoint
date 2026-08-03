@@ -1,6 +1,6 @@
 # Email-search prompt evolution
 
-This document records every commit through historical Version 13 that changed the email-search prompt builder. The working copy was subsequently restored to Version 5 (`2e52c136391e6063462d9a1c0e29e041578575ec`) because that prompt proved more effective.
+This document records every commit through historical Version 13 that changed the email-search prompt builder. The working copy was subsequently restored to Version 5 (`2e52c136391e6063462d9a1c0e29e041578575ec`) because that prompt proved more effective, then extended with the compact active revision described below.
 
 The prompt is a TypeScript template: values such as `${line(input.emailStart)}` are filled at runtime, and the output filenames are derived by code around the template. For that reason, the source template—not one trip-specific rendered example—is the authoritative version.
 
@@ -11,7 +11,7 @@ The prompt is a TypeScript template: values such as `${line(input.emailStart)}` 
 - Version 1 includes the full original source file.
 - Versions 2–13 include the exact source delta from the immediately preceding version. Together, the baseline and deltas are a lossless history of every prompt version.
 - The copyable latest historical template (Version 13) is retained for comparison.
-- The active working-copy prompt is restored to Version 5; its exact source is available with `git show 2e52c136391e6063462d9a1c0e29e041578575ec:src/emailExtractionPrompt.ts`.
+- The active working-copy prompt starts from restored Version 5 and adds the compact evidence-driven discovery revision below; the exact restored baseline remains available with `git show 2e52c136391e6063462d9a1c0e29e041578575ec:src/emailExtractionPrompt.ts`.
 - Earlier commits `701e309944` and `b75d3dee31` changed a local `emailParser.ts`; they did not contain a prompt that instructed an agent to search a mailbox, so they are outside this prompt history.
 - Test-file-only wording is not included. A commit appears here only when `src/emailExtractionPrompt.ts` itself changed.
 
@@ -32,6 +32,20 @@ The prompt is a TypeScript template: values such as `${line(input.emailStart)}` 
 | [11](#version-11) | 2026-08-03T10:50:49-04:00 | `5e4fd13d9c7b` | Require query-level proof for every discovery lane | Locked every query to the exact authorized mailbox dates and required query-level audit proof, including separate event/admission searches and fail-closed completion. |
 | [12](#version-12) | 2026-08-03T11:17:30-04:00 | `e09db7a92678` | Complete capped searches with bounded refinements | Made result traversal connector-neutral, added seed and focused query roles, defined clipped month/week/day refinements, prioritized surfaced candidates, and prevented partial output. |
 | [13](#version-13) | 2026-08-03T11:19:03-04:00 | `65be4d95fe0e` | Prefer native continuation before date refinement | Preferred native provider continuation for seed searches before falling back to bounded date refinements. |
+| [Active](#active-revision-after-version-5-restoration) | 2026-08-03 | Working copy | Improve itinerary email discovery recall | Added one grouped travel-and-event seed, one attachment search, and compact sender/provider, lifecycle, and route-continuity follow-ups without restoring the audit-heavy completion workflow. |
+
+## Active revision after Version 5 restoration
+
+The active prompt keeps Version 5's single-file output and concise evidence reconciliation while adding a small iterative discovery layer:
+
+- One destination-independent, full-window received-mail seed groups confirmation, reservation, booking, reference, itinerary, trip, journey, ticket (including e-ticket variants), voucher, admission, pass, experience, tour, attraction, receipt, and invoice. These concepts are not mandatory independent searches.
+- One additional full-window search finds booking-related attachments. Message bodies and readable attachments are opened only for plausible candidates; complete all-mail reading is not required.
+- A valid forwarded item triggers an unconstrained same-sender search in the clipped 11-day window centered on the evidence email's received date, followed by a full-window sender search using the grouped evidence concepts.
+- Each discovered provider receives a clipped neighborhood search, and plausible provider/reference pairs receive focused lifecycle searches for confirmations, payments, dispatches, receipts, completions, changes, cancellations, voids, refunds, reissues, and replacements.
+- Confirmed route structure produces evidence-seeking hypotheses for airport edges, regional arrivals, and trip boundaries. Hypotheses cannot create itinerary items without supporting received-message or attachment evidence.
+- Sibling reservations remain separate when their references, products, routes, dates, times, or quantities differ; messages sharing a reference are normally reconciled as lifecycle updates.
+
+This revision intentionally does not restore per-term full-window discovery lanes, complete mailbox enumeration, candidate ledgers, mandatory date slicing, a discovery-audit output file, or fail-closed suppression of otherwise supported itinerary JSON.
 
 ## Latest historical prompt template (Version 13)
 
