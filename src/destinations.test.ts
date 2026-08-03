@@ -109,6 +109,8 @@ describe('derived trip destinations',()=>{
     expect(segments).toHaveLength(1)
     expect(segments[0].arrivalFlightRoute).toEqual(['YYZ','MSP','HNL'])
     expect(segments[0].departureFlightRoute).toEqual(['HNL','SFO','YYZ'])
+    expect(segments[0].arrivalFlightItemIds).toEqual(['to-minneapolis','to-honolulu'])
+    expect(segments[0].departureFlightItemIds).toEqual(['to-san-francisco','home'])
   })
 
   it('labels a US ground route by state instead of its ZIP code',()=>{

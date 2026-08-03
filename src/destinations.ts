@@ -12,6 +12,8 @@ export interface GroundRouteSegment {
   stops: DestinationStop[]
   arrivalFlightRoute?: string[]
   departureFlightRoute?: string[]
+  arrivalFlightItemIds?: string[]
+  departureFlightItemIds?: string[]
 }
 
 const postalCode = /^(?:\d{5}(?:-\d{4})?|[A-Z]\d[A-Z]\s?\d[A-Z]\d|[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}|[A-Z]\d{2}\s?[A-Z\d]{4})$/i
@@ -75,12 +77,13 @@ const routeItem = (item:TripItem) => item.type!=='flight'&&item.type!=='insuranc
 const airportRouteCode = (address?:string) => {const label=destinationLabel(address);return label&&/^[A-Z]{3}$/.test(label)?label:undefined}
 
 const tripFlightRoutes = (items:TripItem[]) => {
-  const routes:string[][]=[]
-  let current:string[]|undefined
+  const routes:Array<{codes:string[];itemIds:string[]}>=[]
+  let current:{codes:string[];itemIds:string[]}|undefined
   for(const item of sortTripItems(items)){
     if(item.type==='flight'){
-      if(!current){current=[];routes.push(current)}
-      for(const code of [airportRouteCode(item.location),airportRouteCode(item.endLocation)])if(code&&current[current.length-1]!==code)current.push(code)
+      if(!current){current={codes:[],itemIds:[]};routes.push(current)}
+      current.itemIds.push(item.id)
+      for(const code of [airportRouteCode(item.location),airportRouteCode(item.endLocation)])if(code&&current.codes[current.codes.length-1]!==code)current.codes.push(code)
     }else if(routeItem(item)&&itemDestinationStops(item).length)current=undefined
   }
   return routes
@@ -144,7 +147,7 @@ export function tripGroundRouteSegments(items:TripItem[]):GroundRouteSegment[] {
   const firstOrigin=destinationStop(flights[0].location),lastArrival=destinationStop(flights[flights.length-1].endLocation)
   if(firstOrigin?.id!==lastArrival?.id)finishSegment()
   const flightRoutes=tripFlightRoutes(sorted)
-  return segments.map((segment,index)=>({...segment,arrivalFlightRoute:flightRoutes[index],departureFlightRoute:flightRoutes[index+1]}))
+  return segments.map((segment,index)=>({...segment,arrivalFlightRoute:flightRoutes[index]?.codes,departureFlightRoute:flightRoutes[index+1]?.codes,arrivalFlightItemIds:flightRoutes[index]?.itemIds,departureFlightItemIds:flightRoutes[index+1]?.itemIds}))
 }
 
 export function tripRouteStops(items:TripItem[]):DestinationStop[] {
