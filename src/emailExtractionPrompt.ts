@@ -57,7 +57,7 @@ TRIP SCOPE
 - Search mailbox messages dated from: ${line(input.emailStart)}
 - Search mailbox messages dated through: ${line(input.emailEnd)}
 - Travellers, possible bookers, and providers: ${line(input.people)}
-- Other search clues: ${line(input.clues)}
+- Search hints: ${line(input.clues)}
 
 Treat this as an independent trip. Do not reuse assumptions, dates, people, providers, confirmations, or itinerary details from any previous trip or conversation unless they are explicitly present in this scope or supported by the in-scope email evidence.
 
@@ -73,41 +73,41 @@ ${searchWindows}
 Treat every displayed start and end as inclusive. If the connector uses an exclusive upper-bound date, translate each displayed end to the following calendar day in the provider-native query. The executed searches must still cover each displayed date exactly once, with no gaps, overlaps, or dates outside the authorized range.
 
 QUERY DOCUMENTATION AND PROVIDER ADAPTATION
-Before searching, document a compact working query plan. For every displayed month window, list each sender query, each Booking-term query, and the Cancellation query, together with the exact provider-native query string or structured filter that will be executed. Update the entry if the connector requires a syntax translation. Present this plan to me in a progress update before executing the first search; do not append it to the final itinerary JSON. This working plan is for search accountability and does not change the final single-JSON output requirement.
+Before searching, document a compact working query plan. For every displayed month window, list each sender query, each Booking-term query, and the Cancellation query, together with the exact provider-native query string or structured filter that will be executed. Update the entry if the connector requires a syntax translation, but never translate or replace the user-supplied sender text. Present this plan to me in a progress update before executing the first search; do not append it to the final itinerary JSON. This working plan is for search accountability and does not change the final single-JSON output requirement.
 
 Use these logical query shapes regardless of provider:
-- Sender query: received date is inside START through END, inclusive; From equals SENDER; received-mail exclusions are active; no booking term is required.
-- Booking-term query: received date is inside START through END, inclusive; message text contains BOOKING TERM; received-mail exclusions are active; no sender constraint is present.
+- Sender query: received date is inside START through END, inclusive; From uses the exact SENDER TEXT supplied by the user; received-mail exclusions are active; no booking term is required.
+- Booking-term query: received date is inside START through END, inclusive; message text matches both booking AND ITEM as separate terms; received-mail exclusions are active; no sender constraint is present. This is a logical AND, not a literal phrase: the two words need not be adjacent or in that order.
 - Cancellation query: received date is inside START through END, inclusive; message text contains Cancellation; received-mail exclusions are active; no sender constraint is present.
 
 Translate those shapes for the connected provider instead of assuming Gmail syntax:
 - When a connector uses structured timestamps, express each inclusive mailbox-date window as receivedDateTime greater than or equal to START at 00:00 and less than DAY_AFTER_END at 00:00 in the mailbox's local time, converted to the time zone or UTC form required by the connector.
-- Gmail sender template: after:START before:DAY_AFTER_END from:SENDER -in:sent -in:drafts -from:me
-- Gmail booking template: after:START before:DAY_AFTER_END "BOOKING TERM" -in:sent -in:drafts -from:me
+- Gmail sender template: after:START before:DAY_AFTER_END from:"SENDER TEXT" -in:sent -in:drafts -from:me
+- Gmail booking template: after:START before:DAY_AFTER_END booking AND ITEM -in:sent -in:drafts -from:me
 - Gmail cancellation template: after:START before:DAY_AFTER_END "Cancellation" -in:sent -in:drafts -from:me
   Use Gmail's required date format. DAY_AFTER_END is the calendar day after the displayed inclusive end.
-- Outlook UI/AQS sender example: From:"SENDER" Received:START..END -From:"MAILBOX_OWNER_ADDRESS"
-- Outlook UI/AQS booking example: "BOOKING TERM" Received:START..END -From:"MAILBOX_OWNER_ADDRESS"
+- Outlook UI/AQS sender example: From:"SENDER TEXT" Received:START..END -From:"MAILBOX_OWNER_ADDRESS"
+- Outlook UI/AQS booking example: booking AND ITEM Received:START..END -From:"MAILBOX_OWNER_ADDRESS"
 - Outlook UI/AQS cancellation example: "Cancellation" Received:START..END -From:"MAILBOX_OWNER_ADDRESS"
-  These are illustrative Outlook AQS forms, not Microsoft Graph query strings. Use Outlook's required date format. If the connector exposes Microsoft Graph or structured filters, use its native From and receivedDateTime filters instead of AQS text. In either case, scope the search to received-mail folders or explicitly exclude the Sent Items, Drafts, and Outbox folder identifiers, and exclude mailbox-owner-authored messages.
-- For any other email connector, use equivalent sender, received-date, content, folder, and mailbox-owner filters. Record the exact native query or structured filter actually used.
+  These are illustrative Outlook AQS forms, not Microsoft Graph query strings. Use Outlook's required date format. If a Microsoft Graph or structured connector receives an actual email address from the user, address equality may use that exact address. If the user supplied a person or provider name instead, use the connector's native text, KQL, or Microsoft Search sender query with that exact supplied text and the date bounds; never manufacture an address or domain. Use native content search with a logical AND for booking and ITEM rather than an address/date-only filter. In every case, scope the search to received-mail folders or explicitly exclude the Sent Items, Drafts, and Outbox folder identifiers, and exclude mailbox-owner-authored messages.
+- For any other email connector, use equivalent sender-text, received-date, content-AND, folder, and mailbox-owner filters while preserving every supplied sender operand exactly. Record the exact native query or structured filter actually used.
 
 2. Execute every search pass below separately inside every listed month window. Every executed query must include received-mail exclusions. For Gmail, include -in:sent -in:drafts -from:me in the search conditions; for another connector, use its equivalent conditions to exclude Sent, Drafts, Outbox, and mailbox-owner-authored messages.
 3. Search for the most relevant results, not the most recent results. Use the connector's relevance ranking when available. If the connector cannot order by relevance, collect the results it exposes for the bounded query and rank them yourself by trip relevance before review. Relevance, not recency, controls review priority; never select, reject, or stop merely because a message is newer or older.
-4. Sender pass. Build the sender list from every traveller, possible booker, and provider supplied in the sender-list field above. Do not derive additional senders from the other search clues. In every month window, run a separate received-mail search for each listed sender using the provider's sender/from-address field. Resolve a named person or provider to its known sending address or recognizable domain when available. Do not add a destination or booking-term constraint to these sender searches.
-5. Analyze every result from every sender search. Screen its sender, subject, snippet, date, and attachment metadata, then read the message and relevant readable attachments when needed to decide whether it supports a real itinerary item. Words or values from the supplied search clues are positive confidence signals, but never required filters: a result must not be excluded merely because it omits or differs from a clue. A generic subject or unfamiliar provider is likewise not enough to reject a candidate.
-6. Booking-term pass. In every month window, run a separate received-mail search for each of these terms, with no traveller, booker, provider, or sender/from-address constraint:
-   - Booking flight
-   - Booking car
-   - Booking ride
-   - Booking train
-   - Booking transit
-   - Booking ticket
-   - Booking reservation
-   - Booking experience
-   - Booking confirmation
-   - Booking show
-Analyze every returned result using the same relevance and clue-confidence rules. Do not combine the terms into one grouped search.
+4. Sender pass. Build the sender list from every traveller, possible booker, and provider supplied in the sender-list field above. Use each sender entry exactly as written by the user, preserving its text, spelling, punctuation, and regional form. Provider-native quoting or field syntax may wrap that text, but do not infer, normalize, expand, or replace it with an email address, website domain, or regional domain. For example, an entry of Expedia must remain Expedia; never translate it to expedia.com or any other domain. Do not derive additional senders from the other search hints. In every month window, run a separate received-mail search for each listed sender using the provider's sender/from-address field. Do not add a destination or booking-term constraint to these sender searches.
+5. Analyze every result from every sender search. Screen its sender, subject, snippet, date, and attachment metadata, then read the message and relevant readable attachments when needed to decide whether it supports a real itinerary item. Words or values from the supplied search hints are positive confidence signals, but never required filters: a result must not be excluded merely because it omits or differs from a hint. A generic subject or unfamiliar provider is likewise not enough to reject a candidate.
+6. Booking-term pass. In every month window, run a separate received-mail search for each of these logical AND pairs, with no traveller, booker, provider, or sender/from-address constraint:
+   - booking AND flight
+   - booking AND car
+   - booking AND ride
+   - booking AND train
+   - booking AND transit
+   - booking AND ticket
+   - booking AND reservation
+   - booking AND experience
+   - booking AND confirmation
+   - booking AND show
+Analyze every returned result using the same relevance and hint-confidence rules. Run each AND pair as its own search; do not combine different item words into one grouped query and do not search either pair as a quoted literal phrase.
 7. Cancellation pass. In every month window, run a separate received-mail search for Cancellation, with no traveller, booker, provider, or sender/from-address constraint. Analyze every returned result and connect any relevant cancellation to the matching candidate reservation so a cancelled or replaced item is not left active.
 8. Pool the relevant evidence found by all passes, then reconcile it into the valid itinerary items described below. A search hit is a candidate, not automatically an itinerary item; include only items supported by the received message or its readable attachment.
 
@@ -182,5 +182,5 @@ Omit optional keys that have no supported value. durationMinutes must be a non-n
 
 Verify that the working query plan documents the exact provider-native query or structured filter used for every sender, Booking-term, and Cancellation search in every window.
 
-Before producing the JSON, audit it silently: the displayed calendar-month windows cover the exact permitted mailbox range once with no gaps or overlaps; every executed Gmail query included -in:sent -in:drafts -from:me, or every non-Gmail query used equivalent received-mail exclusions; every supplied traveller, possible booker, and provider received a separate sender/from-address search in every window; no sender was inferred solely from the other search clues; every listed Booking term received a separate sender-unconstrained search in every window; Cancellation received a separate sender-unconstrained search in every window; results were ordered and reviewed by relevance rather than recency; every returned result was analyzed and clues were used only to increase confidence, never as exclusion requirements; plausible candidates and relevant readable attachments were inspected; matching cancellations and other lifecycle updates were reconciled; distinct sibling reservations and independently useful transport legs remain separate; every source message and attachment was received within the mailbox window; no Sent, Draft, Outbox, or mailbox-owner-authored message was used as evidence; any plausible travel-insurance coverage found was compared with the trip window; inaccessible evidence was not guessed; every itinerary date is supported by trip-related evidence; updated/forwarded messages are deduplicated; cancelled or superseded details are handled; car pickup and return are separate items; distinct sequential destinations remain distinct; item IDs are unique; bookedBy follows the evidence hierarchy; time zones and cross-zone durations are coherent; provider links and source-email links are safe and in their correct fields; and the result parses as strict JSON.`
+Before producing the JSON, audit it silently: the displayed calendar-month windows cover the exact permitted mailbox range once with no gaps or overlaps; every executed Gmail query included -in:sent -in:drafts -from:me, or every non-Gmail query used equivalent received-mail exclusions; every supplied traveller, possible booker, and provider received a separate sender/from-address search in every window using exactly the text the user supplied, with no inferred or substituted address or domain; no sender was inferred solely from the other search hints; every listed booking AND item pair received a separate sender-unconstrained search in every window and was not treated as a literal phrase; Cancellation received a separate sender-unconstrained search in every window; results were ordered and reviewed by relevance rather than recency; every returned result was analyzed and hints were used only to increase confidence, never as exclusion requirements; plausible candidates and relevant readable attachments were inspected; matching cancellations and other lifecycle updates were reconciled; distinct sibling reservations and independently useful transport legs remain separate; every source message and attachment was received within the mailbox window; no Sent, Draft, Outbox, or mailbox-owner-authored message was used as evidence; any plausible travel-insurance coverage found was compared with the trip window; inaccessible evidence was not guessed; every itinerary date is supported by trip-related evidence; updated/forwarded messages are deduplicated; cancelled or superseded details are handled; car pickup and return are separate items; distinct sequential destinations remain distinct; item IDs are unique; bookedBy follows the evidence hierarchy; time zones and cross-zone durations are coherent; provider links and source-email links are safe and in their correct fields; and the result parses as strict JSON.`
 }
