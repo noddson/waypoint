@@ -32,20 +32,22 @@ The prompt is a TypeScript template: values such as `${line(input.emailStart)}` 
 | [11](#version-11) | 2026-08-03T10:50:49-04:00 | `5e4fd13d9c7b` | Require query-level proof for every discovery lane | Locked every query to the exact authorized mailbox dates and required query-level audit proof, including separate event/admission searches and fail-closed completion. |
 | [12](#version-12) | 2026-08-03T11:17:30-04:00 | `e09db7a92678` | Complete capped searches with bounded refinements | Made result traversal connector-neutral, added seed and focused query roles, defined clipped month/week/day refinements, prioritized surfaced candidates, and prevented partial output. |
 | [13](#version-13) | 2026-08-03T11:19:03-04:00 | `65be4d95fe0e` | Prefer native continuation before date refinement | Preferred native provider continuation for seed searches before falling back to bounded date refinements. |
-| [Active](#active-revision-after-version-5-restoration) | 2026-08-03 | Working copy | Improve itinerary email discovery recall | Added one grouped travel-and-event seed, one attachment search, and compact sender/provider, lifecycle, and route-continuity follow-ups without restoring the audit-heavy completion workflow. |
+| [Active](#active-revision-after-version-5-restoration) | 2026-08-03 | Working copy | Simplify itinerary email discovery by month | Replaced full-window and neighborhood expansion with clipped calendar-month windows, per-sender searches, ten independent booking-term searches, and a cancellation search, all reviewed by relevance. |
 
 ## Active revision after Version 5 restoration
 
-The active prompt keeps Version 5's single-file output and concise evidence reconciliation while adding a small iterative discovery layer:
+The active prompt keeps Version 5's single-file output and evidence-reconciliation rules while using a deterministic, compact discovery plan:
 
-- One destination-independent, full-window received-mail seed groups confirmation, reservation, booking, reference, itinerary, trip, journey, ticket (including e-ticket variants), voucher, admission, pass, experience, tour, attraction, receipt, and invoice. These concepts are not mandatory independent searches.
-- One additional full-window search finds booking-related attachments. Message bodies and readable attachments are opened only for plausible candidates; complete all-mail reading is not required.
-- A valid forwarded item triggers an unconstrained same-sender search in the clipped 11-day window centered on the evidence email's received date, followed by a full-window sender search using the grouped evidence concepts.
-- Each discovered provider receives a clipped neighborhood search, and plausible provider/reference pairs receive focused lifecycle searches for confirmations, payments, dispatches, receipts, completions, changes, cancellations, voids, refunds, reissues, and replacements.
-- Confirmed route structure produces evidence-seeking hypotheses for airport edges, regional arrivals, and trip boundaries. Hypotheses cannot create itinerary items without supporting received-message or attachment evidence.
-- Sibling reservations remain separate when their references, products, routes, dates, times, or quantities differ; messages sharing a reference are normally reconciled as lifecycle updates.
+- The authorized mailbox range is split into consecutive inclusive calendar-month windows. The first and last windows are clipped to the supplied boundary dates; intervening windows cover whole months. The generated prompt prints the exact ranges and explains how to translate an inclusive end when a provider requires an exclusive upper bound.
+- Each traveller, possible booker, and provider supplied in the dedicated sender field receives a separate sender/from-address search in every month window. Search clues do not create additional sender constraints.
+- Each month receives ten separate sender-unconstrained searches: Booking flight, Booking car, Booking ride, Booking train, Booking transit, Booking ticket, Booking reservation, Booking experience, Booking confirmation, and Booking show.
+- Each month receives a separate sender-unconstrained Cancellation search so relevant cancellations can be reconciled with candidate reservations.
+- Every Gmail query includes `-in:sent -in:drafts -from:me`; other connectors use equivalent received-mail exclusions.
+- The prompt documents provider-neutral logical query shapes, Gmail templates, illustrative Outlook UI/AQS examples, and structured-filter guidance. It presents a progress-update plan containing the exact native query or filter for every window and search before execution; structured timestamp windows use inclusive local start and exclusive next-day end bounds with the connector-required time-zone conversion.
+- Results are reviewed by relevance rather than recency. When a connector cannot rank by relevance, its exposed bounded-query results are ranked for trip relevance before review. Every returned result is analyzed, while supplied clues increase confidence without becoming exclusion filters.
+- Relevant message bodies and readable attachments provide the evidence. Search hits remain candidates until the established extraction, lifecycle, deduplication, and output rules validate them.
 
-This revision intentionally does not restore per-term full-window discovery lanes, complete mailbox enumeration, candidate ledgers, mandatory date slicing, a discovery-audit output file, or fail-closed suppression of otherwise supported itinerary JSON.
+This revision intentionally omits the previous grouped full-window seed, separate attachment-search pass, 11-day neighborhood expansion, route-derived search hypotheses, candidate ledgers, discovery-audit output file, and fail-closed suppression of otherwise supported itinerary JSON.
 
 ## Latest historical prompt template (Version 13)
 

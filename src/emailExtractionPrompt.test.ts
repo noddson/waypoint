@@ -8,7 +8,7 @@ const prompt = buildEmailExtractionPrompt({
   travelEnd: '2026-08-01',
   emailStart: '2025-09-01',
   emailEnd: '2026-08-02',
-  people: 'Nick, Karen, Craig',
+  people: 'Nick, Karen, Craig, Expedia, Booking.com',
   clues: 'Dublin, DUB, AHPSU8',
 })
 
@@ -18,6 +18,7 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('2026-07-18')
     expect(prompt).toContain('2026-08-01')
     expect(prompt).toContain('2025-09-01')
+    expect(prompt).toContain('2026-08-02')
     expect(prompt).toContain('Do not search, open, or process messages outside that range')
     expect(prompt).toContain('Never silently search all of my mail')
   })
@@ -39,50 +40,105 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('Do not attribute a received forward to the authorized mailbox owner')
   })
 
-  it('starts with one broad travel-and-event evidence search', () => {
-    expect(prompt).toContain('INITIAL FULL-WINDOW DISCOVERY')
-    expect(prompt).toContain('one received-mail seed search across the full permitted mailbox date range')
-    expect(prompt).toContain('single grouped search for: confirmation, reservation, booking, reference, itinerary, trip, journey')
-    expect(prompt).toContain('ticket (including e-ticket, eTicket, and e ticket variants)')
-    expect(prompt).toContain('voucher, admission, pass, experience, tour, attraction, receipt, or invoice')
-    expect(prompt).toContain('one conceptual search spanning travel and scheduled events')
-    expect(prompt).toContain('Do not require a destination, provider, traveller, or known venue')
-    expect(prompt).toContain('do not turn each term into a separate mandatory full-window search')
+  it('builds clipped inclusive calendar-month search windows', () => {
+    const monthlyPrompt=buildEmailExtractionPrompt({tripName:'Summer trip',destination:'Europe',travelStart:'2026-08-01',travelEnd:'2026-08-10',emailStart:'2026-02-14',emailEnd:'2026-08-04',people:'Craig Voisin, Expedia, Booking.com',clues:'flight, hotel'})
+    const windows = [
+      '2026-02-14 through 2026-02-28, inclusive',
+      '2026-03-01 through 2026-03-31, inclusive',
+      '2026-04-01 through 2026-04-30, inclusive',
+      '2026-05-01 through 2026-05-31, inclusive',
+      '2026-06-01 through 2026-06-30, inclusive',
+      '2026-07-01 through 2026-07-31, inclusive',
+      '2026-08-01 through 2026-08-04, inclusive',
+    ]
+    expect(monthlyPrompt.match(/^- \d{4}-\d{2}-\d{2} through \d{4}-\d{2}-\d{2}, inclusive$/gm)).toEqual(windows.map(window=>`- ${window}`))
+    expect(monthlyPrompt).toContain('no gaps, overlaps, or dates outside the authorized range')
+    expect(monthlyPrompt).toContain('exclusive upper-bound date')
   })
 
-  it('screens metadata without requiring every in-window email body to be opened', () => {
-    expect(prompt).toContain('If the connector naturally exposes all in-window message summaries')
-    expect(prompt).toContain('Do not require enumeration of the entire mailbox window')
-    expect(prompt).toContain('do not open every message body')
-    expect(prompt).toContain('Screen the returned sender, subject, snippet, date, and attachment metadata')
-    expect(prompt).toContain('A generic subject or unfamiliar provider is not enough to reject a candidate')
+  it('handles same-month, leap-February, and year-boundary windows', () => {
+    const render=(emailStart:string,emailEnd:string)=>buildEmailExtractionPrompt({tripName:'Boundary trip',destination:'Somewhere',travelStart:emailStart,travelEnd:emailEnd,emailStart,emailEnd})
+    expect(render('2026-02-14','2026-02-14')).toContain('- 2026-02-14 through 2026-02-14, inclusive')
+    expect(render('2026-02-14','2026-02-20')).toContain('- 2026-02-14 through 2026-02-20, inclusive')
+    const leapPrompt=render('2024-02-10','2024-03-02')
+    expect(leapPrompt).toContain('- 2024-02-10 through 2024-02-29, inclusive')
+    expect(leapPrompt).toContain('- 2024-03-01 through 2024-03-02, inclusive')
+    const rolloverPrompt=render('2026-12-20','2027-01-03')
+    expect(rolloverPrompt).toContain('- 2026-12-20 through 2026-12-31, inclusive')
+    expect(rolloverPrompt).toContain('- 2027-01-01 through 2027-01-03, inclusive')
+    expect(render('2026-03-01','2026-02-28')).toContain('Complete valid mailbox dates are required before the search windows can be listed')
   })
 
-  it('searches outward from forwarder and provider hits inside the authorized range', () => {
-    expect(prompt).toContain('SEARCH OUTWARD FROM EACH HIT')
-    expect(prompt).toContain('inclusive 11-day neighborhood centered on that evidence email\'s received date')
-    expect(prompt).toContain('five calendar days before through five calendar days after')
-    expect(prompt).toContain('clipped to the permitted mailbox range')
-    expect(prompt).toContain('Apply no destination, provider, travel-keyword, or other content constraint')
-    expect(prompt).toContain('full permitted mailbox date range for that forwarding sender')
-    expect(prompt).toContain('provider name, sending address, and recognizable sending domain')
+  it('runs a separate from-address search for every supplied sender in every month', () => {
+    expect(prompt).toContain('Travellers, possible bookers, and providers: Nick, Karen, Craig, Expedia, Booking.com')
+    expect(prompt).toContain('Build the sender list from every traveller, possible booker, and provider supplied in the sender-list field above')
+    expect(prompt).toContain('Do not derive additional senders from the other search clues')
+    expect(prompt).toContain('In every month window, run a separate received-mail search for each listed sender')
+    expect(prompt).toContain("provider's sender/from-address field")
+    expect(prompt).toContain('Do not add a destination or booking-term constraint to these sender searches')
+  })
+
+  it('prioritizes relevance and treats clues as confidence signals rather than filters', () => {
+    expect(prompt).toContain('Search for the most relevant results, not the most recent results')
+    expect(prompt).toContain("Use the connector's relevance ranking when available")
+    expect(prompt).toContain('rank them yourself by trip relevance before review')
+    expect(prompt).toContain('Relevance, not recency, controls review priority')
+    expect(prompt).toContain('Analyze every result from every sender search')
+    expect(prompt).toContain('Words or values from the supplied search clues are positive confidence signals, but never required filters')
+    expect(prompt).toContain('must not be excluded merely because it omits or differs from a clue')
+    expect(prompt).toContain('A generic subject or unfamiliar provider is likewise not enough to reject a candidate')
+  })
+
+  it('includes received-mail exclusions in every search condition', () => {
+    expect(prompt).toContain('Every executed query must include received-mail exclusions')
+    expect(prompt).toContain('For Gmail, include -in:sent -in:drafts -from:me in the search conditions')
+    expect(prompt).toContain('exclude Sent, Drafts, Outbox, and mailbox-owner-authored messages')
+    expect(prompt).toContain('every executed Gmail query included -in:sent -in:drafts -from:me')
+  })
+
+  it('documents provider-native Gmail, Outlook, and generic query shapes', () => {
+    expect(prompt).toContain('QUERY DOCUMENTATION AND PROVIDER ADAPTATION')
+    expect(prompt).toContain('document a compact working query plan')
+    expect(prompt).toContain('exact provider-native query string or structured filter')
+    expect(prompt).toContain('Present this plan to me in a progress update before executing the first search')
+    expect(prompt).toContain('do not append it to the final itinerary JSON')
+    expect(prompt).toContain('receivedDateTime greater than or equal to START at 00:00 and less than DAY_AFTER_END at 00:00')
+    expect(prompt).toContain('Gmail sender template: after:START before:DAY_AFTER_END from:SENDER -in:sent -in:drafts -from:me')
+    expect(prompt).toContain('Gmail booking template: after:START before:DAY_AFTER_END "BOOKING TERM" -in:sent -in:drafts -from:me')
+    expect(prompt).toContain('Outlook UI/AQS sender example: From:"SENDER" Received:START..END -From:"MAILBOX_OWNER_ADDRESS"')
+    expect(prompt).toContain('Outlook UI/AQS booking example: "BOOKING TERM" Received:START..END -From:"MAILBOX_OWNER_ADDRESS"')
+    expect(prompt).toContain('illustrative Outlook AQS forms, not Microsoft Graph query strings')
+    expect(prompt).toContain('use its native From and receivedDateTime filters instead of AQS text')
+    expect(prompt).toContain('explicitly exclude the Sent Items, Drafts, and Outbox folder identifiers')
+    expect(prompt).toContain('For any other email connector, use equivalent sender, received-date, content, folder, and mailbox-owner filters')
+    expect(prompt).toContain('documents the exact provider-native query or structured filter used for every sender, Booking-term, and Cancellation search')
+  })
+
+  it('searches every booking term and cancellations without sender constraints in every month', () => {
+    const terms=['Booking flight','Booking car','Booking ride','Booking train','Booking transit','Booking ticket','Booking reservation','Booking experience','Booking confirmation','Booking show']
+    terms.forEach(term=>expect(prompt).toContain(`- ${term}`))
+    expect(prompt).toContain('In every month window, run a separate received-mail search for each of these terms')
+    expect(prompt).toContain('with no traveller, booker, provider, or sender/from-address constraint')
+    expect(prompt).toContain('Do not combine the terms into one grouped search')
+    expect(prompt).toContain('In every month window, run a separate received-mail search for Cancellation')
+    expect(prompt).toContain('connect any relevant cancellation to the matching candidate reservation')
+    expect(prompt.indexOf('Sender pass.')).toBeLessThan(prompt.indexOf('Booking flight'))
+    expect(prompt.indexOf('Booking flight')).toBeLessThan(prompt.indexOf('Cancellation pass.'))
+    expect(prompt.indexOf('Cancellation pass.')).toBeLessThan(prompt.indexOf('Pool the relevant evidence'))
   })
 
   it('reconciles booking lifecycles without collapsing sibling reservations', () => {
-    expect(prompt).toContain('confirmation, payment, dispatch, receipt, completion, change, cancellation, void, refund, reissue, or replacement')
+    expect(prompt).toContain('connect any relevant cancellation to the matching candidate reservation')
     expect(prompt).toContain('same provider, venue, thread, booking date, or nearby service dates are not duplicates')
     expect(prompt).toContain('Distinct references, products, routes, service dates or times, or quantities imply separate candidate reservations')
     expect(prompt).toContain('Messages sharing the same reference normally represent lifecycle updates')
     expect(prompt).toContain('each independently useful plane, train, rail, bus, coach, or other transport leg')
   })
 
-  it('uses route continuity as a search hypothesis rather than booking evidence', () => {
-    expect(prompt).toContain('A flight creates hypotheses for transport to its departure airport and from its arrival airport')
-    expect(prompt).toContain('An airport arrival or departure creates hypotheses for a car rental, train or rail journey, coach or bus, shuttle or transfer, taxi or rideshare, and lodging')
-    expect(prompt).toContain('Arrival in another country or region creates the same onward-transport hypotheses')
-    expect(prompt).toContain('If the itinerary begins or ends with a flight or train')
-    expect(prompt).toContain('These hypotheses are reasons to search, not evidence that a reservation exists')
-    expect(prompt).toContain('only from supporting received-message or attachment evidence')
+  it('processes search hits into only evidence-supported itinerary items', () => {
+    expect(prompt).toContain('Pool the relevant evidence found by all passes')
+    expect(prompt).toContain('A search hit is a candidate, not automatically an itinerary item')
+    expect(prompt).toContain('include only items supported by the received message or its readable attachment')
   })
 
   it('separates rental endpoints and preserves distinct route stops',()=>{
@@ -105,22 +161,19 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('Do not put a mailbox search-results URL')
   })
 
-  it('requires a dedicated insurance search matched to the trip coverage window',()=>{
-    expect(prompt).toContain('Run a separate travel-insurance discovery search')
-    expect(prompt).toContain('query equivalent to "insurance OR coverage"')
-    expect(prompt).toContain('Do not require an insurance message to mention the destination')
-    expect(prompt).toContain('Compare every plausible travel-insurance candidate\'s coverage dates')
+  it('retains insurance extraction rules without adding another search pass',()=>{
+    expect(prompt).not.toContain('Run a separate travel-insurance discovery search')
+    expect(prompt).not.toContain('query equivalent to "insurance OR coverage"')
+    expect(prompt).toContain('For any plausible travel-insurance candidate found by the required searches')
     expect(prompt).toContain('2026-07-18 through 2026-08-01')
     expect(prompt).toContain('coverage that encloses the full trip window')
     expect(prompt).toContain('Exclude unrelated insurance such as home, auto, health-benefit, or pet policies')
     expect(prompt).toContain('one type "insurance" item')
     expect(prompt).toContain('Insurance start and end values must always use the required YYYY-MM-DDTHH:mm shape')
     expect(prompt).toContain('when the policy supplies dates without times, use 12:00 local time')
-    expect(prompt).toContain('the dedicated travel-insurance search was completed')
   })
 
   it('treats readable attachments as untrusted itinerary evidence', () => {
-    expect(prompt).toContain('one additional received-mail search across the full permitted mailbox date range for booking-related attachments')
     expect(prompt).toContain('PDFs, calendar/ICS files, e-tickets')
     expect(prompt).toContain('even when the message subject or body is generic')
     expect(prompt).toContain('only reservation identity, complete schedule')
@@ -129,9 +182,12 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('ask me for it rather than guessing')
   })
 
-  it('avoids the audit-heavy completion workflow that previously reduced recall', () => {
-    expect(prompt).toContain("Use a connector's readily available continuation mechanism when practical")
-    expect(prompt).toContain('Do not make exhaustive pagination, date subdivision, a candidate ledger, or a separate discovery-audit file a prerequisite')
+  it('replaces the previous full-window and neighborhood discovery workflow', () => {
+    expect(prompt).toContain('MONTH-BY-MONTH SEARCH')
+    expect(prompt).not.toContain('INITIAL FULL-WINDOW DISCOVERY')
+    expect(prompt).not.toContain('single grouped search')
+    expect(prompt).not.toContain('SEARCH OUTWARD FROM EACH HIT')
+    expect(prompt).not.toContain('inclusive 11-day neighborhood')
     expect(prompt).not.toContain('MANDATORY DISCOVERY LANES')
     expect(prompt).not.toContain('COMPLETION GATE')
     expect(prompt).not.toContain('discoveryQueries')
