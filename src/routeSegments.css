@@ -15,29 +15,23 @@
   gap: 14px;
 }
 
-.route-segment-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.route-segment-title > strong {
+.route-segment-heading > strong {
   color: #294d42;
   font: 700 12px ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
 
-.flight-route-codes {
+.route-flight-routes {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 7px;
   flex-wrap: wrap;
 }
 
 .flight-route-code {
-  color: #49685f;
+  display: inline-flex;
+  align-items: center;
   font: 700 11px ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
