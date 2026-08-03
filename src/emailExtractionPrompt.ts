@@ -67,6 +67,7 @@ Use several small, independent searches rather than one giant combined query. La
 
 CANDIDATE CONTROL AND COMPLETION CHECK
 1. Maintain a private candidate inventory. Add every result from a focused provider, reference, event/admission, forwarding, attachment, or insurance search. Add a broader-search result when its subject or snippet has any travel, booking, participant, location, provider, or trip-date signal. Open each candidate before deciding its disposition: include, duplicate, superseded, cancelled, or unrelated with a brief reason. A candidate must not be rejected merely because its provider, venue, spelling, or place name is new, differs from the current route, overlaps another item, or lacks a reliable time.
+   Same-provider candidates are not duplicates merely because they involve the same venue, travellers, email thread, booking day, or nearby service dates. Treat each distinct confirmation, reservation, ticket, order, or policy reference as a separate candidate identity unless authoritative evidence explicitly links it as a reissue, replacement, or cancellation of another reference. When references are absent, distinguish candidates by booked product, service date/time, route, quantity, and provider. Open and reconcile every sibling candidate before deduplicating any of them.
 2. Exhaust every result set. Paginate through the final page. If the connector caps results, omits pagination, or reports a truncated set, repeat that search over smaller non-overlapping mailbox-date slices until every slice is fully reviewable. Never treat the first page or a capped result set as complete.
 3. Before final output, verify all of the following:
    - the direct-provider, ground-transport, supplied-anchor, forwarded, attachment, event/admission, and travel-insurance lanes were each completed;
@@ -75,6 +76,7 @@ CANDIDATE CONTROL AND COMPLETION CHECK
    - every candidate was opened, relevant readable attachments were inspected, and every candidate has one disposition;
    - every relevant forward received a same-sender, same-calendar-day burst search;
    - every discovered provider, reference, venue, route code, flight number, insurer, and policy number received a follow-up search;
+   - for every provider with multiple booking-like messages, the number of distinct references or evidence-based candidate identities reconciles with separate candidate dispositions and output items;
    - each confirmed reservation, ticket, order, admission, tour, experience, dining event, transport service, stay, rental, or matching insurance policy has corresponding output item(s), unless the inventory records a supported duplicate, cancellation, supersession, or unrelated disposition;
    - the number of include dispositions reconciles with the final items, allowing one reservation to produce multiple real journey segments and one car rental to produce pickup and return items.
 
@@ -94,6 +96,7 @@ ATTACHMENTS ARE EVIDENCE
 EXTRACT WHILE DISCOVERING, THEN RECONCILE
 1. Find confirmations and meaningful updates for flights, lodging, car rentals, trains, ground transport, insurance, tours, tickets, restaurant reservations, and other scheduled activities.
 2. A reservation can appear in several received messages, from different people, or in a forwarded chain. Group related evidence using confirmation/ticket/order/policy numbers plus provider, route, dates, and participants. Produce one item per real reservation or journey segment, not one item per email.
+   Conversely, never merge distinct sibling reservations from the same provider. Separate ticket or order references—especially for different products, dates, or times—must remain separate itinerary items. For example, a timed banquet and a next-day admission ticket from the same attraction are two events, not duplicate evidence for one event.
 3. Prefer the latest authoritative provider update and the most complete details. Treat cancellations, schedule changes, reissues, and replacements as updates to the same reservation. Do not keep superseded details as separate active items.
 4. Use the actual service, departure, arrival, check-in, check-out, event, pickup, drop-off, or coverage date. Never substitute an email sent date, purchase date, invoice date, copyright date, or check-in policy example for a travel date.
 5. Resolve conflicts by favoring explicit provider confirmation data over quoted summaries. If a material conflict remains, use the best-supported value and describe the uncertainty concisely in notes. Never invent a missing fact.

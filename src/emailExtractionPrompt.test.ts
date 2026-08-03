@@ -68,6 +68,15 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('the number of include dispositions reconciles with the final items')
   })
 
+  it('preserves distinct sibling reservations from the same provider',()=>{
+    expect(prompt).toContain('Same-provider candidates are not duplicates')
+    expect(prompt).toContain('Treat each distinct confirmation, reservation, ticket, order, or policy reference as a separate candidate identity')
+    expect(prompt).toContain('Open and reconcile every sibling candidate before deduplicating any of them')
+    expect(prompt).toContain('the number of distinct references or evidence-based candidate identities reconciles')
+    expect(prompt).toContain('never merge distinct sibling reservations from the same provider')
+    expect(prompt).toContain('a timed banquet and a next-day admission ticket from the same attraction are two events')
+  })
+
   it('requires deterministic ground-transport discovery and continuity checks',()=>{
     expect(prompt).toContain('Ground transport and trip continuity')
     expect(prompt).toContain('Run every one of these received-mail search concepts independently')

@@ -11,6 +11,8 @@ The extra-high-reasoning diagnostic run retrieved all known Ireland candidates, 
 
 The 22-item benchmark is the union of the two prior outputs after verifying every disagreement against authoritative received-mail evidence. Its category totals are 2 car endpoints, 6 events, 2 flights, 1 insurance policy, 9 stays, and 2 ground-transport items.
 
+The 2026-08-03 medium-reasoning output total is explained by item identity, not by a simple two-item reduction: the 21-item original lost three active items (two United Taxi journeys and the Bunratty banquet) while gaining Brú na Bóinne, producing 19 items. The later prompt revisions already address the taxi discovery failure; the sibling-reservation rule added afterward separately targets the banquet omission. The union is therefore 22 distinct supported active items.
+
 ## Medium-reasoning follow-up failure
 
 `Dublin-July-2026.json`, exported at 2026-08-03T14:11:04Z, omitted three confirmed active items:
@@ -30,6 +32,7 @@ The prompt now adds, without removing the existing lanes:
 - focused anchor searches over the full mailbox window, plus buffered service-date variants of at least three days on either side;
 - mandatory reconciliation of pending, paid, confirmed, completed, changed, refunded, and cancelled states per provider/reference;
 - explicit `transport` output for confirmed train/rail and bus/coach journeys, preserving independently useful legs as separate items;
+- sibling-reservation identity rules that preserve separate references, products, dates, and times from the same provider instead of deduplicating them by venue or proximity;
 - route-continuity checks for both home/airport edges and booked intermediate transfers;
 - a separate discovery-audit JSON that exposes completed transport queries and candidate dispositions; and
 - fail-closed behavior instead of emitting an apparently complete itinerary when any lane is unfinished.
