@@ -1,4 +1,5 @@
 import { TripItem, sortTripItems } from './types'
+import { MapProvider } from './mapPreferences'
 
 export interface DestinationStop {
   id: string
@@ -116,6 +117,8 @@ export function tripDestinations(items:TripItem[]):DestinationStop[] {
 export const itemMatchesDestination = (item:TripItem,destinationId:string) => itemDestinationLabels(item).some(label=>label.toLocaleLowerCase()===destinationId)
 
 export const googleMapsSearchUrl = (address:string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+export const appleMapsSearchUrl = (address:string) => `https://maps.apple.com/?q=${encodeURIComponent(address)}`
+export const mapSearchUrl = (address:string,provider:MapProvider) => provider==='apple'?appleMapsSearchUrl(address):googleMapsSearchUrl(address)
 
 export function googleMapsDirectionsUrls(stops:DestinationStop[]) {
   if(stops.length<2)return stops[0]?[googleMapsSearchUrl(stops[0].address)]:[]
@@ -140,3 +143,13 @@ export function googleMapsDirectionsUrls(stops:DestinationStop[]) {
     return `https://www.google.com/maps/dir/?${params}`
   })
 }
+
+export function appleMapsDirectionsUrls(stops:DestinationStop[]) {
+  if(stops.length<2)return stops[0]?[appleMapsSearchUrl(stops[0].address)]:[]
+  return stops.slice(0,-1).map((stop,index)=>{
+    const params=new URLSearchParams({saddr:stop.address,daddr:stops[index+1].address,dirflg:'d'})
+    return `https://maps.apple.com/?${params}`
+  })
+}
+
+export const mapDirectionsUrls = (stops:DestinationStop[],provider:MapProvider) => provider==='apple'?appleMapsDirectionsUrls(stops):googleMapsDirectionsUrls(stops)
