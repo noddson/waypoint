@@ -82,7 +82,33 @@ describe('derived trip destinations',()=>{
     expect(segments).toHaveLength(1)
     expect(segments[0].label).toBe('British Columbia')
     expect(segments[0].stops.map(stop=>stop.label)).toEqual(['YVR','Vancouver','YVR'])
+    expect(segments[0].arrivalFlightRoute).toEqual(['YKF','YYC','YVR'])
+    expect(segments[0].departureFlightRoute).toEqual(['YVR','YYC','YKF'])
     expect(segments[0].stops.some(stop=>stop.address.includes('Calgary'))).toBe(false)
+  })
+
+  it('pairs direct inbound and outbound airport-code routes around a ground segment',()=>{
+    const segments=tripGroundRouteSegments([
+      flight('outbound','2025-07-04T08:05','Toronto Pearson International Airport (YYZ)','Winnipeg James Armstrong Richardson International Airport (YWG)'),
+      item('hotel','2025-07-04T15:00','Courtyard Winnipeg Airport, Winnipeg, Manitoba'),
+      flight('return','2025-07-13T07:40','Winnipeg James Armstrong Richardson International Airport (YWG)','Toronto Pearson International Airport (YYZ)'),
+    ])
+    expect(segments).toHaveLength(1)
+    expect(segments[0].arrivalFlightRoute).toEqual(['YYZ','YWG'])
+    expect(segments[0].departureFlightRoute).toEqual(['YWG','YYZ'])
+  })
+
+  it('keeps connecting airport codes in each side of a ground-route pairing',()=>{
+    const segments=tripGroundRouteSegments([
+      flight('to-minneapolis','2026-02-01T08:00','Toronto Pearson International Airport (YYZ)','Minneapolis-Saint Paul International Airport (MSP)'),
+      flight('to-honolulu','2026-02-01T12:00','Minneapolis-Saint Paul International Airport (MSP)','Daniel K. Inouye International Airport (HNL)'),
+      item('resort','2026-02-01T20:00','Turtle Bay Resort, Kahuku, Hawaii'),
+      flight('to-san-francisco','2026-02-07T12:00','Daniel K. Inouye International Airport (HNL)','San Francisco International Airport (SFO)'),
+      flight('home','2026-02-07T22:00','San Francisco International Airport (SFO)','Toronto Pearson International Airport (YYZ)'),
+    ])
+    expect(segments).toHaveLength(1)
+    expect(segments[0].arrivalFlightRoute).toEqual(['YYZ','MSP','HNL'])
+    expect(segments[0].departureFlightRoute).toEqual(['HNL','SFO','YYZ'])
   })
 
   it('labels a US ground route by state instead of its ZIP code',()=>{

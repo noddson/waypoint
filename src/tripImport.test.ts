@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { safeHttpsLink, validTripExport } from './tripImport'
+import { safeHttpsLink, tripNameWithoutImportedSuffix, validTripExport } from './tripImport'
 
 const exportData = () => ({
   schemaVersion:1,
@@ -40,5 +40,10 @@ describe('Waypoint JSON validation', () => {
   it('normalizes only secure web links', () => {
     expect(safeHttpsLink('https://example.test/manage')).toBe('https://example.test/manage')
     expect(safeHttpsLink('http://example.test/manage')).toBeUndefined()
+  })
+
+  it('removes only the app-generated imported title suffix',()=>{
+    expect(tripNameWithoutImportedSuffix('Kenora 2025 (imported)')).toBe('Kenora 2025')
+    expect(tripNameWithoutImportedSuffix('Imported memories')).toBe('Imported memories')
   })
 })

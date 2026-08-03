@@ -10,6 +10,8 @@ export const safeHttpsLink = (value?:string) => {
   try{const url=new URL(value);return url.protocol==='https:'?url.toString():undefined}catch{return undefined}
 }
 
+export const tripNameWithoutImportedSuffix = (value:string) => value.replace(/\s+\(imported\)$/,'')
+
 export function validTripExport(value:unknown): value is TripExport {
   if(!object(value)||value.schemaVersion!==SCHEMA_VERSION||!string(value.exportedAt,100)||!object(value.trip))return false
   const trip=value.trip
