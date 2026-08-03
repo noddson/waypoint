@@ -66,6 +66,7 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('event/admission')
     expect(prompt).toContain('Traverse results without assuming a provider model')
     expect(prompt).toContain('cursor, continuation token, next batch, page, scrolling, or equivalent mechanism')
+    expect(prompt).toContain('use its native continuation mechanism when it is available and practical')
     expect(prompt).toContain('consecutive non-overlapping calendar-month windows clipped to the exact authorized mailbox scope')
     expect(prompt).toContain('subdivide only that month into consecutive weeks, then days if necessary')
     expect(prompt).toContain('cover the entire authorized scope exactly once, with no gaps, overlap, or dates outside it')
