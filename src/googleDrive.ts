@@ -1,5 +1,6 @@
 import { DrivePermissionSnapshot, SCHEMA_VERSION, Trip, TripExport, sortTripItems } from './types'
 import { mergeTripVersions } from './tripMerge'
+import { compareLastTravelDates, tripLastTravelDate } from './tripOrder'
 
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 const DRIVE_API = 'https://www.googleapis.com/drive/v3'
@@ -30,6 +31,7 @@ export interface DriveTripSummary {
   id: string
   name: string
   modifiedTime?: string
+  travelEnd?: string
   resourceKey?: string
   tripId?: string
 }
@@ -62,12 +64,18 @@ export async function listDriveTrips():Promise<DriveTripSummary[]> {
   const query=new URLSearchParams({
     q:"appProperties has { key='waypoint' and value='trip' } and trashed=false",
     spaces:'drive',
-    pageSize:'100',
-    orderBy:'modifiedTime desc',
+    pageSize:'1000',
     fields:'files(id,name,modifiedTime,resourceKey,appProperties)',
   })
-  const result=await driveFetch(`${DRIVE_API}/files?${query}`).then(response=>response.json()) as {files?:Array<{id:string;name:string;modifiedTime?:string;resourceKey?:string;appProperties?:{tripId?:string}}>}
-  return (result.files||[]).map(file=>({id:file.id,name:file.name.replace(/\.waypoint\.json$/i,''),modifiedTime:file.modifiedTime,resourceKey:file.resourceKey,tripId:file.appProperties?.tripId}))
+  const result=await driveFetch(`${DRIVE_API}/files?${query}`).then(response=>response.json()) as {files?:Array<{id:string;name:string;modifiedTime?:string;resourceKey?:string;appProperties?:{tripId?:string;travelEnd?:string}}>}
+  const trips=(result.files||[]).map(file=>({id:file.id,name:file.name.replace(/\.waypoint\.json$/i,''),modifiedTime:file.modifiedTime,travelEnd:file.appProperties?.travelEnd,resourceKey:file.resourceKey,tripId:file.appProperties?.tripId}))
+  await Promise.all(trips.filter(trip=>!trip.travelEnd).map(async trip=>{
+    try{
+      const data=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(trip.id)}?alt=media`,{headers:resourceKeyHeaders(trip.id,trip.resourceKey)}).then(response=>response.json()) as {trip?:Trip}
+      if(data.trip?.items)trip.travelEnd=tripLastTravelDate(data.trip)
+    }catch{/* Leave unreadable or undated trips in the undated group. */}
+  }))
+  return trips.sort((left,right)=>compareLastTravelDates(left.travelEnd,right.travelEnd)||(right.modifiedTime||'').localeCompare(left.modifiedTime||'')||left.name.localeCompare(right.name))
 }
 
 export async function connectGoogleDrive(clientId:string) {
@@ -123,7 +131,7 @@ export async function createDriveTrip(trip:Trip) {
   const folderId=await findOrCreateFolder()
   const revision=crypto.randomUUID()
   const boundary=`waypoint-${crypto.randomUUID()}`
-  const metadata={name:`${trip.name.replace(/[\\/:*?"<>|]+/g,'-')||'Trip'}.waypoint.json`,mimeType:'application/json',parents:[folderId],appProperties:{waypoint:'trip',tripId:trip.id}}
+  const metadata={name:`${trip.name.replace(/[\\/:*?"<>|]+/g,'-')||'Trip'}.waypoint.json`,mimeType:'application/json',parents:[folderId],appProperties:{waypoint:'trip',tripId:trip.id,travelEnd:tripLastTravelDate(trip)}}
   const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(tripExport(trip,revision))}\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
   const file=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as {id:string;resourceKey?:string}
   const details=await getDriveFileDetails(file.id,file.resourceKey)
@@ -148,7 +156,8 @@ async function getDriveFileDetails(fileId:string,resourceKey?:string){
 }
 
 async function uploadDriveExport(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>,value:TripExport){
-  return driveFetch(`${DRIVE_UPLOAD_API}/files/${encodeURIComponent(record.fileId)}?uploadType=media&fields=id,version,modifiedTime`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify(value)}).then(response=>response.json()) as Promise<{version?:string}>
+  await driveFetch(`${DRIVE_UPLOAD_API}/files/${encodeURIComponent(record.fileId)}?uploadType=media&fields=id`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify(value)})
+  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id,version,modifiedTime`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({appProperties:{waypoint:'trip',tripId:value.trip.id,travelEnd:tripLastTravelDate(value.trip)}})}).then(response=>response.json()) as Promise<{version?:string}>
 }
 
 export async function listDrivePermissions(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>) {

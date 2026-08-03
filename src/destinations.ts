@@ -35,10 +35,22 @@ const broadRegionLabel = (address:string) => {
 }
 
 const clean = (value:string) => value.replace(/\([^)]*\)/g,' ').replace(/\b[A-Z]{2,3}\d?\b/g,' ').replace(/\s+\d{1,2}$/,'').replace(/^(?:downtown|city centre|city center)\s+/i,'').replace(/\s+/g,' ').trim()
+const uppercaseCode = (value?:string) => value&&value===value.toUpperCase()?value:undefined
+const airportCode = (value:string) => {
+  if(!/\bairport\b/i.test(value))return undefined
+  const explicit=value.match(/[([]\s*([A-Z]{3})\s*[)\]]/i)?.[1]
+    ||value.match(/\bIATA(?:\s+code)?\s*[:\-]?\s*([A-Z]{3})\b/i)?.[1]
+  const code=explicit
+    ||uppercaseCode(value.match(/^\s*([A-Z]{3})\b(?=.*\bairport\b)/i)?.[1])
+    ||uppercaseCode(value.match(/\b([A-Z]{3})\s+(?:international\s+)?airport\b/i)?.[1])
+    ||uppercaseCode(value.match(/\bairport\b\s*(?:[-–—|/,:]\s*)?([A-Z]{3})\b/i)?.[1])
+  return code?.toUpperCase()
+}
 
 export function destinationLabel(value?:string) {
   if(!value)return undefined
-  const airport=value.match(/^(.+?)(?:\s+Pearson)?(?:\s+International)?\s+Airport\b/i)
+  const airport=value.match(/^(.+?)(?:\s+Pearson)?(?:\s+International)?\s+Airport\b/i),code=airportCode(value)
+  if(code)return code
   if(airport){
     const city=value.split(',').slice(1).map(clean).find(part=>part&&!countryOrRegion(part)&&!postalCode.test(part)&&!venueOrStreet.test(part))
     return city||clean(airport[1])||undefined

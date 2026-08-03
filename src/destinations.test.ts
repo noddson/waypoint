@@ -14,8 +14,14 @@ describe('derived trip destinations',()=>{
     expect(stops.map(stop=>stop.label)).toEqual(['Kylemore','Oranmore'])
   })
 
-  it('extracts cities from airports and postal addresses',()=>{
-    expect(destinationLabel('Toronto Pearson International Airport (YYZ), Terminal 1')).toBe('Toronto')
+  it('uses airport codes in routes and extracts cities from postal addresses',()=>{
+    expect(destinationLabel('Toronto Pearson International Airport (YYZ), Terminal 1')).toBe('YYZ')
+    expect(destinationLabel('Winnipeg James Armstrong Richardson International Airport (YWG), Gate 12')).toBe('YWG')
+    expect(destinationLabel('Heathrow Airport [LHR], Terminal 5')).toBe('LHR')
+    expect(destinationLabel('JFK Airport, Queens, New York')).toBe('JFK')
+    expect(destinationLabel('Airport: CDG, Roissy-en-France')).toBe('CDG')
+    expect(destinationLabel('Tokyo Haneda Airport, IATA code HND')).toBe('HND')
+    expect(destinationLabel('Airport bus terminal, Winnipeg, Manitoba')).toBe('Winnipeg')
     expect(destinationLabel('Bridge End, Rotterdam Street, Belfast, United Kingdom, BT5 4AA')).toBe('Belfast')
     expect(destinationLabel('Butcher Street, Derry, Londonderry, Northern Ireland, BT48 6HL')).toBe('Derry')
     expect(destinationLabel("Titanic Belfast, 1 Olympic Way, Queen's Road, Belfast, United Kingdom")).toBe('Belfast')
@@ -35,7 +41,7 @@ describe('derived trip destinations',()=>{
       flight('return','2026-08-01T09:20','Dublin Airport (DUB), Terminal 2','Toronto Pearson International Airport (YYZ), Terminal 1'),
       item('home','2026-08-01T13:00','Toronto Pearson International Airport (YYZ), Terminal 1','Waterloo, Ontario, Canada'),
     ])
-    expect(stops.map(stop=>stop.label)).toEqual(['Toronto','Dublin','Belfast','Dublin','Toronto'])
+    expect(stops.map(stop=>stop.label)).toEqual(['YYZ','DUB','Belfast','Dublin','DUB','YYZ'])
   })
 
   it('creates an encoded Google Maps search URL',()=>{
@@ -64,7 +70,7 @@ describe('derived trip destinations',()=>{
     expect(stopCounts).toEqual([8,7])
   })
 
-  it('uses connected flights as boundaries and collapses adjacent Vancouver stops',()=>{
+  it('uses connected flights as boundaries and keeps airport codes distinct from their cities',()=>{
     const segments=tripGroundRouteSegments([
       flight('to-calgary','2025-10-09T06:00','Region of Waterloo International Airport (YKF), Kitchener/Waterloo, Ontario','Calgary International Airport (YYC), Calgary, Alberta'),
       flight('to-vancouver','2025-10-09T09:00','Calgary International Airport (YYC), Calgary, Alberta','Vancouver International Airport (YVR), Vancouver, British Columbia'),
@@ -75,9 +81,7 @@ describe('derived trip destinations',()=>{
     ])
     expect(segments).toHaveLength(1)
     expect(segments[0].label).toBe('British Columbia')
-    expect(segments[0].stops.map(stop=>stop.address)).toEqual([
-      'Vancouver International Airport (YVR), Vancouver, British Columbia',
-    ])
+    expect(segments[0].stops.map(stop=>stop.label)).toEqual(['YVR','Vancouver','YVR'])
     expect(segments[0].stops.some(stop=>stop.address.includes('Calgary'))).toBe(false)
   })
 

@@ -1,6 +1,7 @@
 import { Trip } from './types'
+import { sortTripsByLastTravelDate } from './tripOrder'
 const DB = 'waypoint-trips', STORE = 'trips'
 function open() { return new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(DB, 1); r.onupgradeneeded = () => r.result.createObjectStore(STORE, { keyPath: 'id' }); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }) }
-export async function listTrips(): Promise<Trip[]> { const db = await open(); return new Promise((resolve, reject) => { const r = db.transaction(STORE).objectStore(STORE).getAll(); r.onsuccess = () => resolve((r.result as Trip[]).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))); r.onerror = () => reject(r.error) }) }
+export async function listTrips(): Promise<Trip[]> { const db = await open(); return new Promise((resolve, reject) => { const r = db.transaction(STORE).objectStore(STORE).getAll(); r.onsuccess = () => resolve(sortTripsByLastTravelDate(r.result as Trip[])); r.onerror = () => reject(r.error) }) }
 export async function saveTrip(trip: Trip) { const db = await open(); return new Promise<void>((resolve,reject) => { const r = db.transaction(STORE,'readwrite').objectStore(STORE).put({...trip, updatedAt:trip.updatedAt||new Date().toISOString()}); r.onsuccess=()=>resolve(); r.onerror=()=>reject(r.error) }) }
 export async function removeTrip(id:string) { const db = await open(); return new Promise<void>((resolve,reject) => { const r=db.transaction(STORE,'readwrite').objectStore(STORE).delete(id); r.onsuccess=()=>resolve(); r.onerror=()=>reject(r.error) }) }
