@@ -29,6 +29,7 @@ The prompt now adds, without removing the existing lanes:
 - itinerary-derived hypotheses for flight boundaries, foreign or regional arrivals, rental endpoints, and gaps between distinct route stops;
 - focused anchor searches over the full mailbox window, plus buffered service-date variants of at least three days on either side;
 - mandatory reconciliation of pending, paid, confirmed, completed, changed, refunded, and cancelled states per provider/reference;
+- explicit `transport` output for confirmed train/rail and bus/coach journeys, preserving independently useful legs as separate items;
 - route-continuity checks for both home/airport edges and booked intermediate transfers;
 - a separate discovery-audit JSON that exposes completed transport queries and candidate dispositions; and
 - fail-closed behavior instead of emitting an apparently complete itinerary when any lane is unfinished.
