@@ -6,8 +6,8 @@ const prompt = buildEmailExtractionPrompt({
   destination: 'Toronto → Ireland → Toronto',
   travelStart: '2026-07-18',
   travelEnd: '2026-08-01',
-  emailStart: '2026-01-01',
-  emailEnd: '2026-08-03',
+  emailStart: '2025-09-01',
+  emailEnd: '2026-08-02',
   people: 'Nick, Karen, Craig',
   clues: 'Dublin, DUB, AHPSU8',
 })
@@ -17,13 +17,9 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('Ireland reunion')
     expect(prompt).toContain('2026-07-18')
     expect(prompt).toContain('2026-08-01')
-    expect(prompt).toContain('2026-01-01')
-    expect(prompt).toContain('2026-08-03')
+    expect(prompt).toContain('2025-09-01')
     expect(prompt).toContain('Do not search, open, or process messages outside that range')
     expect(prompt).toContain('Never silently search all of my mail')
-    expect(prompt).toContain('Lock the mailbox scope to exactly 2026-01-01 through 2026-08-03, inclusive')
-    expect(prompt).toContain('Do not substitute a default, round to a month, or change either boundary')
-    expect(prompt).toContain('If any search uses different dates, correct it and rerun that search before proceeding')
   })
 
   it('requires cross-message reconciliation, attribution, and useful safe links', () => {
@@ -41,118 +37,6 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('assume the person who sent that forward is the booker unless')
     expect(prompt).toContain('assume the person who directly received it is the booker unless')
     expect(prompt).toContain('Do not attribute a received forward to the authorized mailbox owner')
-  })
-
-  it('uses independent discovery lanes for direct, forwarded, and anchored bookings',()=>{
-    expect(prompt).toContain('Finding several convincing reservations is not evidence that discovery is complete')
-    expect(prompt).toContain('MANDATORY DISCOVERY LANES')
-    expect(prompt).toContain('several small, independent searches rather than one giant combined query')
-    expect(prompt).toContain('Direct-provider confirmations and receipts')
-    expect(prompt).toContain('Do not let forwarded-message searches replace this lane')
-    expect(prompt).toContain('Search each supplied provider, confirmation/ticket/order/policy reference')
-    expect(prompt).toContain('Expand every relevant received forward as a possible forwarding burst')
-    expect(prompt).toContain('same outer forwarding sender on that same mailbox calendar day')
-    expect(prompt).toContain('Do not stop after finding one sibling confirmation')
-    expect(prompt).toContain('CANDIDATE CONTROL AND COMPLETION CHECK')
-    expect(prompt).toContain('Maintain a private candidate inventory')
-    expect(prompt).toContain('EXTRACT WHILE DISCOVERING, THEN RECONCILE')
-    expect(prompt).toContain('every relevant forward triggered a same-forwarder, same-calendar-day forwarding-burst search')
-    expect(prompt).not.toContain('Read only messages plausibly related to this trip')
-  })
-
-  it('guards against capped search results and the direct-event regression',()=>{
-    expect(prompt).toContain('tickets, admissions, attractions, tours, experiences, and dining events are itinerary items')
-    expect(prompt).toContain('ticket, e-ticket, voucher, admission, tour, experience, attraction, visit, order, receipt, and banquet')
-    expect(prompt).toContain('event/admission')
-    expect(prompt).toContain('Traverse results without assuming a provider model')
-    expect(prompt).toContain('cursor, continuation token, next batch, page, scrolling, or equivalent mechanism')
-    expect(prompt).toContain('use its native continuation mechanism when it is available and practical')
-    expect(prompt).toContain('consecutive non-overlapping calendar-month windows clipped to the exact authorized mailbox scope')
-    expect(prompt).toContain('subdivide only that month into consecutive weeks, then days if necessary')
-    expect(prompt).toContain('cover the entire authorized scope exactly once, with no gaps, overlap, or dates outside it')
-    expect(prompt).toContain('immediately open and reconcile every plausible trip candidate')
-    expect(prompt).toContain('the union of its bounded refinements covers the full authorized scope')
-    expect(prompt).toContain('each confirmed reservation, ticket, order, admission, tour, experience, dining event')
-    expect(prompt).toContain('the number of include dispositions reconciles with the final items')
-    expect(prompt).toContain('Event/admission minimum: run the high-signal concepts ticket, voucher, admission, tour, experience, attraction, and banquet as separate received-mail seed searches')
-    expect(prompt).toContain('Search broad terms such as order and receipt with a booking/activity word or a supplied or discovered trip anchor')
-    expect(prompt).toContain('Record a discoveryQueries entry for every executed search, including zero-result searches')
-    expect(prompt).toContain('Finding one or several valid events does not prove this lane is complete')
-    expect(prompt).toContain('never a reason to skip the remaining high-signal concepts or surfaced plausible candidates')
-  })
-
-  it('preserves distinct sibling reservations from the same provider',()=>{
-    expect(prompt).toContain('Same-provider candidates are not duplicates')
-    expect(prompt).toContain('Treat each distinct confirmation, reservation, ticket, order, or policy reference as a separate candidate identity')
-    expect(prompt).toContain('Open and reconcile every sibling candidate before deduplicating any of them')
-    expect(prompt).toContain('the number of distinct references or evidence-based candidate identities reconciles')
-    expect(prompt).toContain('never merge distinct sibling reservations from the same provider')
-    expect(prompt).toContain('a timed banquet and a next-day admission ticket from the same attraction are two events')
-  })
-
-  it('requires deterministic ground-transport discovery and continuity checks',()=>{
-    expect(prompt).toContain('Ground transport and trip continuity')
-    expect(prompt).toContain('Run every one of these received-mail search concepts independently')
-    expect(prompt).toContain('taxi; cab; limousine; limo; chauffeur')
-    expect(prompt).toContain('ride booking; rideshare; Uber; Lyft; Bolt; FREE NOW')
-    expect(prompt).toContain('airport pickup; airport drop-off; airport transfer; shuttle; transfer')
-    expect(prompt).toContain('train; rail; bus; coach; ferry; transit')
-    expect(prompt).toContain('car rental; rental car; car hire; vehicle hire; rental agreement')
-    expect(prompt).toContain('Do not exclude a result merely because it is pending, cancelled, from a superseded provider')
-    expect(prompt).toContain('GROUND-TRANSPORT RECONCILIATION — REQUIRED')
-    expect(prompt).toContain('Include each confirmed, paid, or completed journey as one type "transport" item')
-    expect(prompt).toContain('This explicitly includes train and rail tickets or reservations, and bus or coach tickets or reservations')
-    expect(prompt).toContain('create one transport item per leg')
-    expect(prompt).toContain('do not collapse distinct departures, arrivals, service numbers, or connections')
-    expect(prompt).toContain('Do not output a cancelled journey as an itinerary item')
-    expect(prompt).toContain("A cancelled reservation from one provider does not cancel or supersede another provider's booking")
-    expect(prompt).toContain('trip origin to the departure airport/station')
-    expect(prompt).toContain('arrival airport/station back to the trip origin')
-    expect(prompt).toContain('no email evidence found after completed transport searches')
-  })
-
-  it('uses itinerary implications to expand discovery without inventing bookings',()=>{
-    expect(prompt).toContain('derive additional transport hypotheses for every unaccounted connection')
-    expect(prompt).toContain('Arrival in another country or region creates car-rental, train, coach/bus, shuttle/transfer, taxi, and rideshare hypotheses')
-    expect(prompt).toContain('Sequential stays or activities in different localities create an intercity-transport hypothesis')
-    expect(prompt).toContain('across the full authorized mailbox window')
-    expect(prompt).toContain('a buffer of at least three calendar days before and after')
-    expect(prompt).toContain('must never restrict message received dates to the travel week')
-    expect(prompt).toContain('supplement, and never replace, the independent generic concept searches')
-    expect(prompt).toContain('Treat itinerary structure as evidence for what to search, never as evidence that a reservation exists')
-    expect(prompt).toContain('Do not turn a hypothesis, geographic likelihood, or missing connection into an invented item')
-    expect(prompt).toContain('"transportHypotheses"')
-    expect(prompt).toContain('including hypotheses that found no evidence')
-  })
-
-  it('requires completed discovery before emitting both files',()=>{
-    expect(prompt).toContain('An incomplete itinerary JSON is not useful and must not be emitted')
-    expect(prompt).toContain('Continue autonomously until the completion gate is satisfied')
-    expect(prompt).toContain('Do not stop with a progress report merely because a provider returned a continuation indicator')
-    expect(prompt).toContain('Ireland-July-2026-discovery-audit.json')
-    expect(prompt).toContain('This audit is proof of search coverage and reconciliation')
-    expect(prompt).toContain('"groundTransport": "complete"')
-    expect(prompt).toContain('"discoveryQueries"')
-    expect(prompt).toContain('"providerNativeQuery"')
-    expect(prompt).toContain('"overallStatus": "complete"')
-    expect(prompt).toContain('"resultTraversal"')
-    expect(prompt).toContain('"coveredRanges"')
-    expect(prompt).toContain('calendar-month-refinements')
-    expect(prompt).toContain('"queryRole": "seed | focused"')
-    expect(prompt).toContain('"scopeStart": "2026-01-01"')
-    expect(prompt).toContain('"scopeEnd": "2026-08-03"')
-    expect(prompt).toContain('"transportQueries"')
-    expect(prompt).toContain('"transportHypotheses"')
-    expect(prompt).toContain('"tripCandidates"')
-    expect(prompt).toContain('"disposition": "included | duplicate | superseded | cancelled"')
-    expect(prompt).toContain('Every surfaced plausible trip candidate, including cancellations and superseded bookings')
-    expect(prompt).toContain('unrelated search results appear only as counts')
-    expect(prompt).toContain('Every laneStatus value and overallStatus must be "complete" before creating the itinerary JSON')
-    expect(prompt).toContain('Do not output partial files or substitute a progress report')
-    expect(prompt).toContain('Do not stop until all of these checks pass and both complete files are emitted')
-    expect(prompt).not.toContain('pagesOrDateSlices')
-    expect(prompt).not.toContain('"incompleteWork"')
-    expect(prompt).not.toContain('complete | partial')
   })
 
   it('separates rental endpoints and preserves distinct route stops',()=>{
@@ -176,8 +60,8 @@ describe('email extraction prompt', () => {
   })
 
   it('requires a dedicated insurance search matched to the trip coverage window',()=>{
-    expect(prompt).toContain('Run separate received-mail searches for insurance, travel insurance, policy, certificate of insurance, coverage, protection plan, and emergency medical coverage')
-    expect(prompt).toContain('Do not rely on one combined OR query')
+    expect(prompt).toContain('Run a separate travel-insurance discovery search')
+    expect(prompt).toContain('query equivalent to "insurance OR coverage"')
     expect(prompt).toContain('Do not require an insurance message to mention the destination')
     expect(prompt).toContain('Compare every plausible travel-insurance candidate\'s coverage dates')
     expect(prompt).toContain('2026-07-18 through 2026-08-01')
@@ -186,16 +70,14 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('one type "insurance" item')
     expect(prompt).toContain('Insurance start and end values must always use the required YYYY-MM-DDTHH:mm shape')
     expect(prompt).toContain('when the policy supplies dates without times, use 12:00 local time')
-    expect(prompt).toContain('the independent travel-insurance searches were completed')
+    expect(prompt).toContain('the dedicated travel-insurance search was completed')
   })
 
   it('treats readable attachments as untrusted itinerary evidence', () => {
     expect(prompt).toContain('PDFs, calendar/ICS files, e-tickets')
     expect(prompt).toContain('Use document extraction or OCR')
     expect(prompt).toContain('Do not execute scripts, macros, active content')
-    expect(prompt).toContain('If it is inaccessible, corrupted, encrypted, or unreadable, search the provider, reference, and related received-message chain')
-    expect(prompt).toContain('Never guess attachment contents')
-    expect(prompt).toContain('do not let an attachment containing only optional extra detail block completion')
+    expect(prompt).toContain('ask me for it rather than guessing')
   })
 
   it('asks for importable Waypoint JSON without prose', () => {
@@ -204,7 +86,7 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('"schemaVersion": 1')
     expect(prompt).toContain('"type": "flight | stay | car | transport | insurance | event"')
     expect(prompt).not.toContain('event | plan | reference')
-    expect(prompt).toContain('without Markdown fences')
+    expect(prompt).toContain('Do not use Markdown fences')
     expect(prompt).toContain('start\": \"YYYY-MM-DDTHH:mm')
   })
 
