@@ -39,6 +39,25 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('Do not attribute a received forward to the authorized mailbox owner')
   })
 
+  it('expands relevant forwards into a complete same-day discovery pass',()=>{
+    expect(prompt).toContain('Finding several convincing reservations is not evidence that discovery is complete')
+    expect(prompt).toContain('MANDATORY DISCOVERY WORKFLOW — DO THESE STEPS IN ORDER')
+    expect(prompt).toContain('multiple independent, high-recall query families')
+    expect(prompt).toContain('Do not require every query to contain a known destination or provider')
+    expect(prompt).toContain('Paginate every query through its final result page')
+    expect(prompt).toContain('private candidate queue')
+    expect(prompt).toContain('Open each queued message before deciding whether it belongs to the trip')
+    expect(prompt).toContain('possible forwarding burst')
+    expect(prompt).toContain('same outer forwarding sender on that same mailbox calendar day')
+    expect(prompt).toContain('Do not stop after finding one sibling confirmation')
+    expect(prompt).toContain('candidate-coverage ledger')
+    expect(prompt).toContain('COMPLETION GATE — DO NOT CONTINUE TO FINAL OUTPUT UNTIL ALL ARE TRUE')
+    expect(prompt).toContain('Every queued candidate was opened and has exactly one ledger disposition')
+    expect(prompt).toContain('EXTRACT AND RECONCILE ONLY AFTER THE DISCOVERY GATE')
+    expect(prompt).toContain('every relevant forward triggered a same-forwarder, same-calendar-day forwarding-burst search')
+    expect(prompt).not.toContain('Read only messages plausibly related to this trip')
+  })
+
   it('separates rental endpoints and preserves distinct route stops',()=>{
     expect(prompt).toContain('one pickup item')
     expect(prompt).toContain('one return item')
