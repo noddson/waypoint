@@ -45,26 +45,78 @@ const flightDurationMinutes = (flight: TripItem) => {
   return 0
 }
 
+type CompleteFlight = TripItem & {end:string}
+
+const flightStartTime = (flight: CompleteFlight) => zonedTime(flight.start, flight.timeZone)
+const flightEndTime = (flight: CompleteFlight) => zonedTime(flight.end, flight.endTimeZone || flight.timeZone)
+
+const connectedFlightChains = (flights: CompleteFlight[]) => {
+  const connectionLimit = 18 * 60 * 60_000
+  const ordered = [...flights].sort((a, b) => {
+    const difference = flightStartTime(a) - flightStartTime(b)
+    return Number.isFinite(difference) ? difference : a.start.localeCompare(b.start)
+  })
+  const chains: CompleteFlight[][] = []
+
+  for (const flight of ordered) {
+    const chain = chains[chains.length - 1]
+    const previous = chain?.[chain.length - 1]
+    if (chain && previous) {
+      const connectionTime = flightStartTime(flight) - flightEndTime(previous)
+      if (Number.isFinite(connectionTime) && connectionTime >= 0 && connectionTime <= connectionLimit) {
+        chain.push(flight)
+        continue
+      }
+    }
+    chains.push([flight])
+  }
+
+  return chains
+}
+
+const awakeStartMinutes = 8 * 60
+const awakeEndMinutes = 23 * 60
+const minimumUsableMinutes = (awakeEndMinutes - awakeStartMinutes) * 0.5
+
+const usableMinutesAfter = (value: string) => {
+  const arrivalMinutes = minutesOfDay(value)
+  return Math.max(awakeEndMinutes - Math.max(arrivalMinutes, awakeStartMinutes), 0)
+}
+
+const usableMinutesBefore = (value: string) => {
+  const departureMinutes = minutesOfDay(value)
+  return Math.max(Math.min(departureMinutes, awakeEndMinutes) - awakeStartMinutes, 0)
+}
+
 const travelBoundaryDates = (items: TripItem[]) => {
   const flights = items.filter(item => item.type === 'flight')
   if (!flights.length) return new Set<string>()
 
   const dates = new Set<string>()
-  // A boundary is a trip day once at least half of it is spent in the location reached by that flight.
-  const minimumNewLocationMinutes = 24 * 60 * 0.5
-
   const flightsWithArrival = flights.filter((flight): flight is TripItem & {end:string} => !!flight.end)
-  if (flightsWithArrival.length) {
-    const firstFlight = flightsWithArrival.reduce((first, flight) => flight.start < first.start ? flight : first)
-    const lastFlight = flightsWithArrival.reduce((last, flight) => flight.end > last.end ? flight : last)
-
+  const tripDates = new Set<string>()
+  const chains = connectedFlightChains(flightsWithArrival)
+  const outbound = chains[0]
+  if (outbound) {
+    const firstFlight = outbound[0]
+    const finalFlight = outbound[outbound.length - 1]
     const departureDate = firstFlight.start.slice(0, 10)
-    const outboundDestinationMinutes = firstFlight.end.slice(0, 10) === departureDate ? 24 * 60 - minutesOfDay(firstFlight.end) : 0
-    if (outboundDestinationMinutes < minimumNewLocationMinutes) dates.add(departureDate)
+    const arrivalDate = finalFlight.end.slice(0, 10)
+    if (usableMinutesAfter(finalFlight.end) > minimumUsableMinutes) tripDates.add(arrivalDate)
+    else dates.add(arrivalDate)
+    if (departureDate !== arrivalDate) dates.add(departureDate)
+  }
 
-    const returnDate = lastFlight.end.slice(0, 10)
-    const returnNewLocationMinutes = 24 * 60 - minutesOfDay(lastFlight.end)
-    if (returnNewLocationMinutes < minimumNewLocationMinutes) dates.add(returnDate)
+  const returning = chains.length > 1 ? chains[chains.length - 1] : undefined
+  if (returning) {
+    const firstFlight = returning[0]
+    const finalFlight = returning[returning.length - 1]
+    const departureDate = firstFlight.start.slice(0, 10)
+    const homeArrivalDate = finalFlight.end.slice(0, 10)
+    if (usableMinutesBefore(firstFlight.start) > minimumUsableMinutes) tripDates.add(departureDate)
+    else dates.add(departureDate)
+    // A date spent back at home is not a viable day at the trip destination.
+    if (homeArrivalDate !== departureDate) dates.add(homeArrivalDate)
   }
 
   const flightMinutesByDate = new Map<string, number>()
@@ -73,8 +125,10 @@ const travelBoundaryDates = (items: TripItem[]) => {
     flightMinutesByDate.set(date, (flightMinutesByDate.get(date) || 0) + flightDurationMinutes(flight))
   }
   for (const [date, flightMinutes] of flightMinutesByDate) {
-    if (flightMinutes > minimumNewLocationMinutes) dates.add(date)
+    if (flightMinutes > minimumUsableMinutes && !tripDates.has(date)) dates.add(date)
   }
+
+  for (const date of tripDates) dates.delete(date)
 
   return dates
 }
