@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { TripItem } from './types'
 import { formatTripRange } from './tripRange'
 
-const item = (id: string, start: string, end?: string): TripItem => ({id,type:'plan',title:id,start,end,timeZone:'UTC',status:'planned'})
+const item = (id: string, start: string, end?: string): TripItem => ({id,type:'event',title:id,start,end,timeZone:'UTC',status:'planned'})
 const flight = (id: string, start: string, end: string): TripItem => ({...item(id,start,end),type:'flight',timeZone:'America/Toronto',endTimeZone:'Europe/Dublin'})
 const timedFlight = (id: string, start: string, end: string, durationMinutes: number): TripItem => ({...flight(id,start,end),durationMinutes})
 
@@ -101,7 +101,7 @@ describe('trip date range', () => {
   it('uses a known duration even when the arrival timestamp is missing', () => {
     const label = formatTripRange([
       {...item('long-flight','2026-07-18T05:00'),type:'flight',durationMinutes:721},
-      item('arrival-plan','2026-07-19T10:00'),
+      item('arrival-event','2026-07-19T10:00'),
     ])
     expect(label).toContain('2 days total')
     expect(label).toContain('1 trip day')

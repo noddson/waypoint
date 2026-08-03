@@ -44,7 +44,7 @@ ATTACHMENTS ARE EVIDENCE
 4. Keep the same mailbox boundary: inspect only attachments belonging to messages within the permitted mailbox date range. If an important attachment is inaccessible, corrupted, encrypted, or unreadable, identify the missing evidence and ask me for it rather than guessing.
 
 RECONCILE THE EVIDENCE
-1. Find confirmations and meaningful updates for flights, lodging, car rentals, trains, ground transport, insurance, tours, tickets, restaurant reservations, and other scheduled plans or useful travel references.
+1. Find confirmations and meaningful updates for flights, lodging, car rentals, trains, ground transport, insurance, tours, tickets, restaurant reservations, and other scheduled activities.
 2. A reservation can appear in several received messages, from different people, or in a forwarded chain. Group related evidence using confirmation/ticket/order/policy numbers plus provider, route, dates, and participants. Produce one item per real reservation or journey segment, not one item per email.
 3. Prefer the latest authoritative provider update and the most complete details. Treat cancellations, schedule changes, reissues, and replacements as updates to the same reservation. Do not keep superseded details as separate active items.
 4. Use the actual service, departure, arrival, check-in, check-out, event, pickup, drop-off, or coverage date. Never substitute an email sent date, purchase date, invoice date, copyright date, or check-in policy example for a travel date.
@@ -78,7 +78,7 @@ Use exactly this Waypoint schema (schemaVersion must remain 1):
     "items": [
       {
         "id": "globally unique UUID",
-        "type": "flight | stay | car | transport | insurance | event | plan | reference",
+        "type": "flight | stay | car | transport | insurance | event",
         "title": "short human-readable title",
         "provider": "provider name (optional)",
         "confirmation": "confirmation/ticket/order/policy reference (optional)",

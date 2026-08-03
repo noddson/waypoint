@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { Trip, TripItem } from './types'
 import { mergeTripVersions } from './tripMerge'
 
-const item=(id:string,title:string):TripItem=>({id,type:'plan',title,start:'2026-07-18T10:00',timeZone:'UTC',status:'planned'})
+const item=(id:string,title:string):TripItem=>({id,type:'event',title,start:'2026-07-18T10:00',timeZone:'UTC',status:'planned'})
 const trip=(items:TripItem[]):Trip=>({id:'trip',name:'Trip',destination:'Dublin',createdAt:'2026-01-01T00:00:00Z',updatedAt:'2026-01-01T00:00:00Z',items})
 
 describe('collaborative trip merging',()=>{
   it('combines independent additions',()=>{
-    const merged=mergeTripVersions(trip([]),trip([item('local','Local plan')]),trip([item('remote','Remote plan')]))
+    const merged=mergeTripVersions(trip([]),trip([item('local','Local event')]),trip([item('remote','Remote event')]))
     expect(merged.conflicts).toBe(0)
     expect(merged.trip.items.map(value=>value.id).sort()).toEqual(['local','remote'])
   })
@@ -40,8 +40,8 @@ describe('collaborative trip merging',()=>{
   })
 
   it('refuses to merge data belonging to different trips',()=>{
-    const base=trip([item('ireland','Ireland plan')])
-    const hawaii={...trip([item('hawaii','Hawaii plan')]),id:'hawaii-trip'}
+    const base=trip([item('ireland','Ireland event')])
+    const hawaii={...trip([item('hawaii','Hawaii event')]),id:'hawaii-trip'}
     expect(()=>mergeTripVersions(base,hawaii,base)).toThrow('Cannot merge different trips.')
   })
 })

@@ -29,6 +29,14 @@ describe('Waypoint JSON validation', () => {
     expect(validTripExport(duplicate)).toBe(false)
   })
 
+  it('rejects removed plan and reference item types', () => {
+    for(const type of ['plan','reference']){
+      const removed=exportData()
+      ;(removed.trip.items[0] as unknown as Record<string,unknown>).type=type
+      expect(validTripExport(removed)).toBe(false)
+    }
+  })
+
   it('normalizes only secure web links', () => {
     expect(safeHttpsLink('https://example.test/manage')).toBe('https://example.test/manage')
     expect(safeHttpsLink('http://example.test/manage')).toBeUndefined()

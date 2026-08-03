@@ -58,7 +58,7 @@ const itemDestinationStops = (item:TripItem) => [destinationStop(item.location),
 const sameAddress = (left:string,right:string) => left.toLocaleLowerCase().replace(/\s+/g,' ').trim()===right.toLocaleLowerCase().replace(/\s+/g,' ').trim()
 const appendRouteStop = (route:DestinationStop[],stop?:DestinationStop) => {if(stop&&route[route.length-1]?.id!==stop.id)route.push(stop)}
 const appendWaypoint = (route:DestinationStop[],stop?:DestinationStop) => {if(stop&&!sameAddress(route[route.length-1]?.address||'',stop.address))route.push(stop)}
-const routeItem = (item:TripItem) => item.type!=='flight'&&item.type!=='insurance'&&item.type!=='reference'
+const routeItem = (item:TripItem) => item.type!=='flight'&&item.type!=='insurance'
 
 const segmentLabel = (stops:DestinationStop[]) => {
   const regions=new Map<string,{label:string,count:number}>()
