@@ -13,19 +13,40 @@ export interface GroundRouteSegment {
   stops: DestinationStop[]
 }
 
-const countryOrRegion = /^(canada|ireland|republic of ireland|united kingdom|northern ireland|alberta|british columbia|manitoba|new brunswick|newfoundland and labrador|nova scotia|ontario|prince edward island|quebec|saskatchewan|county .+)$/i
-const postalCode = /^(?:[A-Z]\d[A-Z]\s?\d[A-Z]\d|[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}|[A-Z]\d{2}\s?[A-Z\d]{4})$/i
-const venueOrStreet = /(?:\b(?:airport|terminal|hotel|house|apartment|castle|folk park|visitor centre|restaurant|campus|road|street|avenue|drive|place|way|lane|bridge|quay)\b|^\d)/i
+const postalCode = /^(?:\d{5}(?:-\d{4})?|[A-Z]\d[A-Z]\s?\d[A-Z]\d|[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}|[A-Z]\d{2}\s?[A-Z\d]{4})$/i
+const trailingPostalCode = /(?:\s+\d{5}(?:-\d{4})?|\s+[A-Z]\d[A-Z]\s?\d[A-Z]\d|\s+[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2})$/i
+const venueOrStreet = /(?:\b(?:airport|terminal|hotel|resort|lodge|inn|house|apartment|castle|folk park|visitor centre|restaurant|campus|road|street|avenue|boulevard|drive|highway|hwy|place|way|lane|bridge|quay|court|circle|terrace|trail)\b|^\d)/i
+
+const regionAliases:Record<string,string> = Object.fromEntries([
+  'AL:Alabama','AK:Alaska','AZ:Arizona','AR:Arkansas','CA:California','CO:Colorado','CT:Connecticut','DE:Delaware','FL:Florida','GA:Georgia','HI:Hawaii','ID:Idaho','IL:Illinois','IN:Indiana','IA:Iowa','KS:Kansas','KY:Kentucky','LA:Louisiana','ME:Maine','MD:Maryland','MA:Massachusetts','MI:Michigan','MN:Minnesota','MS:Mississippi','MO:Missouri','MT:Montana','NE:Nebraska','NV:Nevada','NH:New Hampshire','NJ:New Jersey','NM:New Mexico','NY:New York','NC:North Carolina','ND:North Dakota','OH:Ohio','OK:Oklahoma','OR:Oregon','PA:Pennsylvania','RI:Rhode Island','SC:South Carolina','SD:South Dakota','TN:Tennessee','TX:Texas','UT:Utah','VT:Vermont','VA:Virginia','WA:Washington','WV:West Virginia','WI:Wisconsin','WY:Wyoming','DC:District of Columbia',
+  'AB:Alberta','BC:British Columbia','MB:Manitoba','NB:New Brunswick','NL:Newfoundland and Labrador','NS:Nova Scotia','NT:Northwest Territories','NU:Nunavut','ON:Ontario','PE:Prince Edward Island','QC:Quebec','SK:Saskatchewan','YT:Yukon',
+].flatMap(value=>{const [code,label]=value.split(':');return [[code.toLocaleLowerCase(),label],[label.toLocaleLowerCase(),label]]}))
+
+const namedRegions = new Set(['canada','ireland','republic of ireland','united kingdom','northern ireland','england','scotland','wales',...Object.keys(regionAliases)])
+const regionPart = (value:string) => value.trim().replace(trailingPostalCode,'').trim()
+const knownRegion = (value:string) => regionAliases[regionPart(value).toLocaleLowerCase()]
+const countryOrRegion = (value:string) => namedRegions.has(regionPart(value).toLocaleLowerCase())||/^county .+$/i.test(value)
+
+const broadRegionLabel = (address:string) => {
+  const parts=address.split(',').map(regionPart).filter(Boolean)
+  const subdivision=parts.map(knownRegion).find(Boolean)
+  if(subdivision)return subdivision
+  const last=parts[parts.length-1]
+  return last&&!postalCode.test(last)&&!venueOrStreet.test(last)?last:undefined
+}
 
 const clean = (value:string) => value.replace(/\([^)]*\)/g,' ').replace(/\b[A-Z]{2,3}\d?\b/g,' ').replace(/\s+\d{1,2}$/,'').replace(/^(?:downtown|city centre|city center)\s+/i,'').replace(/\s+/g,' ').trim()
 
 export function destinationLabel(value?:string) {
   if(!value)return undefined
   const airport=value.match(/^(.+?)(?:\s+Pearson)?(?:\s+International)?\s+Airport\b/i)
-  if(airport)return clean(airport[1])||undefined
+  if(airport){
+    const city=value.split(',').slice(1).map(clean).find(part=>part&&!countryOrRegion(part)&&!postalCode.test(part)&&!venueOrStreet.test(part))
+    return city||clean(airport[1])||undefined
+  }
   const parts=value.split(',').map(clean).filter(Boolean)
-  const candidates=parts.filter(part=>!countryOrRegion.test(part)&&!postalCode.test(part)&&!venueOrStreet.test(part))
-  return candidates.sort((a,b)=>a.length-b.length)[0]||parts.find(part=>!countryOrRegion.test(part)&&!postalCode.test(part))
+  const candidates=parts.filter(part=>!countryOrRegion(part)&&!postalCode.test(part)&&!venueOrStreet.test(part))
+  return candidates.sort((a,b)=>a.length-b.length)[0]||parts.find(part=>!countryOrRegion(part)&&!postalCode.test(part))
 }
 
 export function itemDestinationLabels(item:TripItem) {
@@ -35,10 +56,15 @@ export function itemDestinationLabels(item:TripItem) {
 const destinationStop = (address?:string) => {const label=destinationLabel(address);return label&&address?{id:label.toLocaleLowerCase(),label,address}:undefined}
 const itemDestinationStops = (item:TripItem) => [destinationStop(item.location),destinationStop(item.endLocation)].filter((value):value is DestinationStop=>!!value)
 const sameAddress = (left:string,right:string) => left.toLocaleLowerCase().replace(/\s+/g,' ').trim()===right.toLocaleLowerCase().replace(/\s+/g,' ').trim()
-const appendRouteStop = (route:DestinationStop[],stop?:DestinationStop) => {if(stop&&!sameAddress(route[route.length-1]?.address||'',stop.address))route.push(stop)}
+const appendRouteStop = (route:DestinationStop[],stop?:DestinationStop) => {if(stop&&route[route.length-1]?.id!==stop.id)route.push(stop)}
+const appendWaypoint = (route:DestinationStop[],stop?:DestinationStop) => {if(stop&&!sameAddress(route[route.length-1]?.address||'',stop.address))route.push(stop)}
 const routeItem = (item:TripItem) => item.type!=='flight'&&item.type!=='insurance'&&item.type!=='reference'
 
 const segmentLabel = (stops:DestinationStop[]) => {
+  const regions=new Map<string,{label:string,count:number}>()
+  for(const stop of stops){const label=broadRegionLabel(stop.address);if(!label)continue;const key=label.toLocaleLowerCase(),current=regions.get(key);regions.set(key,{label,count:(current?.count||0)+1})}
+  const broadRegion=[...regions.values()].sort((left,right)=>right.count-left.count||left.label.localeCompare(right.label))[0]
+  if(broadRegion)return broadRegion.label
   const cities=new Map<string,{label:string,count:number}>()
   for(const stop of stops){const current=cities.get(stop.id);cities.set(stop.id,{label:stop.label,count:(current?.count||0)+1})}
   if(cities.size===1)return stops[0].label
@@ -107,6 +133,12 @@ export function tripRouteStops(items:TripItem[]):DestinationStop[] {
   let last=-1
   if(destination)for(let index=route.length-1;index>=0;index--)if(route[index].id===destination){last=index;break}
   return first>=0&&last>=first?route.slice(first,last+1):route
+}
+
+export function dayWaypointStops(items:TripItem[]):DestinationStop[] {
+  const route:DestinationStop[]=[]
+  for(const item of sortTripItems(items).filter(routeItem))for(const stop of itemDestinationStops(item))appendWaypoint(route,stop)
+  return route
 }
 
 export function tripDestinations(items:TripItem[]):DestinationStop[] {

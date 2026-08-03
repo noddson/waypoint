@@ -22,6 +22,48 @@
   text-transform: uppercase;
 }
 
+.day-heading {
+  min-width: 0;
+  padding-right: 18px;
+}
+
+.day-waypoints {
+  display: grid;
+  gap: 5px;
+  margin-top: 15px;
+}
+
+.day-waypoints-label {
+  color: #7b8681;
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.day-waypoint-list {
+  color: #566a62;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.day-map-links {
+  display: grid;
+  gap: 3px;
+}
+
+.day-map-links a {
+  color: #2e6853;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.day-map-links a:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 720px) {
   .route-segment-heading {
     align-items: flex-start;
@@ -36,5 +78,32 @@
 
   .route-segment-heading .route-actions a {
     text-align: left;
+  }
+
+  .day-heading {
+    padding-right: 0;
+  }
+
+  .day-waypoints {
+    margin: 0 0 12px;
+    padding: 10px 11px;
+    border-radius: 8px;
+    background: #edf1eb;
+  }
+
+  .day-map-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+@media print {
+  .day-heading {
+    padding-right: 12px;
+  }
+
+  .day-map-links {
+    display: none;
   }
 }

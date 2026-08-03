@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appleMapsDirectionsUrls, appleMapsSearchUrl, destinationLabel, googleMapsDirectionsUrls, googleMapsSearchUrl, mapDirectionsUrls, mapSearchUrl, tripDestinations, tripGroundRouteSegments, tripRouteStops } from './destinations'
+import { appleMapsDirectionsUrls, appleMapsSearchUrl, dayWaypointStops, destinationLabel, googleMapsDirectionsUrls, googleMapsSearchUrl, mapDirectionsUrls, mapSearchUrl, tripDestinations, tripGroundRouteSegments, tripRouteStops } from './destinations'
 import { TripItem } from './types'
 
 const item=(id:string,start:string,location:string,endLocation?:string):TripItem=>({id,type:'stay',title:id,start,timeZone:'Europe/Dublin',location,endLocation,status:'confirmed'})
@@ -22,6 +22,7 @@ describe('derived trip destinations',()=>{
     expect(destinationLabel('Rock of Cashel, Cashel, County Tipperary, Ireland')).toBe('Cashel')
     expect(destinationLabel('Maldron Hotel Kevin Street, Kevin Street Upper, Dublin 8, Ireland')).toBe('Dublin')
     expect(destinationLabel('Downtown Vancouver, British Columbia')).toBe('Vancouver')
+    expect(destinationLabel('Turtle Bay Resort, 57-091 Kamehameha Highway, Kahuku, HI 96731')).toBe('Kahuku')
   })
 
   it('keeps repeated start and end cities in the chronological route',()=>{
@@ -69,7 +70,7 @@ describe('derived trip destinations',()=>{
     expect(stopCounts).toEqual([8,7])
   })
 
-  it('uses connected flights as boundaries around one Vancouver ground route',()=>{
+  it('uses connected flights as boundaries and collapses adjacent Vancouver stops',()=>{
     const segments=tripGroundRouteSegments([
       flight('to-calgary','2025-10-09T06:00','Region of Waterloo International Airport (YKF), Kitchener/Waterloo, Ontario','Calgary International Airport (YYC), Calgary, Alberta'),
       flight('to-vancouver','2025-10-09T09:00','Calgary International Airport (YYC), Calgary, Alberta','Vancouver International Airport (YVR), Vancouver, British Columbia'),
@@ -79,13 +80,48 @@ describe('derived trip destinations',()=>{
       flight('home','2025-10-13T19:05','Calgary International Airport (YYC), Calgary, Alberta','Region of Waterloo International Airport (YKF), Kitchener/Waterloo, Ontario'),
     ])
     expect(segments).toHaveLength(1)
+    expect(segments[0].label).toBe('British Columbia')
     expect(segments[0].stops.map(stop=>stop.address)).toEqual([
-      'Vancouver International Airport (YVR), Vancouver, British Columbia',
-      '1234 Hornby Street, Vancouver, BC V6Z 1W2',
-      'Downtown Vancouver, British Columbia',
       'Vancouver International Airport (YVR), Vancouver, British Columbia',
     ])
     expect(segments[0].stops.some(stop=>stop.address.includes('Calgary'))).toBe(false)
+  })
+
+  it('labels a US ground route by state instead of its ZIP code',()=>{
+    const segments=tripGroundRouteSegments([
+      flight('to-hawaii','2026-02-01T08:00','Toronto Pearson International Airport, Toronto, Canada','Daniel K. Inouye International Airport, Honolulu, HI 96819'),
+      item('resort','2026-02-01T15:00','Turtle Bay Resort, 57-091 Kamehameha Highway, Kahuku, HI 96731'),
+      item('beach','2026-02-02T10:00','Waikiki Beach, Honolulu, HI 96815'),
+      flight('home','2026-02-07T12:00','Daniel K. Inouye International Airport, Honolulu, HI 96819','Toronto Pearson International Airport, Toronto, Canada'),
+    ])
+    expect(segments).toHaveLength(1)
+    expect(segments[0].label).toBe('Hawaii')
+    expect(segments[0].stops.map(stop=>stop.label)).toEqual(['Honolulu','Kahuku','Honolulu'])
+  })
+
+  it('collapses adjacent city stops but preserves a city revisited later',()=>{
+    const segments=tripGroundRouteSegments([
+      flight('outbound','2026-07-18T20:50','Toronto Pearson International Airport, Toronto, Canada','Dublin Airport, Dublin, Ireland'),
+      item('hotel','2026-07-19T15:00','Maldron Hotel, Dublin, Ireland'),
+      item('car','2026-07-20T09:00','Budget Car Rental, Dublin, Ireland'),
+      item('belfast','2026-07-21T10:00','Titanic Belfast, Belfast, Northern Ireland'),
+      item('return','2026-07-22T10:00','Dublin 8, Ireland'),
+      flight('home','2026-07-23T09:00','Dublin Airport, Dublin, Ireland','Toronto Pearson International Airport, Toronto, Canada'),
+    ])
+    expect(segments[0].stops.map(stop=>stop.label)).toEqual(['Dublin','Belfast','Dublin'])
+  })
+
+  it('keeps distinct same-city addresses as daily map waypoints',()=>{
+    const stops=dayWaypointStops([
+      item('hotel','2026-02-01T09:00','1234 Hornby Street, Vancouver, BC V6Z 1W2'),
+      item('duplicate','2026-02-01T10:00','1234 Hornby Street, Vancouver, BC V6Z 1W2'),
+      item('event','2026-02-01T11:00','Stanley Park, Vancouver, British Columbia'),
+      flight('flight','2026-02-01T12:00','Vancouver International Airport, Vancouver, British Columbia','Calgary International Airport, Calgary, Alberta'),
+    ])
+    expect(stops.map(stop=>stop.address)).toEqual([
+      '1234 Hornby Street, Vancouver, BC V6Z 1W2',
+      'Stanley Park, Vancouver, British Columbia',
+    ])
   })
 
   it('creates separately named ground routes between regional flights',()=>{
@@ -102,7 +138,7 @@ describe('derived trip destinations',()=>{
     expect(segments[0].stops[0].address).toContain('Edinburgh Airport')
     expect(segments[0].stops[segments[0].stops.length-1]?.address).toContain('Glasgow Airport')
     expect(segments[1].stops[0].address).toContain('Berlin Brandenburg Airport')
-    expect(segments[1].stops[segments[1].stops.length-1]?.address).toContain('Munich Airport')
+    expect(segments[1].stops[segments[1].stops.length-1]?.address).toContain('Marienplatz')
     expect(segments.flatMap(segment=>segment.stops).some(stop=>stop.address.includes('Toronto'))).toBe(false)
   })
 })
