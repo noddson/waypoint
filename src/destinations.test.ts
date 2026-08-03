@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appleMapsDirectionsUrls, appleMapsSearchUrl, dayWaypointStops, destinationLabel, googleMapsDirectionsUrls, googleMapsSearchUrl, mapDirectionsUrls, mapSearchUrl, tripDestinations, tripGroundRouteSegments, tripRouteStops } from './destinations'
+import { dayWaypointStops, destinationLabel, googleMapsDirectionsUrls, googleMapsSearchUrl, mapDirectionsUrls, mapSearchUrl, tripDestinations, tripGroundRouteSegments, tripRouteStops } from './destinations'
 import { TripItem } from './types'
 
 const item=(id:string,start:string,location:string,endLocation?:string):TripItem=>({id,type:'stay',title:id,start,timeZone:'Europe/Dublin',location,endLocation,status:'confirmed'})
@@ -42,20 +42,14 @@ describe('derived trip destinations',()=>{
     expect(googleMapsSearchUrl('14 Lower William Street, Listowel, Ireland')).toBe('https://www.google.com/maps/search/?api=1&query=14%20Lower%20William%20Street%2C%20Listowel%2C%20Ireland')
   })
 
-  it('creates Apple Maps search and driving links',()=>{
+  it('uses Google Maps for shared search and directions links',()=>{
     const stops=[
       {id:'one',label:'One',address:'Dublin Airport, Ireland'},
       {id:'two',label:'Two',address:'Belfast, Northern Ireland'},
       {id:'three',label:'Three',address:'Derry, Northern Ireland'},
     ]
-    expect(appleMapsSearchUrl('Dublin Airport, Ireland')).toBe('https://maps.apple.com/?q=Dublin%20Airport%2C%20Ireland')
-    const links=appleMapsDirectionsUrls(stops)
-    expect(links).toHaveLength(2)
-    expect(new URL(links[0]).searchParams.get('saddr')).toBe(stops[0].address)
-    expect(new URL(links[0]).searchParams.get('daddr')).toBe(stops[1].address)
-    expect(new URL(links[0]).searchParams.get('dirflg')).toBe('d')
-    expect(mapSearchUrl(stops[0].address,'apple')).toBe(appleMapsSearchUrl(stops[0].address))
-    expect(mapDirectionsUrls(stops,'google')).toEqual(googleMapsDirectionsUrls(stops))
+    expect(mapSearchUrl(stops[0].address)).toBe(googleMapsSearchUrl(stops[0].address))
+    expect(mapDirectionsUrls(stops)).toEqual(googleMapsDirectionsUrls(stops))
   })
 
   it('splits long directions into links that keep every route leg',()=>{
