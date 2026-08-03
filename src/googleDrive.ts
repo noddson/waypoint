@@ -106,6 +106,10 @@ export function getDriveSyncRecordByFileId(fileId:string){return Object.values(r
 export function saveDriveSyncRecord(record:DriveSyncRecord){const records=readSyncRecords();records[record.tripId]=record;localStorage.setItem(SYNC_STORAGE_KEY,JSON.stringify(records));return record}
 export function removeDriveSyncRecord(tripId:string){const records=readSyncRecords();delete records[tripId];localStorage.setItem(SYNC_STORAGE_KEY,JSON.stringify(records))}
 
+export async function trashDriveTrip(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>) {
+  await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id,trashed`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({trashed:true})})
+}
+
 async function findOrCreateFolder() {
   const escaped=FOLDER_NAME.replace(/'/g,"\\'")
   const query=new URLSearchParams({q:`mimeType='application/vnd.google-apps.folder' and name='${escaped}' and trashed=false`,spaces:'drive',pageSize:'10',fields:'files(id,name)'})
