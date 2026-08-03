@@ -59,6 +59,20 @@ describe('email extraction prompt', () => {
     expect(prompt).toContain('Do not put a mailbox search-results URL')
   })
 
+  it('requires a dedicated insurance search matched to the trip coverage window',()=>{
+    expect(prompt).toContain('Run a separate travel-insurance discovery search')
+    expect(prompt).toContain('query equivalent to "insurance OR coverage"')
+    expect(prompt).toContain('Do not require an insurance message to mention the destination')
+    expect(prompt).toContain('Compare every plausible travel-insurance candidate\'s coverage dates')
+    expect(prompt).toContain('2026-07-18 through 2026-08-01')
+    expect(prompt).toContain('coverage that encloses the full trip window')
+    expect(prompt).toContain('Exclude unrelated insurance such as home, auto, health-benefit, or pet policies')
+    expect(prompt).toContain('one type "insurance" item')
+    expect(prompt).toContain('Insurance start and end values must always use the required YYYY-MM-DDTHH:mm shape')
+    expect(prompt).toContain('when the policy supplies dates without times, use 12:00 local time')
+    expect(prompt).toContain('the dedicated travel-insurance search was completed')
+  })
+
   it('treats readable attachments as untrusted itinerary evidence', () => {
     expect(prompt).toContain('PDFs, calendar/ICS files, e-tickets')
     expect(prompt).toContain('Use document extraction or OCR')
