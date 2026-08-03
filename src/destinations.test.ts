@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { destinationLabel, googleMapsDirectionsUrls, googleMapsSearchUrl, tripDestinations, tripRouteStops } from './destinations'
+import { destinationLabel, googleMapsDirectionsUrls, googleMapsSearchUrl, tripDestinations, tripGroundRouteSegments, tripRouteStops } from './destinations'
 import { TripItem } from './types'
 
 const item=(id:string,start:string,location:string,endLocation?:string):TripItem=>({id,type:'stay',title:id,start,timeZone:'Europe/Dublin',location,endLocation,status:'confirmed'})
+const flight=(id:string,start:string,location:string,endLocation:string):TripItem=>({...item(id,start,location,endLocation),type:'flight',end:start})
 
 describe('derived trip destinations',()=>{
   it('keeps sequential nearby towns as distinct stops',()=>{
@@ -20,6 +21,7 @@ describe('derived trip destinations',()=>{
     expect(destinationLabel("Titanic Belfast, 1 Olympic Way, Queen's Road, Belfast, United Kingdom")).toBe('Belfast')
     expect(destinationLabel('Rock of Cashel, Cashel, County Tipperary, Ireland')).toBe('Cashel')
     expect(destinationLabel('Maldron Hotel Kevin Street, Kevin Street Upper, Dublin 8, Ireland')).toBe('Dublin')
+    expect(destinationLabel('Downtown Vancouver, British Columbia')).toBe('Vancouver')
   })
 
   it('keeps repeated start and end cities in the chronological route',()=>{
@@ -44,7 +46,47 @@ describe('derived trip destinations',()=>{
     const links=googleMapsDirectionsUrls(stops)
     expect(links).toHaveLength(2)
     expect(decodeURIComponent(links[0])).toContain('waypoints=Stop+1,+Ireland|Stop+2,+Ireland')
-    expect(decodeURIComponent(links[1])).toContain('origin=Stop+10,+Ireland')
+    expect(decodeURIComponent(links[0])).toContain('destination=Stop+7,+Ireland')
+    expect(decodeURIComponent(links[1])).toContain('origin=Stop+7,+Ireland')
     expect(decodeURIComponent(links[1])).toContain('destination=Stop+13,+Ireland')
+    const stopCounts=links.map(link=>{const params=new URL(link).searchParams,waypoints=params.get('waypoints')?.split('|').length||0;return waypoints+2})
+    expect(stopCounts).toEqual([8,7])
+  })
+
+  it('uses connected flights as boundaries around one Vancouver ground route',()=>{
+    const segments=tripGroundRouteSegments([
+      flight('to-calgary','2025-10-09T06:00','Region of Waterloo International Airport (YKF), Kitchener/Waterloo, Ontario','Calgary International Airport (YYC), Calgary, Alberta'),
+      flight('to-vancouver','2025-10-09T09:00','Calgary International Airport (YYC), Calgary, Alberta','Vancouver International Airport (YVR), Vancouver, British Columbia'),
+      item('hotel','2025-10-09T10:23','1234 Hornby Street, Vancouver, BC V6Z 1W2'),
+      item('event','2025-10-11T14:00','Downtown Vancouver, British Columbia'),
+      flight('from-vancouver','2025-10-13T14:30','Vancouver International Airport (YVR), Vancouver, British Columbia','Calgary International Airport (YYC), Calgary, Alberta'),
+      flight('home','2025-10-13T19:05','Calgary International Airport (YYC), Calgary, Alberta','Region of Waterloo International Airport (YKF), Kitchener/Waterloo, Ontario'),
+    ])
+    expect(segments).toHaveLength(1)
+    expect(segments[0].stops.map(stop=>stop.address)).toEqual([
+      'Vancouver International Airport (YVR), Vancouver, British Columbia',
+      '1234 Hornby Street, Vancouver, BC V6Z 1W2',
+      'Downtown Vancouver, British Columbia',
+      'Vancouver International Airport (YVR), Vancouver, British Columbia',
+    ])
+    expect(segments[0].stops.some(stop=>stop.address.includes('Calgary'))).toBe(false)
+  })
+
+  it('creates separately named ground routes between regional flights',()=>{
+    const segments=tripGroundRouteSegments([
+      flight('to-scotland','2026-06-01T08:00','Toronto Pearson International Airport, Toronto, Canada','Edinburgh Airport, Edinburgh, Scotland'),
+      item('edinburgh','2026-06-01T12:00','Royal Mile, Edinburgh, Scotland'),
+      item('inverness','2026-06-04T12:00','Academy Street, Inverness, Scotland'),
+      flight('to-germany','2026-06-08T09:00','Glasgow Airport, Glasgow, Scotland','Berlin Brandenburg Airport, Berlin, Germany'),
+      item('berlin','2026-06-08T13:00','Alexanderplatz, Berlin, Germany'),
+      item('munich','2026-06-12T13:00','Marienplatz, Munich, Germany'),
+      flight('home','2026-06-15T09:00','Munich Airport, Munich, Germany','Toronto Pearson International Airport, Toronto, Canada'),
+    ])
+    expect(segments.map(segment=>segment.label)).toEqual(['Scotland','Germany'])
+    expect(segments[0].stops[0].address).toContain('Edinburgh Airport')
+    expect(segments[0].stops[segments[0].stops.length-1]?.address).toContain('Glasgow Airport')
+    expect(segments[1].stops[0].address).toContain('Berlin Brandenburg Airport')
+    expect(segments[1].stops[segments[1].stops.length-1]?.address).toContain('Munich Airport')
+    expect(segments.flatMap(segment=>segment.stops).some(stop=>stop.address.includes('Toronto'))).toBe(false)
   })
 })

@@ -1,0 +1,40 @@
+.route-segment {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #d7d0c5;
+}
+
+.route-segment:first-of-type {
+  margin-top: 10px;
+}
+
+.route-segment-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.route-segment-heading > strong {
+  color: #294d42;
+  font: 700 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 720px) {
+  .route-segment-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .route-segment-heading .route-actions {
+    justify-content: flex-start;
+    max-width: none;
+  }
+
+  .route-segment-heading .route-actions a {
+    text-align: left;
+  }
+}
