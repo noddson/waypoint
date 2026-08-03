@@ -11,6 +11,7 @@ const chooseField = <T,>(base:T,local:T,remote:T) => {
 }
 
 export function mergeTripVersions(base:Trip,local:Trip,remote:Trip) {
+  if(base.id!==local.id||base.id!==remote.id)throw new Error('Cannot merge different trips.')
   const baseItems=byId(base.items),localItems=byId(local.items),remoteItems=byId(remote.items)
   const ids=new Set([...baseItems.keys(),...localItems.keys(),...remoteItems.keys()])
   const items:TripItem[]=[]

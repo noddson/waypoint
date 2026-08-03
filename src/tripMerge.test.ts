@@ -38,4 +38,10 @@ describe('collaborative trip merging',()=>{
     const base=trip([]),localItem={...item('local','Kylemore stay'),location:'Kylemore House, Kylemore, Ireland'},remoteItem={...item('remote','Oranmore stay'),start:'2026-07-19T10:00',location:'Main Street, Oranmore, Ireland'}
     expect(mergeTripVersions(base,trip([localItem]),trip([remoteItem])).trip.destination).toBe('Kylemore → Oranmore')
   })
+
+  it('refuses to merge data belonging to different trips',()=>{
+    const base=trip([item('ireland','Ireland plan')])
+    const hawaii={...trip([item('hawaii','Hawaii plan')]),id:'hawaii-trip'}
+    expect(()=>mergeTripVersions(base,hawaii,base)).toThrow('Cannot merge different trips.')
+  })
 })

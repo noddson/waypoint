@@ -186,9 +186,11 @@ export async function loadDriveTrip(fileId:string,resourceKey?:string) {
 }
 
 export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
+  if(record.tripId!==trip.id)throw new Error('Sync stopped because the selected trip does not match this Google Drive file.')
   const {details,data}=await loadDriveTrip(record.fileId,record.resourceKey)
   const remote=data as TripExport
   if(!remote?.trip||!Array.isArray(remote.trip.items))throw new Error('The Drive file no longer contains a supported Waypoint trip.')
+  if(remote.trip.id!==trip.id)throw new Error('Sync stopped because this Google Drive file belongs to a different trip.')
   const base=record.baseTrip||remote.trip
   const localChanged=JSON.stringify(trip)!==JSON.stringify(base)
   const remoteChanged=JSON.stringify(remote.trip)!==JSON.stringify(base)

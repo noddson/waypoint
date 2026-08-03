@@ -1,0 +1,86 @@
+.trip-picker-intro {
+  margin: -3px 0 18px !important;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #eef3ed;
+  color: #436055 !important;
+  font-size: 13px;
+}
+
+.trip-source-note {
+  margin: 0 0 9px !important;
+  color: #78827d !important;
+  font-size: 12px;
+}
+
+.drive-trip-heading {
+  margin-top: 20px;
+  padding-top: 10px;
+  border-top-width: 2px;
+}
+
+.mobile-trip-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.mobile-trip-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 14px;
+  align-items: center;
+  width: 100%;
+  background: #eee9de;
+  color: #25443a;
+  text-align: left;
+}
+
+.mobile-trip-list button strong,
+.mobile-trip-list button span {
+  grid-column: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mobile-trip-list button span {
+  color: #66736d;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.mobile-trip-list button small {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin-top: 7px;
+  color: #60736b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.mobile-trip-list .active-trip {
+  border: 1px solid #4f7963;
+  background: #d7e7d9;
+}
+
+.mobile-trip-list .fresh-load-label {
+  color: #1d6a4c;
+}
+
+.drive-trip-list button {
+  border: 1px solid #b9ccbe;
+  background: #f5f8f3;
+}
+
+@media (max-width: 520px) {
+  .mobile-trip-list button {
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-trip-list button small {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}

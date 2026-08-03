@@ -4,6 +4,7 @@ import App from './App'
 import { shouldEnableMobileExperience } from './mobileMode'
 import './styles.css'
 import './mobile.css'
+import './tripPicker.css'
 
 const mobileExperience = shouldEnableMobileExperience()
 document.body.classList.toggle('mobile-experience', mobileExperience)
