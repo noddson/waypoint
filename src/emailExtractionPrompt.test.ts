@@ -141,6 +141,44 @@ describe('email extraction prompt', () => {
     expect(prompt.indexOf('Cancellation pass.')).toBeLessThan(prompt.indexOf('Pool the relevant evidence'))
   })
 
+  it('narrows independent booking searches to the selected categories', () => {
+    const scopedPrompt=buildEmailExtractionPrompt({
+      tripName:'Scoped trip',
+      destination:'Europe',
+      travelStart:'2026-08-01',
+      travelEnd:'2026-08-10',
+      emailStart:'2026-01-01',
+      emailEnd:'2026-08-10',
+      searchCategories:{flight:false,train:false,car:false,hotel:false,events:false},
+    })
+    const queryLines=scopedPrompt.match(/^   - booking AND .+$/gm)||[]
+    expect(queryLines).toEqual(['   - booking AND ticket'])
+    expect(scopedPrompt).toContain('- Search categories: None selected')
+    expect(scopedPrompt).toContain('do not add or infer booking-term searches for unselected categories')
+  })
+
+  it('maps each prompt category to its booking-term searches', () => {
+    const render=(searchCategories:NonNullable<Parameters<typeof buildEmailExtractionPrompt>[0]['searchCategories']>)=>buildEmailExtractionPrompt({
+      tripName:'Scoped trip',
+      destination:'Europe',
+      travelStart:'2026-08-01',
+      travelEnd:'2026-08-10',
+      emailStart:'2026-01-01',
+      emailEnd:'2026-08-10',
+      searchCategories,
+    })
+    const queryLines=(value:string)=>value.match(/^   - booking AND .+$/gm)||[]
+
+    expect(queryLines(render({flight:false}))).not.toContain('   - booking AND flight')
+    expect(queryLines(render({train:false}))).not.toContain('   - booking AND train')
+    const withoutCar=queryLines(render({car:false}))
+    for(const term of ['car','ride','transit'])expect(withoutCar).not.toContain(`   - booking AND ${term}`)
+    expect(queryLines(render({hotel:false}))).not.toContain('   - booking AND reservation')
+    const withoutEvents=queryLines(render({events:false}))
+    for(const term of ['experience','confirmation','show'])expect(withoutEvents).not.toContain(`   - booking AND ${term}`)
+    expect(withoutEvents).toContain('   - booking AND ticket')
+  })
+
   it('reconciles booking lifecycles without collapsing sibling reservations', () => {
     expect(prompt).toContain('connect any relevant cancellation to the matching candidate reservation')
     expect(prompt).toContain('same provider, venue, thread, booking date, or nearby service dates are not duplicates')

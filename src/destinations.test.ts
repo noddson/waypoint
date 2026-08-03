@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dayWaypointStops, destinationLabel, googleMapsDirectionsUrls, googleMapsSearchUrl, mapDirectionsUrls, mapSearchUrl, tripDestinations, tripGroundRouteSegments, tripRouteStops } from './destinations'
+import { dayWaypointStops, destinationLabel, googleMapsDirectionsUrls, googleMapsSearchUrl, mapDirectionsUrls, mapLocationQuery, mapSearchUrl, tripDestinations, tripGroundRouteSegments, tripRouteStops } from './destinations'
 import { TripItem } from './types'
 
 const item=(id:string,start:string,location:string,endLocation?:string):TripItem=>({id,type:'stay',title:id,start,timeZone:'Europe/Dublin',location,endLocation,status:'confirmed'})
@@ -48,6 +48,18 @@ describe('derived trip destinations',()=>{
     expect(googleMapsSearchUrl('14 Lower William Street, Listowel, Ireland')).toBe('https://www.google.com/maps/search/?api=1&query=14%20Lower%20William%20Street%2C%20Listowel%2C%20Ireland')
   })
 
+  it('puts a stay provider before its address in individual map searches',()=>{
+    const stay={...item('hotel','2026-07-25T15:00','14 Lower William Street, Listowel, Ireland'),provider:'The Listowel Arms Hotel'}
+    const query=mapLocationQuery(stay,stay.location!)
+    expect(query).toBe('The Listowel Arms Hotel, 14 Lower William Street, Listowel, Ireland')
+    expect(new URL(mapSearchUrl(query)).searchParams.get('query')).toBe(query)
+    expect(mapLocationQuery({...stay,provider:'  '},stay.location!)).toBe(stay.location)
+    expect(mapLocationQuery({...stay,provider:'The Listowel Arms Hotel'},'The Listowel Arms Hotel, 14 Lower William Street')).toBe('The Listowel Arms Hotel, 14 Lower William Street')
+    for(const type of ['flight','car','event','transport','insurance'] as const){
+      expect(mapLocationQuery({...stay,type,provider:'The Listowel Arms Hotel'},stay.location!)).toBe(stay.location)
+    }
+  })
+
   it('uses Google Maps for shared search and directions links',()=>{
     const stops=[
       {id:'one',label:'One',address:'Dublin Airport, Ireland'},
@@ -56,6 +68,28 @@ describe('derived trip destinations',()=>{
     ]
     expect(mapSearchUrl(stops[0].address)).toBe(googleMapsSearchUrl(stops[0].address))
     expect(mapDirectionsUrls(stops)).toEqual(googleMapsDirectionsUrls(stops))
+  })
+
+  it('uses stay providers in full-route map payloads without changing raw stop addresses',()=>{
+    const first={...item('first','2026-07-25T15:00','1 Main Street, Dublin, Ireland'),provider:'Dublin House'}
+    const middle={...item('middle','2026-07-26T12:00','2 High Street, Belfast, Northern Ireland'),type:'event' as const,provider:'Belfast Museum'}
+    const last={...item('last','2026-07-27T15:00','3 Quay Street, Derry, Northern Ireland'),provider:'Derry Inn'}
+    const segment=tripGroundRouteSegments([first,middle,last])[0]
+    expect(segment.stops.map(stop=>stop.address)).toEqual([first.location,middle.location,last.location])
+    expect(segment.stops.map(stop=>stop.mapQuery)).toEqual([
+      `Dublin House, ${first.location}`,
+      undefined,
+      `Derry Inn, ${last.location}`,
+    ])
+    const params=new URL(googleMapsDirectionsUrls(segment.stops)[0]).searchParams
+    expect(params.get('origin')).toBe(`Dublin House, ${first.location}`)
+    expect(params.get('waypoints')).toBe(middle.location)
+    expect(params.get('destination')).toBe(`Derry Inn, ${last.location}`)
+  })
+
+  it('uses a stay provider for a single-stop directions fallback',()=>{
+    const links=googleMapsDirectionsUrls([{id:'hotel',label:'Listowel',address:'14 Lower William Street, Listowel, Ireland',mapQuery:'The Listowel Arms Hotel, 14 Lower William Street, Listowel, Ireland'}])
+    expect(new URL(links[0]).searchParams.get('query')).toBe('The Listowel Arms Hotel, 14 Lower William Street, Listowel, Ireland')
   })
 
   it('splits long directions into links that keep every route leg',()=>{

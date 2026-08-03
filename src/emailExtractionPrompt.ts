@@ -9,7 +9,40 @@ export interface EmailExtractionPromptInput {
   emailEnd: string
   people?: string
   clues?: string
+  searchCategories?: Partial<Record<EmailSearchCategory, boolean>>
 }
+
+export type EmailSearchCategory = 'flight' | 'train' | 'car' | 'hotel' | 'events'
+
+export const emailSearchCategoryLabels: Record<EmailSearchCategory, string> = {
+  flight: 'Flight',
+  train: 'Train',
+  car: 'Car',
+  hotel: 'Hotel',
+  events: 'Events',
+}
+
+export const emailSearchCategories = Object.keys(emailSearchCategoryLabels) as EmailSearchCategory[]
+export const defaultEmailSearchCategories: Record<EmailSearchCategory, boolean> = {
+  flight: true,
+  train: true,
+  car: true,
+  hotel: true,
+  events: true,
+}
+
+const bookingSearchTerms: Array<{ term: string; category?: EmailSearchCategory }> = [
+  { term: 'flight', category: 'flight' },
+  { term: 'car', category: 'car' },
+  { term: 'ride', category: 'car' },
+  { term: 'train', category: 'train' },
+  { term: 'transit', category: 'car' },
+  { term: 'ticket' },
+  { term: 'reservation', category: 'hotel' },
+  { term: 'experience', category: 'events' },
+  { term: 'confirmation', category: 'events' },
+  { term: 'show', category: 'events' },
+]
 
 const line = (value?: string) => value?.trim() || 'None provided'
 
@@ -44,6 +77,12 @@ const calendarMonthSearchWindows = (startValue: string, endValue: string) => {
 
 export function buildEmailExtractionPrompt(input: EmailExtractionPromptInput) {
   const outputFilename=tripJsonFilename({name:input.tripName,destination:input.destination,start:input.travelStart})
+  const categoryEnabled=(category:EmailSearchCategory)=>input.searchCategories?.[category]!==false
+  const selectedCategories=emailSearchCategories.filter(categoryEnabled)
+  const bookingSearches=bookingSearchTerms
+    .filter(({category})=>!category||categoryEnabled(category))
+    .map(({term})=>`   - booking AND ${term}`)
+    .join('\n')
   const searchWindows=calendarMonthSearchWindows(input.emailStart,input.emailEnd)
     .map(({start,end})=>`- ${start} through ${end}, inclusive`)
     .join('\n')||'- Complete valid mailbox dates are required before the search windows can be listed.'
@@ -58,6 +97,7 @@ TRIP SCOPE
 - Search mailbox messages dated through: ${line(input.emailEnd)}
 - Travellers, possible bookers, and providers: ${line(input.people)}
 - Search hints: ${line(input.clues)}
+- Search categories: ${selectedCategories.map(category=>emailSearchCategoryLabels[category]).join(', ')||'None selected'}
 
 Treat this as an independent trip. Do not reuse assumptions, dates, people, providers, confirmations, or itinerary details from any previous trip or conversation unless they are explicitly present in this scope or supported by the in-scope email evidence.
 
@@ -97,17 +137,8 @@ Translate those shapes for the connected provider instead of assuming Gmail synt
 4. Sender pass. Build the sender list from every traveller, possible booker, and provider supplied in the sender-list field above. Use each sender entry exactly as written by the user, preserving its text, spelling, punctuation, and regional form. Provider-native quoting or field syntax may wrap that text, but do not infer, normalize, expand, or replace it with an email address, website domain, or regional domain. For example, an entry of Expedia must remain Expedia; never translate it to expedia.com or any other domain. Do not derive additional senders from the other search hints. In every month window, run a separate received-mail search for each listed sender using the provider's sender/from-address field. Do not add a destination or booking-term constraint to these sender searches.
 5. Analyze every result from every sender search. Screen its sender, subject, snippet, date, and attachment metadata, then read the message and relevant readable attachments when needed to decide whether it supports a real itinerary item. Words or values from the supplied search hints are positive confidence signals, but never required filters: a result must not be excluded merely because it omits or differs from a hint. A generic subject or unfamiliar provider is likewise not enough to reject a candidate.
 6. Booking-term pass. In every month window, run a separate received-mail search for each of these logical AND pairs, with no traveller, booker, provider, or sender/from-address constraint:
-   - booking AND flight
-   - booking AND car
-   - booking AND ride
-   - booking AND train
-   - booking AND transit
-   - booking AND ticket
-   - booking AND reservation
-   - booking AND experience
-   - booking AND confirmation
-   - booking AND show
-Analyze every returned result using the same relevance and hint-confidence rules. Run each AND pair as its own search; do not combine different item words into one grouped query and do not search either pair as a quoted literal phrase.
+${bookingSearches}
+Analyze every returned result using the same relevance and hint-confidence rules. Run each AND pair as its own search; do not combine different item words into one grouped query and do not search either pair as a quoted literal phrase. Only the pairs listed above are selected for independent booking-term searches; do not add or infer booking-term searches for unselected categories.
 7. Cancellation pass. In every month window, run a separate received-mail search for Cancellation, with no traveller, booker, provider, or sender/from-address constraint. Analyze every returned result and connect any relevant cancellation to the matching candidate reservation so a cancelled or replaced item is not left active.
 8. Pool the relevant evidence found by all passes, then reconcile it into the valid itinerary items described below. A search hit is a candidate, not automatically an itinerary item; include only items supported by the received message or its readable attachment.
 

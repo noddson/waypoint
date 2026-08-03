@@ -4,6 +4,7 @@ export interface DestinationStop {
   id: string
   label: string
   address: string
+  mapQuery?: string
 }
 
 export interface GroundRouteSegment {
@@ -68,8 +69,15 @@ export function itemDestinationLabels(item:TripItem) {
   return [destinationLabel(item.location),destinationLabel(item.endLocation)].filter((value,index,all):value is string=>!!value&&all.indexOf(value)===index)
 }
 
-const destinationStop = (address?:string) => {const label=destinationLabel(address);return label&&address?{id:label.toLocaleLowerCase(),label,address}:undefined}
-const itemDestinationStops = (item:TripItem) => [destinationStop(item.location),destinationStop(item.endLocation)].filter((value):value is DestinationStop=>!!value)
+export const mapLocationQuery = (item:TripItem,address:string) => {
+  const value=address.trim(),provider=item.type==='stay'?item.provider?.trim():undefined
+  if(!provider)return value
+  const normalizedValue=value.toLocaleLowerCase(),normalizedProvider=provider.toLocaleLowerCase()
+  return normalizedValue===normalizedProvider||normalizedValue.startsWith(`${normalizedProvider},`)||normalizedValue.startsWith(`${normalizedProvider} `)?value:`${provider}, ${value}`
+}
+
+const destinationStop = (address?:string,mapQuery?:string) => {const label=destinationLabel(address);return label&&address?{id:label.toLocaleLowerCase(),label,address,...(mapQuery&&mapQuery!==address?{mapQuery}: {})}:undefined}
+const itemDestinationStops = (item:TripItem) => [item.location,item.endLocation].map(address=>destinationStop(address,address?mapLocationQuery(item,address):undefined)).filter((value):value is DestinationStop=>!!value)
 const sameAddress = (left:string,right:string) => left.toLocaleLowerCase().replace(/\s+/g,' ').trim()===right.toLocaleLowerCase().replace(/\s+/g,' ').trim()
 const appendRouteStop = (route:DestinationStop[],stop?:DestinationStop) => {if(stop&&route[route.length-1]?.id!==stop.id)route.push(stop)}
 const appendWaypoint = (route:DestinationStop[],stop?:DestinationStop) => {if(stop&&!sameAddress(route[route.length-1]?.address||'',stop.address))route.push(stop)}
@@ -180,9 +188,10 @@ export const itemMatchesDestination = (item:TripItem,destinationId:string) => it
 
 export const googleMapsSearchUrl = (address:string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
 export const mapSearchUrl = googleMapsSearchUrl
+const googleMapsStopQuery = (stop:DestinationStop) => stop.mapQuery||stop.address
 
 export function googleMapsDirectionsUrls(stops:DestinationStop[]) {
-  if(stops.length<2)return stops[0]?[googleMapsSearchUrl(stops[0].address)]:[]
+  if(stops.length<2)return stops[0]?[googleMapsSearchUrl(googleMapsStopQuery(stops[0]))]:[]
   const maximumLegs=10,totalLegs=stops.length-1,linkCount=Math.ceil(totalLegs/maximumLegs),chunks:DestinationStop[][]=[]
   let start=0
   for(let link=0;link<linkCount;link++){
@@ -198,8 +207,8 @@ export function googleMapsDirectionsUrls(stops:DestinationStop[]) {
     chunks.push(stops.slice(start,start+legCount+1));start+=legCount
   }
   return chunks.map(chunk=>{
-    const params=new URLSearchParams({api:'1',origin:chunk[0].address,destination:chunk[chunk.length-1].address,travelmode:'driving'})
-    const waypoints=chunk.slice(1,-1).map(stop=>stop.address)
+    const params=new URLSearchParams({api:'1',origin:googleMapsStopQuery(chunk[0]),destination:googleMapsStopQuery(chunk[chunk.length-1]),travelmode:'driving'})
+    const waypoints=chunk.slice(1,-1).map(googleMapsStopQuery)
     if(waypoints.length)params.set('waypoints',waypoints.join('|'))
     return `https://www.google.com/maps/dir/?${params}`
   })
