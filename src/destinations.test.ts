@@ -115,7 +115,7 @@ describe('derived trip destinations',()=>{
     ])
     expect(segments).toHaveLength(1)
     expect(segments[0].label).toBe('British Columbia')
-    expect(segments[0].stops.map(stop=>stop.label)).toEqual(['YVR','Vancouver','YVR'])
+    expect(segments[0].stops.map(stop=>stop.label)).toEqual(['YVR','Vancouver','Vancouver','YVR'])
     expect(segments[0].arrivalFlightRoute).toEqual(['YKF','YYC','YVR'])
     expect(segments[0].departureFlightRoute).toEqual(['YVR','YYC','YKF'])
     expect(segments[0].stops.some(stop=>stop.address.includes('Calgary'))).toBe(false)
@@ -156,10 +156,10 @@ describe('derived trip destinations',()=>{
     ])
     expect(segments).toHaveLength(1)
     expect(segments[0].label).toBe('Hawaii')
-    expect(segments[0].stops.map(stop=>stop.label)).toEqual(['Honolulu','Kahuku','Honolulu'])
+    expect(segments[0].stops.map(stop=>stop.label)).toEqual(['Honolulu','Kahuku','Honolulu','Honolulu'])
   })
 
-  it('collapses adjacent city stops but preserves a city revisited later',()=>{
+  it('preserves distinct same-city itinerary addresses in chronological order',()=>{
     const segments=tripGroundRouteSegments([
       flight('outbound','2026-07-18T20:50','Toronto Pearson International Airport, Toronto, Canada','Dublin Airport, Dublin, Ireland'),
       item('hotel','2026-07-19T15:00','Maldron Hotel, Dublin, Ireland'),
@@ -168,7 +168,23 @@ describe('derived trip destinations',()=>{
       item('return','2026-07-22T10:00','Dublin 8, Ireland'),
       flight('home','2026-07-23T09:00','Dublin Airport, Dublin, Ireland','Toronto Pearson International Airport, Toronto, Canada'),
     ])
-    expect(segments[0].stops.map(stop=>stop.label)).toEqual(['Dublin','Belfast','Dublin'])
+    expect(segments[0].stops.map(stop=>stop.address)).toEqual([
+      'Dublin Airport, Dublin, Ireland',
+      'Maldron Hotel, Dublin, Ireland',
+      'Budget Car Rental, Dublin, Ireland',
+      'Titanic Belfast, Belfast, Northern Ireland',
+      'Dublin 8, Ireland',
+      'Dublin Airport, Dublin, Ireland',
+    ])
+    const params=new URL(googleMapsDirectionsUrls(segments[0].stops)[0]).searchParams
+    expect(params.get('origin')).toBe('Dublin Airport, Dublin, Ireland')
+    expect(params.get('waypoints')?.split('|')).toEqual([
+      'Maldron Hotel, Dublin, Ireland',
+      'Budget Car Rental, Dublin, Ireland',
+      'Titanic Belfast, Belfast, Northern Ireland',
+      'Dublin 8, Ireland',
+    ])
+    expect(params.get('destination')).toBe('Dublin Airport, Dublin, Ireland')
   })
 
   it('keeps distinct same-city addresses as daily map waypoints',()=>{
@@ -198,7 +214,8 @@ describe('derived trip destinations',()=>{
     expect(segments[0].stops[0].address).toContain('Edinburgh Airport')
     expect(segments[0].stops[segments[0].stops.length-1]?.address).toContain('Glasgow Airport')
     expect(segments[1].stops[0].address).toContain('Berlin Brandenburg Airport')
-    expect(segments[1].stops[segments[1].stops.length-1]?.address).toContain('Marienplatz')
+    expect(segments[1].stops[segments[1].stops.length-2]?.address).toContain('Marienplatz')
+    expect(segments[1].stops[segments[1].stops.length-1]?.address).toContain('Munich Airport')
     expect(segments.flatMap(segment=>segment.stops).some(stop=>stop.address.includes('Toronto'))).toBe(false)
   })
 })

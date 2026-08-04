@@ -122,7 +122,7 @@ export function tripGroundRouteSegments(items:TripItem[]):GroundRouteSegment[] {
   const sorted=sortTripItems(items),flights=sorted.filter(item=>item.type==='flight')
   if(!flights.length){
     const stops:DestinationStop[]=[]
-    for(const item of sorted.filter(routeItem))for(const stop of itemDestinationStops(item))appendRouteStop(stops,stop)
+    for(const item of sorted.filter(routeItem))for(const stop of itemDestinationStops(item))appendWaypoint(stops,stop)
     return stops.length?[{id:'ground-1',label:segmentLabel(stops),stops}]:[]
   }
 
@@ -131,7 +131,7 @@ export function tripGroundRouteSegments(items:TripItem[]):GroundRouteSegment[] {
   let groundSinceFlight=false,seenFlight=false
   const finishSegment=(departure?:DestinationStop)=>{
     if(!groundSinceFlight)return
-    appendRouteStop(current,departure)
+    appendWaypoint(current,departure)
     if(current.length)segments.push({id:`ground-${segments.length+1}`,label:segmentLabel(current),stops:current})
     current=[];groundSinceFlight=false
   }
@@ -145,8 +145,8 @@ export function tripGroundRouteSegments(items:TripItem[]):GroundRouteSegment[] {
     if(!seenFlight||!routeItem(item))continue
     const stops=itemDestinationStops(item)
     if(!stops.length)continue
-    if(!current.length)appendRouteStop(current,pendingArrival)
-    for(const stop of stops)appendRouteStop(current,stop)
+    if(!current.length)appendWaypoint(current,pendingArrival)
+    for(const stop of stops)appendWaypoint(current,stop)
     groundSinceFlight=true
   }
 

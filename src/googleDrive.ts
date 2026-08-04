@@ -18,6 +18,7 @@ declare global { interface Window { google?:GoogleIdentity } }
 export interface DriveSyncRecord {
   tripId: string
   fileId: string
+  ownedByMe?: boolean
   resourceKey?: string
   version?: string
   lastSyncedUpdatedAt: string
@@ -135,7 +136,7 @@ export async function createDriveTrip(trip:Trip) {
   const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(tripExport(trip,revision))}\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
   const file=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as {id:string;resourceKey?:string}
   const details=await getDriveFileDetails(file.id,file.resourceKey)
-  let record:DriveSyncRecord={tripId:trip.id,fileId:file.id,resourceKey:details.resourceKey||file.resourceKey,version:details.version,lastSyncedUpdatedAt:trip.updatedAt,revision,baseTrip:trip}
+  let record:DriveSyncRecord={tripId:trip.id,fileId:file.id,ownedByMe:details.ownedByMe??true,resourceKey:details.resourceKey||file.resourceKey,version:details.version,lastSyncedUpdatedAt:trip.updatedAt,revision,baseTrip:trip}
   record.permissions=await listDrivePermissions(record)
   const updated=await uploadDriveExport(record,tripExport(trip,revision,undefined,record))
   record={...record,version:updated.version||details.version}
@@ -151,8 +152,8 @@ export async function enableDriveTripSharing(record:DriveSyncRecord) {
 }
 
 async function getDriveFileDetails(fileId:string,resourceKey?:string){
-  const query=new URLSearchParams({fields:'id,name,version,modifiedTime,resourceKey'})
-  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${query}`,{headers:resourceKeyHeaders(fileId,resourceKey)}).then(response=>response.json()) as Promise<{id:string;name:string;version?:string;modifiedTime?:string;resourceKey?:string}>
+  const query=new URLSearchParams({fields:'id,name,version,modifiedTime,resourceKey,ownedByMe'})
+  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${query}`,{headers:resourceKeyHeaders(fileId,resourceKey)}).then(response=>response.json()) as Promise<{id:string;name:string;version?:string;modifiedTime?:string;resourceKey?:string;ownedByMe?:boolean}>
 }
 
 async function uploadDriveExport(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>,value:TripExport){
@@ -168,12 +169,13 @@ export async function listDrivePermissions(record:Pick<DriveSyncRecord,'fileId'|
 }
 
 async function persistDriveAccessMetadata(record:DriveSyncRecord) {
-  const {data}=await loadDriveTrip(record.fileId,record.resourceKey)
+  const {data,details}=await loadDriveTrip(record.fileId,record.resourceKey)
   const current=data as TripExport
-  if(!current?.trip||!current.collaboration?.revision)return record
+  const identified={...record,ownedByMe:details.ownedByMe??record.ownedByMe}
+  if(!current?.trip||!current.collaboration?.revision)return identified
   const value:TripExport={...current,exportedAt:new Date().toISOString(),collaboration:{...current.collaboration,drive:driveMetadata(record)}}
   const updated=await uploadDriveExport(record,value)
-  return {...record,version:updated.version||record.version}
+  return {...identified,version:updated.version||record.version}
 }
 
 export async function refreshDriveAccess(record:DriveSyncRecord) {
@@ -208,14 +210,14 @@ export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
   const localChanged=JSON.stringify(trip)!==JSON.stringify(base)
   const remoteChanged=JSON.stringify(remote.trip)!==JSON.stringify(base)
   if(!localChanged){
-    const nextRecord=saveDriveSyncRecord({...record,version:details.version,lastSyncedUpdatedAt:remote.trip.updatedAt,revision:remote.collaboration?.revision||record.revision,permissions:record.permissions||remote.collaboration?.drive?.permissions,baseTrip:remote.trip})
+    const nextRecord=saveDriveSyncRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,version:details.version,lastSyncedUpdatedAt:remote.trip.updatedAt,revision:remote.collaboration?.revision||record.revision,permissions:record.permissions||remote.collaboration?.drive?.permissions,baseTrip:remote.trip})
     return {record:nextRecord,trip:remote.trip,conflicts:0,changed:remoteChanged}
   }
   const {trip:merged,conflicts}=mergeTripVersions(base,trip,remote.trip)
   const revision=crypto.randomUUID()
   const parentRevision=remote.collaboration?.revision||record.revision
   const updated=await uploadDriveExport(record,tripExport(merged,revision,parentRevision,record))
-  const nextRecord=saveDriveSyncRecord({...record,version:updated.version||details.version,lastSyncedUpdatedAt:merged.updatedAt,revision,baseTrip:merged})
+  const nextRecord=saveDriveSyncRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,version:updated.version||details.version,lastSyncedUpdatedAt:merged.updatedAt,revision,baseTrip:merged})
   return {record:nextRecord,trip:merged,conflicts,changed:true}
 }
 
