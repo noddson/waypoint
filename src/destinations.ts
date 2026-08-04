@@ -11,6 +11,7 @@ export interface GroundRouteSegment {
   id: string
   label: string
   stops: DestinationStop[]
+  mapStops?: DestinationStop[]
   arrivalFlightRoute?: string[]
   departureFlightRoute?: string[]
   arrivalFlightItemIds?: string[]
@@ -121,32 +122,33 @@ const segmentLabel = (stops:DestinationStop[]) => {
 export function tripGroundRouteSegments(items:TripItem[]):GroundRouteSegment[] {
   const sorted=sortTripItems(items),flights=sorted.filter(item=>item.type==='flight')
   if(!flights.length){
-    const stops:DestinationStop[]=[]
-    for(const item of sorted.filter(routeItem))for(const stop of itemDestinationStops(item))appendWaypoint(stops,stop)
-    return stops.length?[{id:'ground-1',label:segmentLabel(stops),stops}]:[]
+    const stops:DestinationStop[]=[],mapStops:DestinationStop[]=[]
+    for(const item of sorted.filter(routeItem))for(const stop of itemDestinationStops(item)){appendRouteStop(stops,stop);appendWaypoint(mapStops,stop)}
+    return stops.length?[{id:'ground-1',label:segmentLabel(stops),stops,mapStops}]:[]
   }
 
   const segments:GroundRouteSegment[]=[]
-  let pendingArrival:DestinationStop|undefined,current:DestinationStop[]=[]
+  let pendingArrival:DestinationStop|undefined,current:DestinationStop[]=[],currentMap:DestinationStop[]=[]
   let groundSinceFlight=false,seenFlight=false
   const finishSegment=(departure?:DestinationStop)=>{
     if(!groundSinceFlight)return
-    appendWaypoint(current,departure)
-    if(current.length)segments.push({id:`ground-${segments.length+1}`,label:segmentLabel(current),stops:current})
-    current=[];groundSinceFlight=false
+    appendRouteStop(current,departure);appendWaypoint(currentMap,departure)
+    if(current.length)segments.push({id:`ground-${segments.length+1}`,label:segmentLabel(current),stops:current,mapStops:currentMap})
+    current=[];currentMap=[];groundSinceFlight=false
   }
 
   for(const item of sorted){
     if(item.type==='flight'){
       if(seenFlight)finishSegment(destinationStop(item.location))
-      current=[];groundSinceFlight=false;pendingArrival=destinationStop(item.endLocation);seenFlight=true
+      current=[];currentMap=[];groundSinceFlight=false;pendingArrival=destinationStop(item.endLocation);seenFlight=true
       continue
     }
     if(!seenFlight||!routeItem(item))continue
     const stops=itemDestinationStops(item)
     if(!stops.length)continue
-    if(!current.length)appendWaypoint(current,pendingArrival)
-    for(const stop of stops)appendWaypoint(current,stop)
+    if(!current.length)appendRouteStop(current,pendingArrival)
+    if(!currentMap.length)appendWaypoint(currentMap,pendingArrival)
+    for(const stop of stops){appendRouteStop(current,stop);appendWaypoint(currentMap,stop)}
     groundSinceFlight=true
   }
 
