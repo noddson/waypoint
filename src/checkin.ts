@@ -1,7 +1,8 @@
 import { TripItem } from './types'
 
 export const AIR_CANADA_CHECK_IN_URL = 'https://www.aircanada.com/home/ca/en/aco/checkin'
-const FLIGHT_STATUS_LEAD_TIME = 12*60*60*1000
+const FLIGHT_STATUS_LEAD_TIME = 24*60*60*1000
+const FLIGHT_STATUS_FALLBACK_DURATION = 12*60*60*1000
 
 export function zonedDateTimeEpoch(value:string,timeZone:string) {
   const match=value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
@@ -33,6 +34,6 @@ export function isFlightStatusWindowOpen(item:TripItem,now=Date.now()) {
   const departure=zonedDateTimeEpoch(item.start,item.timeZone)
   if(!Number.isFinite(departure)||now<departure-FLIGHT_STATUS_LEAD_TIME)return false
   const arrival=item.end?zonedDateTimeEpoch(item.end,item.endTimeZone||item.timeZone):Number.NaN
-  const windowEnd=Number.isFinite(arrival)?arrival:departure+FLIGHT_STATUS_LEAD_TIME
+  const windowEnd=Number.isFinite(arrival)?arrival:departure+FLIGHT_STATUS_FALLBACK_DURATION
   return now<windowEnd
 }

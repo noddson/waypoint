@@ -6,7 +6,7 @@ Waypoint remains a client-only application and does not retrieve or store live f
 
 For a flight with a non-empty `flightNumber`, the itinerary shows **Check flight status**:
 
-- beginning 12 hours before the scheduled departure, interpreted in the flight's `timeZone`;
+- beginning 24 hours before the scheduled departure, interpreted in the flight's `timeZone`, so it appears alongside an eligible check-in action;
 - through the scheduled arrival, interpreted in `endTimeZone` when present; or
 - until 12 hours after departure when the itinerary has no valid arrival time.
 
