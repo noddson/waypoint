@@ -1,15 +1,12 @@
 import { mapLocationQuery } from './destinations'
-import { confirmationCodeValue } from './confirmationCodeFormat'
+import { StayCalendarTiming } from './calendarDelivery'
+import { virtualEventLink } from './calendarItemLink'
 import { Trip, TripItem, sortTripItems, typeLabels } from './types'
 
-export interface CalendarAttachment {
-  mimeType: string
-  dataBase64: string
-}
-
 export interface CalendarBuildOptions {
-  attachments?:Record<string,CalendarAttachment[]>
   includeSourceEmail?:boolean
+  stayTiming?:StayCalendarTiming
+  itemUrls?:Record<string,string>
 }
 
 const encoder=new TextEncoder()
@@ -19,6 +16,7 @@ const escapeText=(value:string)=>value.replace(/\\/g,'\\\\').replace(/\r?\n/g,'\
 const safeFilenamePart=(value:string)=>value.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'')
 
 const nextDate=(value:string)=>{const date=new Date(`${value.slice(0,10)}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+1);return date.toISOString().slice(0,10)}
+const hasTime=(value?:string)=>!!value&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)
 const utcStamp=(value:string):string=>{const date=new Date(value);return Number.isNaN(date.getTime())?utcStamp(new Date().toISOString()):`${date.getUTCFullYear()}${pad(date.getUTCMonth()+1)}${pad(date.getUTCDate())}T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}Z`}
 
 function localDateTimeAsUtc(value:string,timeZone:string) {
@@ -58,9 +56,33 @@ const descriptionLines=(item:TripItem,includeSourceEmail=false)=>[
   item.durationMinutes&&`Duration: ${Math.floor(item.durationMinutes/60)}h ${item.durationMinutes%60}m`,
   item.endLocation&&`End location: ${mapLocationQuery(item,item.endLocation)}`,
   item.notes&&`Details: ${item.notes}`,
-  item.link&&`Booking: ${item.link}`,
+  item.link&&`${virtualEventLink(item)?'Virtual event':'Booking'}: ${item.link}`,
   includeSourceEmail&&item.emailLink&&`Source email: ${item.emailLink}`,
 ].filter((value):value is string=>!!value)
+
+const displayAlarm=(trigger:string,description:string)=>['BEGIN:VALARM','ACTION:DISPLAY',`DESCRIPTION:${escapeText(description)}`,trigger,'END:VALARM']
+const absoluteAlarm=(value:string,timeZone:string,description:string)=>displayAlarm(`TRIGGER;VALUE=DATE-TIME:${localDateTimeAsUtc(value,timeZone)}`,description)
+const morningOrEarlier=(value:string)=>hasTime(value)&&value.slice(11,16)<'08:00'?value:`${value.slice(0,10)}T08:00`
+
+function alarmLines(item:TripItem) {
+  const timed=hasTime(item.start)&&!item.allDay
+  if(item.type==='flight'&&timed)return [...displayAlarm('TRIGGER:-P1D','Flight check-in opens in 24 hours'),...displayAlarm('TRIGGER:-PT3H','Flight departs in 3 hours')]
+  if(item.type==='transport'&&timed)return displayAlarm('TRIGGER:-PT1H','Transit or train departs in 1 hour')
+  if(item.type==='car'){
+    const actions=[{value:item.start,timeZone:item.timeZone,description:/\b(return|drop.?off)\b/i.test(item.title)?'Car rental return time':'Car rental pickup time'},...(item.end?[{value:item.end,timeZone:item.endTimeZone||item.timeZone,description:'Car rental return time'}]:[])]
+    const alarms:string[]=[],seen=new Set<string>()
+    for(const action of actions){const trigger=`TRIGGER;VALUE=DATE-TIME:${localDateTimeAsUtc(morningOrEarlier(action.value),action.timeZone)}`;if(!seen.has(trigger)){seen.add(trigger);alarms.push(...displayAlarm(trigger,action.description))}}
+    return alarms
+  }
+  if(item.type==='stay'){
+    const alarms:string[]=[]
+    if(timed)alarms.push(...absoluteAlarm(item.start,item.timeZone,'Stay check-in time'))
+    if(hasTime(item.end)&&!item.allDay)alarms.push(...absoluteAlarm(item.end!,item.endTimeZone||item.timeZone,'Stay checkout time'))
+    return alarms
+  }
+  if(item.type==='event')return [...displayAlarm('TRIGGER:-P1D','Event is tomorrow'),...(timed?displayAlarm('TRIGGER:-PT2H','Event starts in 2 hours'):[])]
+  return []
+}
 
 function eventLines(item:TripItem,trip:Trip,options:CalendarBuildOptions) {
   const lines=[
@@ -73,7 +95,8 @@ function eventLines(item:TripItem,trip:Trip,options:CalendarBuildOptions) {
     `STATUS:${item.status==='confirmed'?'CONFIRMED':'TENTATIVE'}`,
     `CATEGORIES:${escapeText(typeLabels[item.type])}`,
   ]
-  if(item.allDay){
+  const allDayStay=item.type==='stay'&&options.stayTiming==='all-day'
+  if(item.allDay||allDayStay){
     lines.push(`DTSTART;VALUE=DATE:${compactDate(item.start)}`)
     lines.push(`DTEND;VALUE=DATE:${compactDate(nextDate(item.end||item.start))}`)
   }else{
@@ -82,10 +105,9 @@ function eventLines(item:TripItem,trip:Trip,options:CalendarBuildOptions) {
   }
   const location=item.location?mapLocationQuery(item,item.location):item.endLocation?mapLocationQuery(item,item.endLocation):undefined
   if(location)lines.push(`LOCATION:${escapeText(location)}`)
-  if(item.link)lines.push(`URL:${item.link}`)
-  for(const attachment of options.attachments?.[item.id]||[]){
-    if(attachment.dataBase64)lines.push(`ATTACH;FMTTYPE=${attachment.mimeType};ENCODING=BASE64;VALUE=BINARY:${attachment.dataBase64}`)
-  }
+  const eventUrl=virtualEventLink(item)||options.itemUrls?.[item.id]
+  if(eventUrl)lines.push(`URL:${eventUrl}`)
+  lines.push(...alarmLines(item))
   lines.push('END:VEVENT')
   return lines
 }
@@ -101,11 +123,10 @@ export function buildTripCalendar(trip:Trip,options:CalendarBuildOptions={}) {
     'PRODID:-//Waypoint Travel Planner//Itinerary//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
+    'X-WAYPOINT-DATA-FLOW:ITINERARY-JSON-TO-CALENDAR',
     `X-WR-CALNAME:${escapeText(trip.name)}`,
     ...sortTripItems(trip.items).flatMap(item=>eventLines(item,trip,options)),
     'END:VCALENDAR',
   ]
   return `${lines.flatMap(foldLine).join('\r\n')}\r\n`
 }
-
-export const itemHasCalendarCode = (item:TripItem) => !!confirmationCodeValue(item.confirmation)

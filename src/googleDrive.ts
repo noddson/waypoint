@@ -183,8 +183,8 @@ export async function publishDriveCalendarSubscription(trip:Trip,calendar:string
   return calendarFileDetails(subscription.fileId,subscription.resourceKey)
 }
 
-export async function refreshDriveCalendarSubscription(trip:Trip,calendar:string) {
-  const subscription=await findDriveCalendarSubscription(trip.id)
+export async function refreshDriveCalendarSubscription(trip:Trip,calendar:string,knownSubscription?:DriveCalendarSubscription) {
+  const subscription=knownSubscription||await findDriveCalendarSubscription(trip.id)
   return subscription?uploadCalendarFile(subscription,trip,calendar):undefined
 }
 
