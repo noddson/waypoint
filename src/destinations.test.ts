@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dayWaypointStops, destinationLabel, googleMapsDirectionsUrls, googleMapsSearchUrl, mapDirectionsUrls, mapLocationQuery, mapSearchUrl, tripDestinations, tripGroundRouteSegments, tripRouteStops } from './destinations'
+import { appleMapsSearchUrl, dayWaypointStops, destinationLabel, googleMapsDirectionsUrls, googleMapsSearchUrl, mapDirectionsUrls, mapLocationQuery, mapSearchUrl, tripDestinations, tripGroundRouteSegments, tripRouteStops } from './destinations'
 import { TripItem } from './types'
 
 const item=(id:string,start:string,location:string,endLocation?:string):TripItem=>({id,type:'stay',title:id,start,timeZone:'Europe/Dublin',location,endLocation,status:'confirmed'})
@@ -68,6 +68,16 @@ describe('derived trip destinations',()=>{
     ]
     expect(mapSearchUrl(stops[0].address)).toBe(googleMapsSearchUrl(stops[0].address))
     expect(mapDirectionsUrls(stops)).toEqual(googleMapsDirectionsUrls(stops))
+  })
+
+  it('uses Apple Maps for locations and omits unsupported waypoint routes',()=>{
+    const stops=[
+      {id:'one',label:'One',address:'Dublin Airport, Ireland'},
+      {id:'two',label:'Two',address:'Belfast, Northern Ireland'},
+    ]
+    expect(mapSearchUrl(stops[0].address,'apple')).toBe(appleMapsSearchUrl(stops[0].address))
+    expect(new URL(mapSearchUrl(stops[0].address,'apple')).searchParams.get('q')).toBe(stops[0].address)
+    expect(mapDirectionsUrls(stops,'apple')).toEqual([])
   })
 
   it('uses stay providers in full-route map payloads without changing raw stop addresses',()=>{

@@ -1,4 +1,5 @@
 import { TripItem, sortTripItems } from './types'
+import { MapProvider } from './mapProvider'
 
 export interface DestinationStop {
   id: string
@@ -189,7 +190,8 @@ export function tripDestinations(items:TripItem[]):DestinationStop[] {
 export const itemMatchesDestination = (item:TripItem,destinationId:string) => itemDestinationLabels(item).some(label=>label.toLocaleLowerCase()===destinationId)
 
 export const googleMapsSearchUrl = (address:string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
-export const mapSearchUrl = googleMapsSearchUrl
+export const appleMapsSearchUrl = (address:string) => `https://maps.apple.com/?q=${encodeURIComponent(address)}`
+export const mapSearchUrl = (address:string,provider:MapProvider='google') => provider==='apple'?appleMapsSearchUrl(address):googleMapsSearchUrl(address)
 const googleMapsStopQuery = (stop:DestinationStop) => stop.mapQuery||stop.address
 
 export function googleMapsDirectionsUrls(stops:DestinationStop[]) {
@@ -216,4 +218,4 @@ export function googleMapsDirectionsUrls(stops:DestinationStop[]) {
   })
 }
 
-export const mapDirectionsUrls = googleMapsDirectionsUrls
+export const mapDirectionsUrls = (stops:DestinationStop[],provider:MapProvider='google') => provider==='apple'?[]:googleMapsDirectionsUrls(stops)
