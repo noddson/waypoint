@@ -10,6 +10,7 @@ body.mobile-experience .destination-filters{margin:0 -14px;padding:10px 14px 0}
 body.mobile-experience .confirmation-details{grid-template-columns:1fr}
 body.mobile-experience .confirmation-details dt{margin-top:3px}
 body.mobile-experience .item-links a{min-height:36px;padding-top:8px}
+body.mobile-experience .item:has(.confirmation-code-code128){grid-template-columns:132px minmax(0,1fr)}
 
 body.mobile-experience {
   background:#f5f1e9;
