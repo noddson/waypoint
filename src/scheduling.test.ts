@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isAirCanadaCheckInOpen, zonedDateTimeEpoch } from './checkin'
+import { googleFlightStatusUrl, isAirCanadaCheckInOpen, isFlightStatusWindowOpen, zonedDateTimeEpoch } from './checkin'
 import { sortTripItems, TripItem } from './types'
 
 describe('scheduling helpers', () => {
@@ -21,5 +21,22 @@ describe('scheduling helpers', () => {
     expect(isAirCanadaCheckInOpen(flight,departure-24*60*60*1000-1)).toBe(false)
     expect(isAirCanadaCheckInOpen(flight,departure-24*60*60*1000)).toBe(true)
     expect(isAirCanadaCheckInOpen(flight,departure)).toBe(false)
+  })
+
+  it('links to Google flight status from 12 hours before departure through arrival', () => {
+    const flight:TripItem = {id:'ac',type:'flight',title:'Toronto → Dublin',flightNumber:'AC 800',start:'2026-07-18T20:50',end:'2026-07-19T08:15',timeZone:'America/Toronto',endTimeZone:'Europe/Dublin',status:'confirmed'}
+    const departure=zonedDateTimeEpoch(flight.start,flight.timeZone)
+    const arrival=zonedDateTimeEpoch(flight.end!,flight.endTimeZone!)
+    expect(googleFlightStatusUrl(flight)).toBe('https://www.google.com/search?q=AC+800+flight+status')
+    expect(isFlightStatusWindowOpen(flight,departure-12*60*60*1000-1)).toBe(false)
+    expect(isFlightStatusWindowOpen(flight,departure-12*60*60*1000)).toBe(true)
+    expect(isFlightStatusWindowOpen(flight,departure)).toBe(true)
+    expect(isFlightStatusWindowOpen(flight,arrival)).toBe(false)
+  })
+
+  it('requires a flight number before offering flight status', () => {
+    const flight:TripItem = {id:'unknown',type:'flight',title:'Toronto → Dublin',start:'2026-07-18T20:50',timeZone:'America/Toronto',status:'confirmed'}
+    expect(googleFlightStatusUrl(flight)).toBeUndefined()
+    expect(isFlightStatusWindowOpen(flight,zonedDateTimeEpoch(flight.start,flight.timeZone))).toBe(false)
   })
 })
