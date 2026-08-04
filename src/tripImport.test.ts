@@ -15,6 +15,13 @@ describe('Waypoint JSON validation', () => {
     expect(validTripExport(exportData())).toBe(true)
   })
 
+  it('accepts a linked public calendar subscription and rejects an unsafe URL',()=>{
+    const linked={...exportData(),calendarSubscription:{provider:'google-drive',format:'ics',mimeType:'text/calendar',access:'public-read-only',fileId:'calendar-file',resourceKey:'resource-key',publicUrl:'https://drive.google.com/uc?id=calendar-file&export=download',linkedAt:'2026-08-04T12:00:00.000Z'}}
+    expect(validTripExport(linked)).toBe(true)
+    linked.calendarSubscription.publicUrl='javascript:alert(1)'
+    expect(validTripExport(linked)).toBe(false)
+  })
+
   it('requires a source-email link to use HTTPS when present',()=>{
     const activeLink=exportData();activeLink.trip.items[0].emailLink='javascript:alert(1)'
     expect(validTripExport(activeLink)).toBe(false)

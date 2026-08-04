@@ -14,6 +14,10 @@ export const tripNameWithoutImportedSuffix = (value:string) => value.replace(/\s
 
 export function validTripExport(value:unknown): value is TripExport {
   if(!object(value)||value.schemaVersion!==SCHEMA_VERSION||!string(value.exportedAt,100)||!object(value.trip))return false
+  if(value.calendarSubscription!==undefined){
+    const calendar=value.calendarSubscription
+    if(!object(calendar)||calendar.provider!=='google-drive'||calendar.format!=='ics'||calendar.mimeType!=='text/calendar'||calendar.access!=='public-read-only'||!string(calendar.fileId,500)||!optionalString(calendar.resourceKey,500)||!string(calendar.publicUrl,4_000)||!safeHttpsLink(calendar.publicUrl)||!string(calendar.linkedAt,100))return false
+  }
   const trip=value.trip
   if(!string(trip.id,200)||!string(trip.name,300)||!string(trip.destination,500)||!string(trip.createdAt,100)||!string(trip.updatedAt,100)||!optionalString(trip.archivedAt,100)||!Array.isArray(trip.items)||trip.items.length>5000)return false
   const ids=new Set<string>()

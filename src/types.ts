@@ -18,10 +18,21 @@ export interface DrivePermissionSnapshot {
   domain?: string
   allowFileDiscovery?: boolean
 }
+export interface CalendarSubscriptionMetadata {
+  provider: 'google-drive'
+  format: 'ics'
+  mimeType: 'text/calendar'
+  access: 'public-read-only'
+  fileId: string
+  resourceKey?: string
+  publicUrl: string
+  linkedAt: string
+}
 export interface TripExport {
   schemaVersion: typeof SCHEMA_VERSION
   exportedAt: string
   trip: Trip
+  calendarSubscription?: CalendarSubscriptionMetadata
   collaboration?: {
     revision: string
     parentRevision?: string

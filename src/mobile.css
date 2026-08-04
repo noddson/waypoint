@@ -4,6 +4,7 @@
 .checkbox-label{display:flex;flex-direction:row;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px}.checkbox-label input{width:18px;height:18px;accent-color:#245a47}
 .updated{display:block;margin-top:5px;color:#68746f;font-size:12px}.sheet-updated{margin:-4px 0 14px;color:#68746f;font-size:13px}
 .share-dialog p{margin:0;color:#68746f;line-height:1.45}.share-link-field{display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:7px}.share-link-field input{width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.share-link-field button{display:grid;place-items:center;padding:9px}.share-link-field svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8}.share-dialog .share-copy-status{min-height:20px;color:#326648;font-size:13px;font-weight:700}
+.calendar-dialog strong{color:#405b52}.calendar-feed-link{display:inline-flex;align-items:center;padding:9px 4px;color:#26694d;font-size:13px;font-weight:750;text-decoration:none}.calendar-feed-link:hover{text-decoration:underline}
 .mobile-day-controls{display:none}
 body.mobile-experience .agenda-head .eyebrow{display:block!important;margin:0}
 body.mobile-experience .destination-filters{margin:0 -14px;padding:10px 14px 0}
