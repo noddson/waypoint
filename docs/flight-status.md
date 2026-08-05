@@ -4,15 +4,45 @@
 
 Waypoint remains a client-only application and does not retrieve or store live flight-status data.
 
-For a flight with a non-empty `flightNumber`, the itinerary shows **Check flight status**:
+For an itinerary item to receive **Check flight status**, it must:
+
+- have `type: "flight"`;
+- have a non-empty `flightNumber` after surrounding whitespace is removed; and
+- be inside the flight-status time window.
+
+The flight-status time window is:
 
 - beginning 12 hours before the scheduled departure, interpreted in the flight's `timeZone`;
 - through the scheduled arrival, interpreted in `endTimeZone` when present; or
 - until 12 hours after departure when the itinerary has no valid arrival time.
 
-The browser recalculates the window once per minute. The link opens a new tab with an exact Google Search query in the form `https://www.google.com/search?q=AC800+flight+status`. Flights without a flight number do not receive the link.
+The browser evaluates the window immediately when the app loads and recalculates it once per minute. The link opens Google Search in a new tab with the query `<flightNumber> flight status`. For example:
+
+- `AC800` produces `https://www.google.com/search?q=AC800+flight+status`;
+- `AC 800` produces `https://www.google.com/search?q=AC+800+flight+status`.
+
+The separate Air Canada **Check in** action is intentionally independent. It appears only for Air Canada flights from 24 hours before departure until departure. Therefore, during the final 12 hours before an Air Canada flight, both actions appear together; from 24 to 12 hours before departure, only check-in appears.
+
+## Verified AC800 case
+
+The regression test and rendered-browser verification use this exact itinerary:
+
+- flight number: `AC800` (also verified when stored as `AC 800`);
+- departure: August 4, 2026 at 8:50 p.m. in `America/Toronto`;
+- arrival: August 5, 2026 at 8:25 a.m. in `Europe/Dublin`;
+- resolved departure: August 5 at 00:50 UTC;
+- resolved arrival: August 5 at 07:25 UTC; and
+- verification time: August 5 at 00:06 UTC, 44 minutes before departure.
+
+At that verification time, Waypoint renders both **Check flight status** and **Check in with Air Canada**. The status action remains available through the scheduled arrival.
+
+## Deployment freshness
 
 An already-open browser tab continues running the JavaScript bundle it originally loaded, even after a new GitHub Pages deployment. Waypoint therefore checks the deployed entry bundle once per minute and whenever the tab becomes visible, then shows a **Reload** prompt when a newer version is available. A tab opened before this update-check behavior was deployed still needs one manual refresh.
+
+The update check is entirely client-side: it fetches the deployed HTML without using the browser cache, compares its hashed entry-script URL with the entry script currently running, and does not reload automatically. Requiring the user to choose **Reload** avoids interrupting an in-progress itinerary edit.
+
+## Google limitations
 
 Google Search cannot provide an embedded status dialog in this architecture. Its search page blocks cross-origin `fetch` parsing and cross-origin framing, so Waypoint does not iframe, proxy, scrape, or poll it. The external link is the fallback that works without credentials or server-side behavior.
 
