@@ -21,7 +21,7 @@ The browser evaluates the window immediately when the app loads and recalculates
 - `AC800` produces `https://www.google.com/search?q=AC800+flight+status`;
 - `AC 800` produces `https://www.google.com/search?q=AC+800+flight+status`.
 
-The separate Air Canada **Check in** action is intentionally independent. It appears only for Air Canada flights from 24 hours before departure until departure. Therefore, during the final 12 hours before an Air Canada flight, both actions appear together; from 24 to 12 hours before departure, only check-in appears.
+The separate airline **Check in** action is intentionally independent. It uses the flight number's two-character IATA prefix to select an official check-in page from `src/airlineCheckIn.ts`, with the provider name as a fallback for older items without a flight number. The registry maps 141 of the 145 reviewed airline brands; XiamenAir (`MF`), Sichuan Airlines (`3U`), Spring Airlines (`9C`), and Lion Air (`JT`) are documented in `AIRLINE_CHECK_IN_OMISSIONS` and deliberately excluded because no usable official web check-in URL could be verified. The action appears only for mapped airlines from 24 hours before departure until departure. Therefore, during the final 12 hours before a mapped flight, both actions appear together; from 24 to 12 hours before departure, only check-in appears.
 
 ## Verified AC800 case
 
@@ -34,7 +34,7 @@ The regression test and rendered-browser verification use this exact itinerary:
 - resolved arrival: August 5 at 07:25 UTC; and
 - verification time: August 5 at 00:06 UTC, 44 minutes before departure.
 
-At that verification time, Waypoint renders both **Check flight status** and **Check in with Air Canada**. The status action remains available through the scheduled arrival.
+At that verification time, Waypoint renders both **Check flight status** and the airline-specific **Check in with …** action. The status action remains available through the scheduled arrival.
 
 ## Deployment freshness
 

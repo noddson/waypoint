@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { googleFlightStatusUrl, isAirCanadaCheckInOpen, isFlightStatusWindowOpen, zonedDateTimeEpoch } from './checkin'
+import { googleFlightStatusUrl, isAirCanadaCheckInOpen, isAirlineCheckInOpen, isFlightStatusWindowOpen, zonedDateTimeEpoch } from './checkin'
 import { sortTripItems, TripItem } from './types'
 
 describe('scheduling helpers', () => {
@@ -21,6 +21,14 @@ describe('scheduling helpers', () => {
     expect(isAirCanadaCheckInOpen(flight,departure-24*60*60*1000-1)).toBe(false)
     expect(isAirCanadaCheckInOpen(flight,departure-24*60*60*1000)).toBe(true)
     expect(isAirCanadaCheckInOpen(flight,departure)).toBe(false)
+  })
+
+  it('uses the same check-in window for a mapped WestJet flight code', () => {
+    const flight:TripItem = {id:'ws',type:'flight',title:'Toronto → Calgary',provider:'WestJet',flightNumber:'WS 665',start:'2026-07-18T20:50',timeZone:'America/Toronto',status:'confirmed'}
+    const departure = zonedDateTimeEpoch(flight.start,flight.timeZone)
+    expect(isAirlineCheckInOpen(flight,departure-24*60*60*1000-1)).toBe(false)
+    expect(isAirlineCheckInOpen(flight,departure-24*60*60*1000)).toBe(true)
+    expect(isAirlineCheckInOpen(flight,departure)).toBe(false)
   })
 
   it('links to Google flight status from 12 hours before departure through arrival', () => {

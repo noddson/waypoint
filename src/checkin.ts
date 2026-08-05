@@ -1,6 +1,7 @@
 import { TripItem } from './types'
+import { AIRLINE_CHECK_IN_MAPPINGS, airlineCheckInForItem } from './airlineCheckIn'
 
-export const AIR_CANADA_CHECK_IN_URL = 'https://www.aircanada.com/home/ca/en/aco/checkin'
+export const AIR_CANADA_CHECK_IN_URL = AIRLINE_CHECK_IN_MAPPINGS.find(mapping=>mapping.iataCodes.includes('AC'))!.checkInUrl
 const FLIGHT_STATUS_LEAD_TIME = 12*60*60*1000
 const FLIGHT_STATUS_FALLBACK_DURATION = 12*60*60*1000
 
@@ -17,6 +18,12 @@ export function zonedDateTimeEpoch(value:string,timeZone:string) {
 
 export function isAirCanadaCheckInOpen(item:TripItem,now=Date.now()) {
   if(item.type!=='flight'||!item.provider?.toLowerCase().includes('air canada'))return false
+  const departure=zonedDateTimeEpoch(item.start,item.timeZone)
+  return Number.isFinite(departure)&&now>=departure-24*60*60*1000&&now<departure
+}
+
+export function isAirlineCheckInOpen(item:TripItem,now=Date.now()) {
+  if(!airlineCheckInForItem(item))return false
   const departure=zonedDateTimeEpoch(item.start,item.timeZone)
   return Number.isFinite(departure)&&now>=departure-24*60*60*1000&&now<departure
 }
