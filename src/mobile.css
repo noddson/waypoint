@@ -40,7 +40,9 @@ body.mobile-experience {
     .agenda{margin:0 -2px;padding:0;box-shadow:none}
     .agenda-days{min-height:100svh}
     .agenda-days .day{display:none!important}
-    .agenda-days .mobile-day-active{display:block!important}
+    .agenda-days .mobile-entry-day-active{display:block!important}
+    .mobile-entry-day-active .item{display:none}
+    .mobile-entry-day-active .mobile-entry-active{display:grid}
     .day{padding-top:10px}
     .day h3{top:0}
     .item:has(.confirmation-code-qr){grid-template-columns:104px minmax(0,1fr)}
@@ -50,3 +52,10 @@ body.mobile-experience {
     .confirmation-code-code128 canvas{width:100%!important;height:64px!important;object-fit:contain}
   }
 }
+
+.confirmation-code-expanded{display:grid;position:fixed;z-index:20;inset:8vh 8vw;place-items:center;width:84vw!important;max-width:none!important;height:84vh;margin:0;padding:4vh 4vw;border:0;border-radius:16px;background:#fff;box-shadow:0 0 0 100vmax #172a247a,0 20px 60px #0005;touch-action:manipulation}
+.confirmation-code-qr.confirmation-code-expanded canvas{width:min(72vw,72vh)!important;height:min(72vw,72vh)!important;aspect-ratio:1}
+.confirmation-code-code128.confirmation-code-expanded canvas{width:76vw!important;height:58vh!important;object-fit:fill}
+body.mobile-experience .confirmation-code-expanded{inset:0;width:100vw!important;height:100svh;padding:4svh 4vw;border-radius:0;box-shadow:none}
+body.mobile-experience .confirmation-code-qr.confirmation-code-expanded canvas{width:min(90vw,90svh)!important;height:min(90vw,90svh)!important}
+body.mobile-experience .confirmation-code-code128.confirmation-code-expanded canvas{width:92vw!important;height:70svh!important}
