@@ -1,7 +1,7 @@
 import { TripItem } from './types'
 
 export const AIR_CANADA_CHECK_IN_URL = 'https://www.aircanada.com/home/ca/en/aco/checkin'
-const FLIGHT_STATUS_LEAD_TIME = 24*60*60*1000
+const FLIGHT_STATUS_LEAD_TIME = 12*60*60*1000
 const FLIGHT_STATUS_FALLBACK_DURATION = 12*60*60*1000
 
 export function zonedDateTimeEpoch(value:string,timeZone:string) {

@@ -6,11 +6,13 @@ Waypoint remains a client-only application and does not retrieve or store live f
 
 For a flight with a non-empty `flightNumber`, the itinerary shows **Check flight status**:
 
-- beginning 24 hours before the scheduled departure, interpreted in the flight's `timeZone`, so it appears alongside an eligible check-in action;
+- beginning 12 hours before the scheduled departure, interpreted in the flight's `timeZone`;
 - through the scheduled arrival, interpreted in `endTimeZone` when present; or
 - until 12 hours after departure when the itinerary has no valid arrival time.
 
-The browser recalculates the window once per minute. The link opens a new tab with a Google Search query in the form `https://www.google.com/search?q=AC+800+flight+status`. Flights without a flight number do not receive the link.
+The browser recalculates the window once per minute. The link opens a new tab with an exact Google Search query in the form `https://www.google.com/search?q=AC800+flight+status`. Flights without a flight number do not receive the link.
+
+An already-open browser tab continues running the JavaScript bundle it originally loaded, even after a new GitHub Pages deployment. Waypoint therefore checks the deployed entry bundle once per minute and whenever the tab becomes visible, then shows a **Reload** prompt when a newer version is available. A tab opened before this update-check behavior was deployed still needs one manual refresh.
 
 Google Search cannot provide an embedded status dialog in this architecture. Its search page blocks cross-origin `fetch` parsing and cross-origin framing, so Waypoint does not iframe, proxy, scrape, or poll it. The external link is the fallback that works without credentials or server-side behavior.
 
