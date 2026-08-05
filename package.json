@@ -4,9 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "generate:version": "node generate-version.mjs",
+    "predev": "npm run generate:version",
     "dev": "vite",
+    "prebuild": "npm run generate:version",
     "build": "tsc -b && vite build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "validate:version": "node validate-version.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
