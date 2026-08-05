@@ -134,15 +134,16 @@ Everything remains local to that browser until you deliberately export it, creat
 
 Open **Your trips** to see:
 
-- Independent trips saved only on the current device.
-- Synced trips available through Google Drive after authorization.
-- The currently active trip and its storage state.
+- **Favourites** for starred, non-archived trips.
+- **Synced** for trips linked to Google Drive, including Drive trips available after authorization.
+- **Local-only** for independent trips saved only on the current device.
+- **Archived** for read-only past trips.
 
-Choose **New trip** from Trip Actions to create another independent itinerary. Synced Drive caches are grouped under Google Drive rather than duplicated in the local-only list.
+The last selected trip-list tab is restored whenever the list is reopened. Choose **New trip** from Trip Actions to create another independent itinerary. Synced Drive caches appear only in Synced rather than being duplicated in Local-only.
 
 By default, Waypoint opens the non-archived trip whose travel dates are closest to today. A trip already in progress takes priority over a later trip. Simply browsing between trips does not change this startup choice.
 
-To override the date-based default, open the preferred itinerary and choose **Trip Actions → Persist this trip**. Waypoint will open that trip on future visits until you choose **Stop persisting this trip** or delete it. An archived persisted trip is temporarily skipped in favor of the closest current or upcoming non-archived trip; restoring it makes the persisted choice eligible again. Explicit trip, Drive, or item links always take precedence, and opening a temporary snapshot does not change the persisted choice.
+Select the star beside a trip, or choose **Trip Actions → Favourite trip**, to add it to Favourites. If several trips are favourited, Waypoint starts with the non-archived favourite whose travel period is closest to today; an in-progress favourite takes priority. Archived favourites are skipped until restored. Explicit trip, Drive, or item links always take precedence, and opening a temporary snapshot does not change favourites.
 
 ### Rename a trip
 
@@ -514,7 +515,7 @@ Recognized enabled values are `1`, `true`, `yes`, and `on`. Recognized disabled 
 |---|---|---|
 | Local trips | Browser IndexedDB database `waypoint-trips` | Until deleted or browser site data is cleared |
 | Map, calendar, stay, confirmation-code, and route preferences | Browser `localStorage` | Until changed or site data is cleared |
-| Explicitly persisted startup trip ID | Browser `localStorage` | Until persistence is stopped, the trip is deleted, or site data is cleared |
+| Favourite trip IDs and last trip-list tab | Browser `localStorage` | Until changed, the trip is deleted, or site data is cleared |
 | Drive sync metadata, cached base trip, file IDs, resource keys, and permission snapshots | Browser `localStorage` | Until disconnected, deleted, or site data is cleared |
 | Google Drive access token | Browser `sessionStorage` | Until expiry, removal, or the browser session ends |
 | Snapshot trip | URL fragment | As long as the URL is retained |
@@ -681,7 +682,8 @@ An open tab keeps running the bundle it originally loaded. Waypoint checks the d
 │   ├── emailExtractionPrompt.ts        # Bounded mailbox-extraction prompt builder
 │   ├── ConfirmationCode.tsx            # QR and Code 128 rendering
 │   ├── mobileMode.ts                    # Mobile experience detection
-│   ├── startupTrip.ts                   # Persisted and date-based startup selection
+│   ├── startupTrip.ts                   # Favourite and date-based startup selection
+│   ├── tripList.ts                      # Remembered trip-list tab
 │   ├── types.ts                         # Trip schema and scheduling helpers
 │   └── *.test.ts                       # Vitest regression coverage
 ├── index.html

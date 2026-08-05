@@ -35,6 +35,7 @@ export interface DriveTripSummary {
   name: string
   modifiedTime?: string
   travelEnd?: string
+  archived?: boolean
   resourceKey?: string
   tripId?: string
 }
@@ -77,8 +78,8 @@ export async function listDriveTrips():Promise<DriveTripSummary[]> {
     pageSize:'1000',
     fields:'files(id,name,modifiedTime,resourceKey,appProperties)',
   })
-  const result=await driveFetch(`${DRIVE_API}/files?${query}`).then(response=>response.json()) as {files?:Array<{id:string;name:string;modifiedTime?:string;resourceKey?:string;appProperties?:{tripId?:string;travelEnd?:string}}>}
-  const trips=(result.files||[]).map(file=>({id:file.id,name:file.name.replace(/\.waypoint\.json$/i,''),modifiedTime:file.modifiedTime,travelEnd:file.appProperties?.travelEnd,resourceKey:file.resourceKey,tripId:file.appProperties?.tripId}))
+  const result=await driveFetch(`${DRIVE_API}/files?${query}`).then(response=>response.json()) as {files?:Array<{id:string;name:string;modifiedTime?:string;resourceKey?:string;appProperties?:{tripId?:string;travelEnd?:string;archived?:string}}>}
+  const trips=(result.files||[]).map(file=>({id:file.id,name:file.name.replace(/\.waypoint\.json$/i,''),modifiedTime:file.modifiedTime,travelEnd:file.appProperties?.travelEnd,archived:file.appProperties?.archived==='true',resourceKey:file.resourceKey,tripId:file.appProperties?.tripId}))
   await Promise.all(trips.filter(trip=>!trip.travelEnd).map(async trip=>{
     try{
       const data=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(trip.id)}?alt=media`,{headers:resourceKeyHeaders(trip.id,trip.resourceKey)}).then(response=>response.json()) as {trip?:Trip}
@@ -208,7 +209,7 @@ export async function createDriveTrip(trip:Trip) {
   const folderId=await findOrCreateFolder()
   const revision=crypto.randomUUID()
   const boundary=`waypoint-${crypto.randomUUID()}`
-  const metadata={name:`${trip.name.replace(/[\\/:*?"<>|]+/g,'-')||'Trip'}.waypoint.json`,mimeType:'application/json',parents:[folderId],appProperties:{waypoint:'trip',tripId:trip.id,travelEnd:tripLastTravelDate(trip)}}
+  const metadata={name:`${trip.name.replace(/[\\/:*?"<>|]+/g,'-')||'Trip'}.waypoint.json`,mimeType:'application/json',parents:[folderId],appProperties:{waypoint:'trip',tripId:trip.id,travelEnd:tripLastTravelDate(trip),archived:String(!!trip.archivedAt)}}
   const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(tripExport(trip,revision))}\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
   const file=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as {id:string;resourceKey?:string}
   const details=await getDriveFileDetails(file.id,file.resourceKey)
@@ -234,7 +235,7 @@ async function getDriveFileDetails(fileId:string,resourceKey?:string){
 
 async function uploadDriveExport(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>,value:TripExport){
   await driveFetch(`${DRIVE_UPLOAD_API}/files/${encodeURIComponent(record.fileId)}?uploadType=media&fields=id`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify(value)})
-  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id,version,modifiedTime`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({appProperties:{waypoint:'trip',tripId:value.trip.id,travelEnd:tripLastTravelDate(value.trip)}})}).then(response=>response.json()) as Promise<{version?:string}>
+  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id,version,modifiedTime`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({appProperties:{waypoint:'trip',tripId:value.trip.id,travelEnd:tripLastTravelDate(value.trip),archived:String(!!value.trip.archivedAt)}})}).then(response=>response.json()) as Promise<{version?:string}>
 }
 
 export async function listDrivePermissions(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>) {

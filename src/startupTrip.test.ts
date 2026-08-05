@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearPersistedTripId, closestUpcomingTrip, initialTrip, loadPersistedTripId, persistTripId } from './startupTrip'
+import { closestFavouriteTrip, closestUpcomingTrip, initialTrip, loadFavouriteTripIds, saveFavouriteTripIds } from './startupTrip'
 import { Trip } from './types'
 
 const trip = (id:string,start?:string,end?:string,archived=false):Trip => ({
@@ -9,23 +9,28 @@ const trip = (id:string,start?:string,end?:string,archived=false):Trip => ({
 })
 
 describe('startup trip',()=>{
-  const trips=[trip('later','2026-10-10T09:00'),trip('persisted','2026-06-01T09:00'),trip('linked','2026-12-01T09:00'),trip('nearest','2026-08-12T09:00')]
+  const trips=[trip('later','2026-10-10T09:00'),trip('past','2026-06-01T09:00'),trip('linked','2026-12-01T09:00'),trip('nearest','2026-08-12T09:00')]
 
-  it('restores an explicitly persisted trip instead of choosing by travel date',()=>{
-    expect(initialTrip(trips,undefined,'persisted','2026-08-05')?.id).toBe('persisted')
+  it('opens the favourite whose travel is closest to today',()=>{
+    expect(initialTrip(trips,undefined,['later','past'],'2026-08-05')?.id).toBe('past')
   })
 
-  it('lets an explicit trip link take precedence over the persisted trip',()=>{
-    expect(initialTrip(trips,'linked','persisted','2026-08-05')?.id).toBe('linked')
+  it('prefers an in-progress favourite over past and future favourites',()=>{
+    const current=trip('current','2026-08-01T09:00','2026-08-07T18:00')
+    expect(closestFavouriteTrip([...trips,current],['past','nearest','current'],'2026-08-05')?.id).toBe('current')
   })
 
-  it('defaults to the closest upcoming non-archived trip when no trip was persisted',()=>{
-    expect(initialTrip(trips,undefined,null,'2026-08-05')?.id).toBe('nearest')
+  it('lets an explicit trip link take precedence over favourites',()=>{
+    expect(initialTrip(trips,'linked',['past'],'2026-08-05')?.id).toBe('linked')
   })
 
-  it('ignores a persisted archived trip and opens the closest upcoming trip',()=>{
+  it('defaults to the closest upcoming non-archived trip when there are no favourites',()=>{
+    expect(initialTrip(trips,undefined,[],'2026-08-05')?.id).toBe('nearest')
+  })
+
+  it('ignores archived favourites and opens the closest upcoming trip',()=>{
     const archived=trip('archived','2026-08-06T09:00',undefined,true)
-    expect(initialTrip([archived,...trips],undefined,'archived','2026-08-05')?.id).toBe('nearest')
+    expect(initialTrip([archived,...trips],undefined,['archived'],'2026-08-05')?.id).toBe('nearest')
   })
 
   it('treats an in-progress trip as closer than a future trip',()=>{
@@ -35,11 +40,11 @@ describe('startup trip',()=>{
 
   it('still opens an archived trip when an explicit link requests it',()=>{
     const archived=trip('archived','2026-08-06T09:00',undefined,true)
-    expect(initialTrip([archived,...trips],'archived','persisted','2026-08-05')?.id).toBe('archived')
+    expect(initialTrip([archived,...trips],'archived',['past'],'2026-08-05')?.id).toBe('archived')
   })
 })
 
-describe('persisted startup choice',()=>{
+describe('favourite trip storage',()=>{
   const values=new Map<string,string>()
 
   beforeEach(()=>{
@@ -51,11 +56,14 @@ describe('persisted startup choice',()=>{
     })
   })
 
-  it('changes only through the explicit persist and clear operations',()=>{
-    expect(loadPersistedTripId()).toBeNull()
-    persistTripId('chosen-trip')
-    expect(loadPersistedTripId()).toBe('chosen-trip')
-    clearPersistedTripId()
-    expect(loadPersistedTripId()).toBeNull()
+  it('stores multiple unique favourites',()=>{
+    expect(loadFavouriteTripIds()).toEqual([])
+    saveFavouriteTripIds(['one','two','one'])
+    expect(loadFavouriteTripIds()).toEqual(['one','two'])
+  })
+
+  it('ignores malformed stored values',()=>{
+    values.set('waypoint-favourite-trips','{"trip":"chosen-trip"}')
+    expect(loadFavouriteTripIds()).toEqual([])
   })
 })
