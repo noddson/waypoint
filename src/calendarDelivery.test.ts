@@ -13,7 +13,7 @@ describe('calendar delivery preference',()=>{
 
   it('changes a published subscription action from publish to show',()=>{
     expect(calendarActionLabel('subscription',false)).toBe('Publish calendar subscription')
-    expect(calendarActionLabel('subscription',true)).toBe('Show published link')
+    expect(calendarActionLabel('subscription',true)).toBe('Show published calendar link')
     expect(calendarActionLabel('subscription',true,true)).toBe('Refreshing calendar…')
     expect(calendarActionLabel('export',true)).toBe('Export calendar (.ics)')
   })

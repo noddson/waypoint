@@ -15,7 +15,7 @@ export const stayCalendarTimingFromStorage = (value:string|null):StayCalendarTim
 export function calendarActionLabel(delivery:CalendarDelivery,published:boolean,busy=false) {
   if(busy)return delivery==='export'?'Building calendar…':published?'Refreshing calendar…':'Publishing calendar…'
   if(delivery==='export')return 'Export calendar (.ics)'
-  return published?'Show published link':'Publish calendar subscription'
+  return published?'Show published calendar link':'Publish calendar subscription'
 }
 
 export function loadCalendarDelivery():CalendarDelivery {
