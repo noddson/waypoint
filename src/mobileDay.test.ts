@@ -36,14 +36,14 @@ describe('landscape mobile trip entry',()=>{
     expect(initialTripEntryIndex(starts,'2026-07-23')).toBe(0)
   })
 
-  it('moves right through the flat entry sequence, including into the next day',()=>{
-    expect(tripEntryIndexAfterSwipe(0,80,starts.length)).toBe(1)
-    expect(tripEntryIndexAfterSwipe(1,80,starts.length)).toBe(2)
+  it('moves left through the flat entry sequence, including into the next day',()=>{
+    expect(tripEntryIndexAfterSwipe(0,-80,starts.length)).toBe(1)
+    expect(tripEntryIndexAfterSwipe(1,-80,starts.length)).toBe(2)
   })
 
-  it('moves left backward and stops at both ends',()=>{
-    expect(tripEntryIndexAfterSwipe(2,-80,starts.length)).toBe(1)
-    expect(tripEntryIndexAfterSwipe(0,-80,starts.length)).toBe(0)
-    expect(tripEntryIndexAfterSwipe(starts.length-1,80,starts.length)).toBe(starts.length-1)
+  it('moves right backward and stops at both ends',()=>{
+    expect(tripEntryIndexAfterSwipe(2,80,starts.length)).toBe(1)
+    expect(tripEntryIndexAfterSwipe(0,80,starts.length)).toBe(0)
+    expect(tripEntryIndexAfterSwipe(starts.length-1,-80,starts.length)).toBe(starts.length-1)
   })
 })
