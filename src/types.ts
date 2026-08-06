@@ -36,7 +36,7 @@ export interface TripExport {
   collaboration?: {
     revision: string
     parentRevision?: string
-    drive?: {fileId:string;resourceKey?:string;permissions:DrivePermissionSnapshot[];capturedAt:string}
+    drive?: {fileId:string;resourceKey?:string;permissions:DrivePermissionSnapshot[];capturedAt:string;bootstrapRevisionId?:string}
   }
 }
 export const types: ItemType[] = ['flight','stay','car','event','transport','insurance']

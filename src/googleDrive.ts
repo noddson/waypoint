@@ -10,10 +10,14 @@ const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3'
 const FOLDER_NAME = 'Waypoint travel planner'
 const SYNC_STORAGE_KEY = 'waypoint-drive-sync'
 const TOKEN_STORAGE_KEY = 'waypoint-drive-session'
+const BOOTSTRAP_REVISION_PROPERTY = 'waypointBootstrapRevision'
+const BOOTSTRAP_CLEANUP_RETRY_BASE_MS = 5*60*1000
+const BOOTSTRAP_CLEANUP_RETRY_MAX_MS = 24*60*60*1000
 
 type TokenResponse = {access_token?:string;expires_in?:number;error?:string;error_description?:string}
 type TokenClient = {requestAccessToken:(options?:{prompt?:string})=>void}
 type GoogleIdentity = {accounts:{oauth2:{initTokenClient:(options:{client_id:string;scope:string;callback:(response:TokenResponse)=>void;error_callback?:(error:unknown)=>void})=>TokenClient}}}
+class DriveRequestError extends Error { constructor(message:string,readonly status:number){super(message)} }
 
 declare global { interface Window { google?:GoogleIdentity } }
 
@@ -26,6 +30,10 @@ export interface DriveSyncRecord {
   headRevisionId?: string
   canReadRevisions?: boolean
   canDownload?: boolean
+  bootstrapRevisionId?: string
+  pendingBootstrapRevisionId?: string
+  bootstrapCleanupAttempts?: number
+  bootstrapCleanupRetryAt?: string
   lastSyncedUpdatedAt: string
   lastSynchronizedAt: string
   driveModifiedTime?: string
@@ -66,10 +74,11 @@ let accessToken = storedToken.accessToken||''
 let accessTokenExpiresAt = storedToken.expiresAt||0
 let googleScriptPromise: Promise<void> | null = null
 
-const driveMetadata = (record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'permissions'>) => ({fileId:record.fileId,resourceKey:record.resourceKey,permissions:record.permissions||[],capturedAt:new Date().toISOString()})
-const tripExport = (trip:Trip,revision=crypto.randomUUID(),parentRevision?:string,record?:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'permissions'>,calendarSubscription?:CalendarSubscriptionMetadata):TripExport => ({schemaVersion:SCHEMA_VERSION,exportedAt:new Date().toISOString(),trip:{...trip,items:sortTripItems(trip.items)},calendarSubscription,collaboration:{revision,parentRevision,drive:record?driveMetadata(record):undefined}})
+const driveMetadata = (record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'permissions'|'bootstrapRevisionId'>) => ({fileId:record.fileId,resourceKey:record.resourceKey,permissions:record.permissions||[],capturedAt:new Date().toISOString(),bootstrapRevisionId:record.bootstrapRevisionId})
+const tripExport = (trip:Trip,revision=crypto.randomUUID(),parentRevision?:string,record?:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'permissions'|'bootstrapRevisionId'>,calendarSubscription?:CalendarSubscriptionMetadata):TripExport => ({schemaVersion:SCHEMA_VERSION,exportedAt:new Date().toISOString(),trip:{...trip,items:sortTripItems(trip.items)},calendarSubscription,collaboration:{revision,parentRevision,drive:record?driveMetadata(record):undefined}})
 const resourceKeyHeaders = (fileId:string,resourceKey?:string):Record<string,string> => resourceKey?{'X-Goog-Drive-Resource-Keys':`${fileId}/${resourceKey}`}:{ }
 type DriveFileCheckpoint = {version?:string;modifiedTime?:string;headRevisionId?:string;capabilities?:{canReadRevisions?:boolean;canDownload?:boolean}}
+type DriveFileDetails = DriveFileCheckpoint&{id:string;name:string;resourceKey?:string;ownedByMe?:boolean;bootstrapRevisionId?:string}
 const synchronizedRecord = <T extends DriveSyncRecord>(record:T,details:DriveFileCheckpoint):T => ({...record,version:details.version||record.version,headRevisionId:details.headRevisionId||record.headRevisionId,canReadRevisions:details.capabilities?.canReadRevisions??record.canReadRevisions,canDownload:details.capabilities?.canDownload??record.canDownload,driveModifiedTime:details.modifiedTime||record.driveModifiedTime,lastSynchronizedAt:new Date().toISOString()})
 
 function loadGoogleIdentity() {
@@ -129,9 +138,9 @@ async function driveFetch(url:string,init:RequestInit={}) {
   if(!isGoogleDriveConnected())throw new Error('Reconnect Google Drive to continue syncing.')
   const headers=new Headers(init.headers);headers.set('Authorization',`Bearer ${accessToken}`)
   const response=await fetch(url,{...init,headers})
-  if(response.status===401){accessToken='';accessTokenExpiresAt=0;try{sessionStorage.removeItem(TOKEN_STORAGE_KEY)}catch{/* Ignore unavailable storage. */}throw new Error('Google Drive access expired. Reconnect to continue syncing.')}
-  if(response.status===403||response.status===429)throw new Error('Google Drive temporarily refused the sync. Your changes remain saved on this device.')
-  if(!response.ok){const detail=await response.json().catch(()=>null) as {error?:{message?:string}}|null;throw new Error(detail?.error?.message||`Google Drive request failed (${response.status}).`)}
+  if(response.status===401){accessToken='';accessTokenExpiresAt=0;try{sessionStorage.removeItem(TOKEN_STORAGE_KEY)}catch{/* Ignore unavailable storage. */}throw new DriveRequestError('Google Drive access expired. Reconnect to continue syncing.',response.status)}
+  if(response.status===403||response.status===429)throw new DriveRequestError('Google Drive temporarily refused the sync. Your changes remain saved on this device.',response.status)
+  if(!response.ok){const detail=await response.json().catch(()=>null) as {error?:{message?:string}}|null;throw new DriveRequestError(detail?.error?.message||`Google Drive request failed (${response.status}).`,response.status)}
   return response
 }
 
@@ -227,13 +236,15 @@ export async function createDriveTrip(trip:Trip) {
   const boundary=`waypoint-${crypto.randomUUID()}`
   const metadata={name:`${trip.name.replace(/[\\/:*?"<>|]+/g,'-')||'Trip'}.waypoint.json`,mimeType:'application/json',parents:[folderId],appProperties:{waypoint:'trip',tripId:trip.id,travelEnd:tripLastTravelDate(trip),archived:String(!!trip.archivedAt),shared:'false',hasCalendar:'false'}}
   const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(tripExport(trip,revision))}\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
-  const file=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as {id:string;resourceKey?:string}
+  const file=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey,headRevisionId`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as {id:string;resourceKey?:string;headRevisionId?:string}
   const details=await getDriveFileDetails(file.id,file.resourceKey)
-  let record:DriveSyncRecord={tripId:trip.id,fileId:file.id,ownedByMe:details.ownedByMe??true,resourceKey:details.resourceKey||file.resourceKey,version:details.version,headRevisionId:details.headRevisionId,canReadRevisions:details.capabilities?.canReadRevisions,canDownload:details.capabilities?.canDownload,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:new Date().toISOString(),driveModifiedTime:details.modifiedTime,revision,baseTrip:trip}
+  let record:DriveSyncRecord={tripId:trip.id,fileId:file.id,ownedByMe:details.ownedByMe??true,resourceKey:details.resourceKey||file.resourceKey,version:details.version,headRevisionId:details.headRevisionId,canReadRevisions:details.capabilities?.canReadRevisions,canDownload:details.capabilities?.canDownload,bootstrapRevisionId:file.headRevisionId||details.headRevisionId,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:new Date().toISOString(),driveModifiedTime:details.modifiedTime,revision,baseTrip:trip}
   record.permissions=await listDrivePermissions(record)
-  const updated=await uploadDriveExport(record,tripExport(trip,revision,undefined,record))
+  const updated=await uploadDriveExport(record,tripExport(trip,revision,undefined,record),record.bootstrapRevisionId)
   record=synchronizedRecord(record,updated)
-  return saveDriveSyncRecord(record)
+  if(record.ownedByMe===true&&record.bootstrapRevisionId&&updated.headRevisionId&&record.bootstrapRevisionId!==updated.headRevisionId)record.pendingBootstrapRevisionId=record.bootstrapRevisionId
+  record=saveDriveSyncRecord(record)
+  return retryDriveBootstrapRevisionCleanup(record,true)
 }
 
 export async function enableDriveTripSharing(record:DriveSyncRecord) {
@@ -245,14 +256,59 @@ export async function enableDriveTripSharing(record:DriveSyncRecord) {
 }
 
 async function getDriveFileDetails(fileId:string,resourceKey?:string){
-  const query=new URLSearchParams({fields:'id,name,version,headRevisionId,modifiedTime,resourceKey,ownedByMe,capabilities(canReadRevisions,canDownload)'})
-  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${query}`,{headers:resourceKeyHeaders(fileId,resourceKey)}).then(response=>response.json()) as Promise<{id:string;name:string;version?:string;headRevisionId?:string;modifiedTime?:string;resourceKey?:string;ownedByMe?:boolean;capabilities?:{canReadRevisions?:boolean;canDownload?:boolean}}>
+  const query=new URLSearchParams({fields:'id,name,version,headRevisionId,modifiedTime,resourceKey,ownedByMe,appProperties,capabilities(canReadRevisions,canDownload)'})
+  const file=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${query}`,{headers:resourceKeyHeaders(fileId,resourceKey)}).then(response=>response.json()) as DriveFileCheckpoint&{id:string;name:string;resourceKey?:string;ownedByMe?:boolean;appProperties?:Record<string,string>}
+  return {...file,bootstrapRevisionId:file.appProperties?.[BOOTSTRAP_REVISION_PROPERTY]} satisfies DriveFileDetails
 }
 
-async function uploadDriveExport(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>,value:TripExport){
+function withoutPendingBootstrapCleanup(record:DriveSyncRecord) {
+  const next={...record}
+  delete next.pendingBootstrapRevisionId
+  delete next.bootstrapCleanupAttempts
+  delete next.bootstrapCleanupRetryAt
+  return next
+}
+
+const bootstrapCleanupDelay = (attempt:number) => Math.min(BOOTSTRAP_CLEANUP_RETRY_MAX_MS,BOOTSTRAP_CLEANUP_RETRY_BASE_MS*2**Math.min(Math.max(attempt-1,0),8))
+
+async function clearBootstrapRevisionProperty(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>) {
+  await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({appProperties:{[BOOTSTRAP_REVISION_PROPERTY]:null}})})
+}
+
+function withDriveBootstrapCleanupMarker(record:DriveSyncRecord,details:DriveFileDetails) {
+  const ownedByMe=details.ownedByMe??record.ownedByMe,bootstrapRevisionId=details.bootstrapRevisionId||record.bootstrapRevisionId
+  const next:DriveSyncRecord={...record,ownedByMe,bootstrapRevisionId}
+  if(!next.pendingBootstrapRevisionId&&ownedByMe===true&&details.bootstrapRevisionId&&details.headRevisionId&&details.bootstrapRevisionId!==details.headRevisionId)next.pendingBootstrapRevisionId=details.bootstrapRevisionId
+  return next
+}
+
+export async function retryDriveBootstrapRevisionCleanup(record:DriveSyncRecord,force=false) {
+  const revisionId=record.pendingBootstrapRevisionId
+  if(!revisionId||record.bootstrapRevisionId!==revisionId||record.ownedByMe!==true||!record.headRevisionId||record.headRevisionId===revisionId)return record
+  const retryAt=Date.parse(record.bootstrapCleanupRetryAt||'')
+  if(!force&&!Number.isNaN(retryAt)&&retryAt>Date.now())return record
+  const attempts=(record.bootstrapCleanupAttempts||0)+1
+  const pending=saveDriveSyncRecord({...record,bootstrapCleanupAttempts:attempts,bootstrapCleanupRetryAt:new Date(Date.now()+bootstrapCleanupDelay(attempts)).toISOString()})
+  const revisionUrl=`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}/revisions/${encodeURIComponent(revisionId)}`
+  try{
+    await driveFetch(`${revisionUrl}?fields=id,keepForever`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({keepForever:true})})
+    await driveFetch(revisionUrl,{method:'DELETE',headers:resourceKeyHeaders(record.fileId,record.resourceKey)})
+    await clearBootstrapRevisionProperty(record)
+    return saveDriveSyncRecord(withoutPendingBootstrapCleanup(pending))
+  }catch(error){
+    if(error instanceof DriveRequestError&&error.status===404){
+      try{const details=await getDriveFileDetails(record.fileId,record.resourceKey);if(details.headRevisionId&&details.headRevisionId!==revisionId){if(details.bootstrapRevisionId===revisionId)await clearBootstrapRevisionProperty(record);return saveDriveSyncRecord(withoutPendingBootstrapCleanup(pending))}}catch{/* Keep the cleanup pending until the file is accessible again. */}
+    }
+    return pending
+  }
+}
+
+async function uploadDriveExport(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>,value:TripExport,bootstrapRevisionId?:string){
   await driveFetch(`${DRIVE_UPLOAD_API}/files/${encodeURIComponent(record.fileId)}?uploadType=media&fields=id`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify(value)})
   const shared=!!value.collaboration?.drive?.permissions.some(permission=>permission.role!=='owner')
-  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id,version,headRevisionId,modifiedTime,capabilities(canReadRevisions,canDownload)`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({appProperties:{waypoint:'trip',tripId:value.trip.id,travelEnd:tripLastTravelDate(value.trip),archived:String(!!value.trip.archivedAt),shared:String(shared),hasCalendar:String(!!value.calendarSubscription)}})}).then(response=>response.json()) as Promise<DriveFileCheckpoint>
+  const appProperties:Record<string,string>={waypoint:'trip',tripId:value.trip.id,travelEnd:tripLastTravelDate(value.trip),archived:String(!!value.trip.archivedAt),shared:String(shared),hasCalendar:String(!!value.calendarSubscription)}
+  if(bootstrapRevisionId)appProperties[BOOTSTRAP_REVISION_PROPERTY]=bootstrapRevisionId
+  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id,version,headRevisionId,modifiedTime,capabilities(canReadRevisions,canDownload)`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({appProperties})}).then(response=>response.json()) as Promise<DriveFileCheckpoint>
 }
 
 export async function listDrivePermissions(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>) {
@@ -294,7 +350,7 @@ export async function loadDriveTrip(fileId:string,resourceKey?:string) {
   return {details,data}
 }
 
-export async function listDriveTripRevisions(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'headRevisionId'|'canReadRevisions'|'canDownload'>,refreshFileDetails=false) {
+export async function listDriveTripRevisions(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'headRevisionId'|'canReadRevisions'|'canDownload'|'bootstrapRevisionId'>,refreshFileDetails=false) {
   const needsFreshCapabilities=refreshFileDetails||!record.headRevisionId||record.canReadRevisions!==true||record.canDownload!==true
   const details=needsFreshCapabilities?await getDriveFileDetails(record.fileId,record.resourceKey):undefined
   const canReadRevisions=details?.capabilities?.canReadRevisions??record.canReadRevisions
@@ -308,7 +364,9 @@ export async function listDriveTripRevisions(record:Pick<DriveSyncRecord,'fileId
     revisions.push(...(page.revisions||[]))
     pageToken=page.nextPageToken
   }while(pageToken)
-  return {revisions,headRevisionId:details?.headRevisionId||record.headRevisionId,canDownload:details?.capabilities?.canDownload??record.canDownload}
+  const headRevisionId=details?.headRevisionId||record.headRevisionId
+  const visibleRevisions=record.bootstrapRevisionId&&record.bootstrapRevisionId!==headRevisionId?revisions.filter(revision=>revision.id!==record.bootstrapRevisionId):revisions
+  return {revisions:visibleRevisions,headRevisionId,canDownload:details?.capabilities?.canDownload??record.canDownload}
 }
 
 export async function loadDriveTripRevision(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'canDownload'>,revision:DriveRevisionSummary) {
@@ -327,7 +385,13 @@ function downloadDriveTrip(fileId:string,resourceKey?:string) {
 
 export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
   if(record.tripId!==trip.id)throw new Error('Sync stopped because the selected trip does not match this Google Drive file.')
+  const cleanupWasPending=!!record.pendingBootstrapRevisionId
+  record=await retryDriveBootstrapRevisionCleanup(record)
+  const cleanupCompleted=cleanupWasPending&&!record.pendingBootstrapRevisionId
   const details=await getDriveFileDetails(record.fileId,record.resourceKey)
+  const discoveredCleanup=!cleanupCompleted&&!record.pendingBootstrapRevisionId&&!!details.bootstrapRevisionId&&details.bootstrapRevisionId!==details.headRevisionId
+  record=withDriveBootstrapCleanupMarker(record,details)
+  if(discoveredCleanup&&record.pendingBootstrapRevisionId)record=await retryDriveBootstrapRevisionCleanup(record,true)
   const base=record.baseTrip
   const localChanged=!base||JSON.stringify(trip)!==JSON.stringify(base)
   if(base&&!hasIncomingDriveUpdates(record,details)){
@@ -344,6 +408,7 @@ export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
   const remote=data as TripExport
   if(!remote?.trip||!Array.isArray(remote.trip.items))throw new Error('The Drive file no longer contains a supported Waypoint trip.')
   if(remote.trip.id!==trip.id)throw new Error('Sync stopped because this Google Drive file belongs to a different trip.')
+  record={...record,bootstrapRevisionId:record.bootstrapRevisionId||remote.collaboration?.drive?.bootstrapRevisionId}
   const mergeBase=base||remote.trip
   const hasLocalUpdates=JSON.stringify(trip)!==JSON.stringify(mergeBase)
   const remoteChanged=JSON.stringify(remote.trip)!==JSON.stringify(mergeBase)

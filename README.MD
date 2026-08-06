@@ -489,6 +489,8 @@ The supported version-history workflows are:
 
 Google makes a retained blob revision permanent until it is deleted, counts it against Drive storage, and limits each file to 200 retained revisions. Waypoint blocks another retention attempt when the returned history already contains 200 retained revisions.
 
+Creating a Drive trip requires an initial content write followed by a complete write containing the new Drive identity and access metadata. After the complete revision is safely stored, Waypoint retains and permanently removes the incomplete bootstrap revision. Cleanup failures do not fail or duplicate the new trip: the bootstrap revision is excluded from Waypoint's history picker and retried later with throttled API calls.
+
 Google can automatically purge unretained non-head revisions, generally after about 30 days and sometimes earlier after many revisions. The API can also omit older history from large revision lists, so `v1` means the oldest version currently available to Waypoint rather than necessarily the first version ever created.
 
 ### Fixed snapshot sharing
