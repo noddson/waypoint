@@ -31,7 +31,7 @@ describe('Drive version history',()=>{
     expect(restoredVersionTripName('Ireland',3,'2026-08-06T12:34:56.000Z')).toBe('Ireland (restored version 3 2026-08-06)')
   })
 
-  it('restores a historical trip as a fresh, editable copy without changing the source',()=>{
+  it('restores a historical trip as a fresh, editable local copy without changing the source',()=>{
     const source:Trip={id:'original',name:'Ireland',destination:'Dublin',createdAt:'2026-01-01T00:00:00.000Z',updatedAt:'2026-02-01T00:00:00.000Z',archivedAt:'2026-03-01T00:00:00.000Z',items:[{id:'item',type:'event',title:'Museum',start:'2026-07-01T10:00',timeZone:'Europe/Dublin',status:'planned'}]}
     const restored=restoredTripFromVersion(source,2,'2026-02-01T12:00:00.000Z','restored','2026-08-06T14:00:00.000Z')
     expect(restored).toMatchObject({id:'restored',name:'Ireland (restored version 2 2026-02-01)',createdAt:'2026-08-06T14:00:00.000Z',updatedAt:'2026-08-06T14:00:00.000Z'})
