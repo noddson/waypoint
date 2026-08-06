@@ -1,5 +1,5 @@
 import { Trip } from './types'
-import { tripLastTravelDate } from './tripOrder'
+import { tripFirstTravelDate, tripLastTravelDate } from './tripOrder'
 
 const favouriteTripsStorageKey = 'waypoint-favourite-trips'
 
@@ -18,11 +18,6 @@ export function saveFavouriteTripIds(tripIds:Iterable<string>) {
   try{localStorage.setItem(favouriteTripsStorageKey,JSON.stringify(validTripIds([...tripIds])))}
   catch{/* Favourites remain available for this session when browser storage is unavailable. */}
 }
-
-const tripFirstTravelDate = (trip:Pick<Trip,'items'>) => trip.items.reduce((earliest,item)=>{
-  const date=item.start.slice(0,10)
-  return !earliest||date<earliest?date:earliest
-},'')
 
 const localToday = () => {
   const now=new Date()

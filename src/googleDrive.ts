@@ -1,6 +1,6 @@
 import { CalendarSubscriptionMetadata, DrivePermissionSnapshot, SCHEMA_VERSION, Trip, TripExport, sortTripItems } from './types'
 import { mergeTripVersions } from './tripMerge'
-import { compareLastTravelDates, tripLastTravelDate } from './tripOrder'
+import { compareTripDateSummaries, tripFirstTravelDate, tripLastTravelDate } from './tripOrder'
 import { tripCalendarFilename } from './calendarExport'
 import { hasIncomingDriveUpdates } from './driveSync'
 
@@ -48,6 +48,7 @@ export interface DriveTripSummary {
   id: string
   name: string
   modifiedTime?: string
+  travelStart?: string
   travelEnd?: string
   archived?: boolean
   shared?: boolean
@@ -103,15 +104,15 @@ export async function listDriveTrips():Promise<DriveTripSummary[]> {
     pageSize:'1000',
     fields:'files(id,name,modifiedTime,resourceKey,appProperties)',
   })
-  const result=await driveFetch(`${DRIVE_API}/files?${query}`).then(response=>response.json()) as {files?:Array<{id:string;name:string;modifiedTime?:string;resourceKey?:string;appProperties?:{tripId?:string;travelEnd?:string;archived?:string;shared?:string;hasCalendar?:string}}>}
-  const trips=(result.files||[]).map(file=>({id:file.id,name:file.name.replace(/\.waypoint\.json$/i,''),modifiedTime:file.modifiedTime,travelEnd:file.appProperties?.travelEnd,archived:file.appProperties?.archived==='true',shared:file.appProperties?.shared==='true',hasCalendar:file.appProperties?.hasCalendar==='true',resourceKey:file.resourceKey,tripId:file.appProperties?.tripId}))
-  await Promise.all(trips.filter(trip=>!trip.travelEnd).map(async trip=>{
+  const result=await driveFetch(`${DRIVE_API}/files?${query}`).then(response=>response.json()) as {files?:Array<{id:string;name:string;modifiedTime?:string;resourceKey?:string;appProperties?:{tripId?:string;travelStart?:string;travelEnd?:string;archived?:string;shared?:string;hasCalendar?:string}}>}
+  const trips=(result.files||[]).map(file=>({id:file.id,name:file.name.replace(/\.waypoint\.json$/i,''),modifiedTime:file.modifiedTime,travelStart:file.appProperties?.travelStart,travelEnd:file.appProperties?.travelEnd,archived:file.appProperties?.archived==='true',shared:file.appProperties?.shared==='true',hasCalendar:file.appProperties?.hasCalendar==='true',resourceKey:file.resourceKey,tripId:file.appProperties?.tripId}))
+  await Promise.all(trips.filter(trip=>!trip.travelStart||!trip.travelEnd).map(async trip=>{
     try{
       const data=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(trip.id)}?alt=media`,{headers:resourceKeyHeaders(trip.id,trip.resourceKey)}).then(response=>response.json()) as {trip?:Trip}
-      if(data.trip?.items)trip.travelEnd=tripLastTravelDate(data.trip)
+      if(data.trip?.items){trip.travelStart=tripFirstTravelDate(data.trip);trip.travelEnd=tripLastTravelDate(data.trip)}
     }catch{/* Leave unreadable or undated trips in the undated group. */}
   }))
-  return trips.sort((left,right)=>compareLastTravelDates(left.travelEnd,right.travelEnd)||(right.modifiedTime||'').localeCompare(left.modifiedTime||'')||left.name.localeCompare(right.name))
+  return trips.sort((left,right)=>compareTripDateSummaries(left,right))
 }
 
 export async function connectGoogleDrive(clientId:string) {
@@ -234,7 +235,7 @@ export async function createDriveTrip(trip:Trip) {
   const folderId=await findOrCreateFolder()
   const revision=crypto.randomUUID()
   const boundary=`waypoint-${crypto.randomUUID()}`
-  const metadata={name:`${trip.name.replace(/[\\/:*?"<>|]+/g,'-')||'Trip'}.waypoint.json`,mimeType:'application/json',parents:[folderId],appProperties:{waypoint:'trip',tripId:trip.id,travelEnd:tripLastTravelDate(trip),archived:String(!!trip.archivedAt),shared:'false',hasCalendar:'false'}}
+  const metadata={name:`${trip.name.replace(/[\\/:*?"<>|]+/g,'-')||'Trip'}.waypoint.json`,mimeType:'application/json',parents:[folderId],appProperties:{waypoint:'trip',tripId:trip.id,travelStart:tripFirstTravelDate(trip),travelEnd:tripLastTravelDate(trip),archived:String(!!trip.archivedAt),shared:'false',hasCalendar:'false'}}
   const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(tripExport(trip,revision))}\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
   const file=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey,headRevisionId`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as {id:string;resourceKey?:string;headRevisionId?:string}
   const details=await getDriveFileDetails(file.id,file.resourceKey)
@@ -306,7 +307,7 @@ export async function retryDriveBootstrapRevisionCleanup(record:DriveSyncRecord,
 async function uploadDriveExport(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>,value:TripExport,bootstrapRevisionId?:string){
   await driveFetch(`${DRIVE_UPLOAD_API}/files/${encodeURIComponent(record.fileId)}?uploadType=media&fields=id`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify(value)})
   const shared=!!value.collaboration?.drive?.permissions.some(permission=>permission.role!=='owner')
-  const appProperties:Record<string,string>={waypoint:'trip',tripId:value.trip.id,travelEnd:tripLastTravelDate(value.trip),archived:String(!!value.trip.archivedAt),shared:String(shared),hasCalendar:String(!!value.calendarSubscription)}
+  const appProperties:Record<string,string>={waypoint:'trip',tripId:value.trip.id,travelStart:tripFirstTravelDate(value.trip),travelEnd:tripLastTravelDate(value.trip),archived:String(!!value.trip.archivedAt),shared:String(shared),hasCalendar:String(!!value.calendarSubscription)}
   if(bootstrapRevisionId)appProperties[BOOTSTRAP_REVISION_PROPERTY]=bootstrapRevisionId
   return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id,version,headRevisionId,modifiedTime,capabilities(canReadRevisions,canDownload)`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({appProperties})}).then(response=>response.json()) as Promise<DriveFileCheckpoint>
 }

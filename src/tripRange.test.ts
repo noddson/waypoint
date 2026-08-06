@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { TripItem } from './types'
-import { formatTripRange } from './tripRange'
+import { formatTripDateRange, formatTravelDateRange, formatTripRange } from './tripRange'
 
 const item = (id: string, start: string, end?: string): TripItem => ({id,type:'event',title:id,start,end,timeZone:'UTC',status:'planned'})
 const flight = (id: string, start: string, end: string): TripItem => ({...item(id,start,end),type:'flight',timeZone:'America/Toronto',endTimeZone:'Europe/Dublin'})
@@ -24,6 +24,13 @@ describe('trip date range', () => {
 
   it('handles a trip with no recorded items', () => {
     expect(formatTripRange([])).toBe('No trip dates yet')
+    expect(formatTripDateRange([])).toBe('No trip dates yet')
+  })
+
+  it('formats a compact date range for trip-picker metadata', () => {
+    const items=[item('return', '2026-08-01T08:00', '2026-08-01T11:25'),item('outbound', '2026-07-18T20:50', '2026-07-19T08:15')]
+    expect(formatTripDateRange(items)).toMatch(/Jul 18.*Aug 1, 2026/)
+    expect(formatTravelDateRange('2026-07-28','2026-07-28')).toMatch(/Jul 28, 2026/)
   })
 
   it('counts an overnight outbound date and a home-return date as travel days', () => {

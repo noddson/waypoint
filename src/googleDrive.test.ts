@@ -162,4 +162,22 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
 
     expect(history.revisions.map(revision=>revision.id)).toEqual(['rev-1'])
   })
+
+  it('reads both cached travel bounds and infers a missing bound from itinerary entries',async()=>{
+    replies.push(
+      {body:{files:[
+        {id:'cached',name:'Cached.waypoint.json',modifiedTime:'2026-08-06T12:00:00.000Z',appProperties:{travelStart:'2999-01-02',travelEnd:'2999-01-09'}},
+        {id:'inferred',name:'Inferred.waypoint.json',modifiedTime:'2026-08-05T12:00:00.000Z',appProperties:{travelEnd:'2000-08-01'}},
+      ]}},
+      {body:{trip:{items:[{id:'outbound',type:'flight',title:'Outbound',start:'2000-07-18T20:00',end:'2000-07-19T08:00',timeZone:'UTC',status:'confirmed'},{id:'return',type:'flight',title:'Return',start:'2000-08-01T09:00',timeZone:'UTC',status:'confirmed'}]}}},
+    )
+    const {listDriveTrips}=await import('./googleDrive')
+    const summaries=await listDriveTrips()
+
+    expect(summaries.map(summary=>({id:summary.id,start:summary.travelStart,end:summary.travelEnd}))).toEqual([
+      {id:'cached',start:'2999-01-02',end:'2999-01-09'},
+      {id:'inferred',start:'2000-07-18',end:'2000-08-01'},
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
 })
