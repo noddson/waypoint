@@ -1,0 +1,143 @@
+.day-heading {
+  min-width: 0;
+  padding-right: 14px;
+}
+
+.agenda-day-weather {
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 4px;
+  margin: 11px 0 0;
+}
+
+.agenda-day-weather-reports {
+  display: grid;
+  gap: 6px;
+}
+
+.agenda-day-weather-report {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #cfdcd2;
+  border-radius: 8px;
+  background: #f2f7f1;
+  color: #315d50;
+  text-decoration: none;
+}
+
+.agenda-day-weather-report:hover .agenda-day-weather-place strong {
+  text-decoration: underline;
+}
+
+.agenda-day-weather-place {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  min-width: 0;
+}
+
+.agenda-day-weather-place strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weather-reading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.weather-icon {
+  flex: none;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.weather-message {
+  color: #5f6d67;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.weather-temperature {
+  color: #203f36;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.weather-meta {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  color: #5f6d67;
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.weather-rain {
+  color: #537568;
+}
+
+.weather-meta .weather-rain::before {
+  content: '· ';
+}
+
+.weather-open {
+  flex: none;
+  color: #55766a;
+  font-size: 10px;
+}
+
+.weather-attribution {
+  align-self: flex-start;
+  flex: none;
+  color: #60736b;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-decoration: none;
+}
+
+.weather-attribution:hover {
+  text-decoration: underline;
+}
+
+.agenda-day-weather-report.weather-unavailable {
+  background: #faf9f5;
+}
+
+.weather-display-options {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.weather-display-options label {
+  padding: 10px 6px;
+  font-size: 11px;
+}
+
+@media (max-width: 720px) {
+  .day-heading {
+    width: 130px;
+  }
+}
+
+@media (max-width: 480px) {
+  .weather-display-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media print {
+  .agenda-day-weather {
+    display: none !important;
+  }
+}

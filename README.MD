@@ -40,6 +40,7 @@ Waypoint gives each trip a structured itinerary made from individual items. Ever
 - Filters by item type and destination or route segment.
 - Direct location links to Google Maps or Apple Maps.
 - Multi-stop Google Maps directions for ground-route segments.
+- Itinerary-derived daily weather across a rolling 14-day trip window without device geolocation.
 - Flight check-in and flight-status actions during relevant time windows.
 - QR and Code 128 representations of confirmation references.
 - Overlap warnings for conflicting scheduled events.
@@ -84,7 +85,7 @@ A trip can be downloaded once as an `.ics` file or published as a one-way Google
 | **Itinerary** | Chronological daily agenda, trip range, route derivation, destination filters, type filters, overlap warnings, editable titles, archive mode |
 | **Item types** | Flights, stays, rental cars, events, ground transport, and insurance |
 | **Booking details** | Provider, confirmation reference, booker, quantity, locations, notes, booking URL, source-email URL, flight number, duration, status |
-| **Travel actions** | Google or Apple Maps searches, multi-stop Google routes, airline check-in links, Google flight-status searches, booking links |
+| **Travel actions** | Itinerary-location weather, Google or Apple Maps searches, multi-stop Google routes, airline check-in links, Google flight-status searches, booking links |
 | **Confirmation display** | QR code and Code 128 barcode modes with an enlarged mobile view |
 | **Import/export** | Full trip JSON, single-item JSON editing, multi-item JSON paste, `.ics` export |
 | **Sharing** | Fixed snapshot URLs, optional live Google Drive files, permission inspection and revocation |
@@ -105,6 +106,7 @@ flowchart LR
     W -. "optional OAuth" .-> G["Google Identity Services"]
     W -. "optional sync and sharing" .-> D["User's Google Drive"]
     D -. "optional public read-only feed" .-> C["Calendar applications"]
+    W -. "optional itinerary place and forecast requests" .-> O["Open-Meteo"]
 ```
 
 The itinerary JSON is the authoritative data model. Views, routes, calendar entries, reminders, map links, and confirmation-code displays are derived from it. The public calendar flow is one-way:
@@ -198,6 +200,7 @@ The agenda groups items by local itinerary date and sorts them chronologically. 
 - Notes and useful links.
 - A confirmation QR code or barcode.
 - An overlap label when two event items conflict.
+- A dated forecast for the itinerary location when that day is inside the live forecast horizon.
 
 ### Filter the itinerary
 
@@ -213,6 +216,20 @@ Choose Google Maps or Apple Maps under **Settings → Preferred maps app**.
 - Google Maps mode can create multi-stop ground-route links.
 - Long Google routes are split into practical groups when the mapping URL would exceed the supported waypoint count.
 - Apple Maps mode provides individual location searches; the multi-stop route action is hidden because the same itinerary URL format is not supported.
+
+### Check itinerary weather
+
+**Settings → Itinerary weather** is a single four-way choice: Off, Celsius, Fahrenheit, or—if your packing list includes a lab coat—Kelvin. Celsius is the default. The choice is converted in the browser and saved on this device. It never asks for or reads the browser's device location. The current date only selects which part of the trip to show; every forecast place is derived from flight arrivals, stays, events, and ground-transport locations already stored in the itinerary.
+
+- Before a trip, the weather window starts at the first trip date. A Toronto traveller leaving for Dublin in two days sees Dublin on the arrival day and across the early-trip days rather than seeing forecasts based on the device's current Toronto location.
+- During a trip, the weather window starts today and moves forward for as many as 14 itinerary days.
+- After the recorded trip end, itinerary weather is hidden automatically.
+- A compact weather block sits beneath each itinerary-day date in the date column, leaving the booking column clear. On narrow screens it remains beneath the date before that day's bookings. Weather-enabled all-item views include otherwise empty dates inside the active 14-day window, so a multi-night stay still receives a forecast for each day.
+- A day normally has one forecast place. If its itinerary entries genuinely reference distinct cities or regions, separate labeled summaries stack vertically beneath the date instead of repeating weather on every booking row.
+- Weather places follow the itinerary by date. A ground route that moves between distant cities or regions can therefore show Dublin on one day and Belfast or Galway on later days even when no flight separates them.
+- Each weather card links to a dated web weather search for the displayed place. Forecast data includes condition, high/low temperature, and rain probability when the provider returns it.
+
+Open-Meteo currently provides at most 16 forecast days from today. If a trip date is farther away, Waypoint labels it as available closer to the trip and fills it automatically once it enters the live horizon. Forecast place resolution is approximate and may be wrong when an itinerary location is missing or ambiguous; use the weather link to verify it. Forecast values are attributed and linked to Open-Meteo as required by its data licence.
 
 ### Use flight actions
 
@@ -552,7 +569,7 @@ Recognized enabled values are `1`, `true`, `yes`, and `on`. Recognized disabled 
 | Data | Location | Lifetime |
 |---|---|---|
 | Local trips | Browser IndexedDB database `waypoint-trips` | Until deleted or browser site data is cleared |
-| Map, calendar, stay, confirmation-code, route, and version-history preferences | Browser `localStorage` | Until changed or site data is cleared |
+| Map, weather, calendar, stay, confirmation-code, route, and version-history preferences | Browser `localStorage` | Until changed or site data is cleared |
 | Favourite trip IDs and last trip-list tab | Browser `localStorage` | Until changed, the trip is deleted, or site data is cleared |
 | Drive sync metadata, last browser sync and Drive modification times, cached base trip, file IDs, resource keys, and permission snapshots | Browser `localStorage` | Until disconnected, deleted, or site data is cleared |
 | Google Drive access token | Browser `sessionStorage` | Until expiry, removal, or the browser session ends |
@@ -565,6 +582,7 @@ Recognized enabled values are `1`, `true`, `yes`, and `on`. Recognized disabled 
 Depending on the features you use, the browser may communicate with:
 
 - Google Identity Services and Google Drive.
+- Open-Meteo when itinerary weather is enabled. The browser sends approximate itinerary place names for coordinate lookup and those coordinates for forecast retrieval; Waypoint does not send device geolocation.
 - Google Maps, Apple Maps, Google Search, airline sites, booking sites, and email providers when you open a link.
 - Calendar applications when you manually add the published feed URL.
 - An AI assistant and mailbox connector only when you independently paste and run the generated extraction prompt.
@@ -718,6 +736,8 @@ An open tab keeps running the bundle it originally loaded. Waypoint checks the d
 │   ├── itemJson.ts                     # Item JSON parsing and normalization
 │   ├── calendarExport.ts               # iCalendar generation and reminders
 │   ├── destinations.ts                 # Route, destination, and map derivation
+│   ├── weather.ts                      # Itinerary weather planning and Open-Meteo forecasts
+│   ├── WeatherForecast.tsx             # Itinerary-day weather presentation
 │   ├── airlineCheckIn.ts               # Airline-to-check-in registry
 │   ├── emailExtractionPrompt.ts        # Bounded mailbox-extraction prompt builder
 │   ├── ConfirmationCode.tsx            # QR and Code 128 rendering
@@ -798,6 +818,7 @@ Confirm that:
 - Waypoint is a browser application, not a native offline-installed application or progressive web app.
 - There is no Waypoint account, server-side backup, password recovery, or cross-device sync unless Google Drive is used.
 - Live flight status is not retrieved; the status action opens Google Search.
+- Weather is a model forecast for an approximate itinerary place, is limited to the provider's live horizon, and can be unavailable or inaccurate. It is not a safety alert service.
 - Airline check-in coverage depends on a maintained list of official provider pages.
 - Apple Maps does not receive multi-stop route URLs from Waypoint.
 - Public calendar subscriptions are capability URLs rather than authenticated private feeds.
