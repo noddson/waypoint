@@ -690,7 +690,7 @@ The workflow in `.github/workflows/deploy-pages.yml` deploys every push to `main
 It:
 
 1. Checks out the repository.
-2. Installs Node.js 22.
+2. Installs Node.js 24.
 3. Runs `npm ci`.
 4. Runs the production build with the configured Google client ID.
 5. Uploads `dist/` as the Pages artifact.
