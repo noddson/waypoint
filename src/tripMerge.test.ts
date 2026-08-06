@@ -28,6 +28,13 @@ describe('collaborative trip merging',()=>{
     expect(merged.trip.items[0].title).toBe('Drive edit')
   })
 
+  it('lets deletion beat an unchanged item but preserves an edited item',()=>{
+    const base=trip([item('shared','Original')])
+    expect(mergeTripVersions(base,trip([]),base).trip.items).toEqual([])
+    expect(mergeTripVersions(base,trip([]),trip([item('shared','Drive edit')])).trip.items[0].title).toBe('Drive edit')
+    expect(mergeTripVersions(base,trip([item('shared','Local edit')]),trip([])).trip.items[0].title).toBe('Local edit')
+  })
+
   it('carries archive state across devices',()=>{
     const base=trip([]),archived={...base,archivedAt:'2026-08-02T12:00:00Z'}
     expect(mergeTripVersions(base,base,archived).trip.archivedAt).toBe(archived.archivedAt)

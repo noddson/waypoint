@@ -236,7 +236,9 @@ Not every provider accepts a generated barcode. The visible text confirmation re
 
 ### Archive and restore a trip
 
-Archiving makes the itinerary read-only while preserving it in the trip library and Google Drive synchronization. Use **Restore trip** to make it editable again.
+Archiving makes the itinerary read-only while preserving it in the trip library and Google Drive synchronization. Use **Unarchive trip** to make it editable again.
+
+When **Show version history** is enabled, archiving pauses new revision pinning without unpinning or deleting anything already retained. Unarchiving resumes pin-on-open behavior; it does not bulk-load or bulk-pin the revision list.
 
 Archive mode is useful for completed trips that should remain available as a record without being changed accidentally.
 
@@ -444,6 +446,7 @@ After synchronization:
 
 - Local edits are saved to IndexedDB first and then uploaded after a short delay.
 - The active trip is refreshed from Drive when opened and once per minute while the page is visible.
+- Each successful browser sync keeps one checkpoint with the trip's synchronized `updatedAt`, the browser completion time, the authoritative Google Drive file modification time, and the Drive content head revision. A changed head revision marks the file for download and three-way merge.
 - The app keeps a local cache so the itinerary remains visible when Drive is disconnected.
 - Reconnection is required after the short-lived Google access token expires.
 - Simultaneous item conflicts are retained as separate local and Drive conflict copies for manual resolution.
@@ -451,9 +454,42 @@ After synchronization:
 
 Choose **Disconnect from Google Drive** to keep the current cached itinerary as an independent local trip without deleting the Drive file.
 
+### Refresh and merge outcomes
+
+Waypoint compares the local trip's `updatedAt`, its last synchronized checkpoint, and Drive's current `headRevisionId` before deciding how much work is needed.
+
+| Local trip | Drive content head | Refresh result |
+|---|---|---|
+| Unchanged | Unchanged | No itinerary download or upload; only the last-refresh and Drive metadata checkpoint is updated. |
+| Changed | Unchanged | The local trip is uploaded as the next Drive revision. |
+| Unchanged | Changed | The Drive trip is downloaded and becomes the new local synchronized copy. |
+| Changed | Changed | Waypoint downloads Drive and performs a three-way merge against the last synchronized base, then uploads the merged trip. |
+
+The item merge combines independent additions and one-sided edits. If the same item was changed differently on both sides, both copies are kept and labeled **local conflict** and **Drive conflict** for manual resolution. A deletion beats an unchanged item, while an edit beats a deletion so changed travel information is not silently lost. Drive metadata-only changes, including retaining a revision, do not trigger an itinerary merge when the content head is unchanged.
+
 ### Open a saved Drive trip
 
 Open **Your trips**, connect Google Drive, and refresh the Drive list. Waypoint lists files it previously marked as trip files. Opening one downloads a fresh copy and preserves potentially unsynchronized local work as a separate local backup when necessary.
+
+### On-demand Drive version history
+
+Google Drive continues creating revisions when Waypoint synchronizes the current trip regardless of this setting. **Settings → Show version history** controls whether Waypoint lists, displays, and permanently retains those revisions; it does not turn Drive's underlying revision creation on or off.
+
+With **Show version history** disabled, normal synchronization continues, the version picker is hidden, and Waypoint makes no revision-list or revision-pinning calls. Revisions retained earlier remain retained. Enabling the setting makes the picker available but still does not load history immediately.
+
+The supported version-history workflows are:
+
+1. **Open the picker:** Opening the picker for the current unarchived trip first ensures that the trip is synchronized, then requests the available revision pages. Waypoint makes no revision-list request during startup. Results are reused for five minutes and invalidated sooner when the selected trip or Drive content head changes. Versions are numbered chronologically, with `v1` representing the oldest revision the Drive API currently returns.
+2. **Open an older version:** If the selected revision is not already retained, Waypoint marks only that revision `keepForever` without asking for confirmation. It then downloads the revision and displays it as a temporary read-only historical view. The view is not written to the local trip database and never synchronizes over the current file. Opening an already-retained revision does not pin it again.
+3. **Review history:** Editing, ordinary synchronization, imports, and destructive trip actions are unavailable in the historical view. The original current trip remains unchanged.
+4. **Return to current:** Waypoint discards the transient historical display, reloads the actual trip from local storage, and resumes normal Drive refresh and merge behavior. Remote changes made during historical review are handled by the ordinary synchronization workflow.
+5. **Restore a version:** **Restore version** creates a separate private Drive trip with fresh trip and Drive file IDs and a title suffix such as `(restored version 3 2026-08-06)`. The original synchronized file and its revision history remain unchanged. The new trip supports the same history behavior while the global setting is enabled.
+6. **Archive a trip:** Archiving makes no revision-list call, leaves every retained revision pinned, and pauses new pinning. With the setting enabled, already-retained versions remain available for review while unretained versions are shown as unavailable. With the setting disabled, no history UI or API activity occurs.
+7. **Unarchive a trip:** Pin-on-open resumes only when **Show version history** remains enabled. Unarchiving never loads, scans, or bulk-pins the revision list. If the setting is disabled, unarchiving performs no version-history work and previously retained revisions remain untouched.
+
+Google makes a retained blob revision permanent until it is deleted, counts it against Drive storage, and limits each file to 200 retained revisions. Waypoint blocks another retention attempt when the returned history already contains 200 retained revisions.
+
+Google can automatically purge unretained non-head revisions, generally after about 30 days and sometimes earlier after many revisions. The API can also omit older history from large revision lists, so `v1` means the oldest version currently available to Waypoint rather than necessarily the first version ever created.
 
 ### Fixed snapshot sharing
 
@@ -514,9 +550,9 @@ Recognized enabled values are `1`, `true`, `yes`, and `on`. Recognized disabled 
 | Data | Location | Lifetime |
 |---|---|---|
 | Local trips | Browser IndexedDB database `waypoint-trips` | Until deleted or browser site data is cleared |
-| Map, calendar, stay, confirmation-code, and route preferences | Browser `localStorage` | Until changed or site data is cleared |
+| Map, calendar, stay, confirmation-code, route, and version-history preferences | Browser `localStorage` | Until changed or site data is cleared |
 | Favourite trip IDs and last trip-list tab | Browser `localStorage` | Until changed, the trip is deleted, or site data is cleared |
-| Drive sync metadata, cached base trip, file IDs, resource keys, and permission snapshots | Browser `localStorage` | Until disconnected, deleted, or site data is cleared |
+| Drive sync metadata, last browser sync and Drive modification times, cached base trip, file IDs, resource keys, and permission snapshots | Browser `localStorage` | Until disconnected, deleted, or site data is cleared |
 | Google Drive access token | Browser `sessionStorage` | Until expiry, removal, or the browser session ends |
 | Snapshot trip | URL fragment | As long as the URL is retained |
 | Synchronized trip | User's Google Drive | Until moved to trash or deleted in Drive |
@@ -673,6 +709,8 @@ An open tab keeps running the bundle it originally loaded. Waypoint checks the d
 ├── src/
 │   ├── App.tsx                         # Main UI and application workflows
 │   ├── googleDrive.ts                  # OAuth, Drive files, permissions, and sync
+│   ├── driveSync.ts                    # Drive/local checkpoint comparison
+│   ├── versionHistory.ts               # Revision numbering, settings, and restore copies
 │   ├── storage.ts                      # IndexedDB trip persistence
 │   ├── tripImport.ts                   # Full-trip validation
 │   ├── itemJson.ts                     # Item JSON parsing and normalization

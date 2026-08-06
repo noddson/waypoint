@@ -2,6 +2,7 @@ import { CalendarSubscriptionMetadata, DrivePermissionSnapshot, SCHEMA_VERSION, 
 import { mergeTripVersions } from './tripMerge'
 import { compareLastTravelDates, tripLastTravelDate } from './tripOrder'
 import { tripCalendarFilename } from './calendarExport'
+import { hasIncomingDriveUpdates } from './driveSync'
 
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 const DRIVE_API = 'https://www.googleapis.com/drive/v3'
@@ -22,7 +23,12 @@ export interface DriveSyncRecord {
   ownedByMe?: boolean
   resourceKey?: string
   version?: string
+  headRevisionId?: string
+  canReadRevisions?: boolean
+  canDownload?: boolean
   lastSyncedUpdatedAt: string
+  lastSynchronizedAt: string
+  driveModifiedTime?: string
   shared?: boolean
   revision?: string
   baseTrip?: Trip
@@ -49,6 +55,12 @@ export interface DriveCalendarSubscription {
   modifiedTime?:string
 }
 
+export interface DriveRevisionSummary {
+  id:string
+  modifiedTime?:string
+  keepForever?:boolean
+}
+
 const storedToken=(()=>{try{return JSON.parse(sessionStorage.getItem(TOKEN_STORAGE_KEY)||'{}') as {accessToken?:string;expiresAt?:number}}catch{return {}}})()
 let accessToken = storedToken.accessToken||''
 let accessTokenExpiresAt = storedToken.expiresAt||0
@@ -57,6 +69,8 @@ let googleScriptPromise: Promise<void> | null = null
 const driveMetadata = (record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'permissions'>) => ({fileId:record.fileId,resourceKey:record.resourceKey,permissions:record.permissions||[],capturedAt:new Date().toISOString()})
 const tripExport = (trip:Trip,revision=crypto.randomUUID(),parentRevision?:string,record?:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'permissions'>,calendarSubscription?:CalendarSubscriptionMetadata):TripExport => ({schemaVersion:SCHEMA_VERSION,exportedAt:new Date().toISOString(),trip:{...trip,items:sortTripItems(trip.items)},calendarSubscription,collaboration:{revision,parentRevision,drive:record?driveMetadata(record):undefined}})
 const resourceKeyHeaders = (fileId:string,resourceKey?:string):Record<string,string> => resourceKey?{'X-Goog-Drive-Resource-Keys':`${fileId}/${resourceKey}`}:{ }
+type DriveFileCheckpoint = {version?:string;modifiedTime?:string;headRevisionId?:string;capabilities?:{canReadRevisions?:boolean;canDownload?:boolean}}
+const synchronizedRecord = <T extends DriveSyncRecord>(record:T,details:DriveFileCheckpoint):T => ({...record,version:details.version||record.version,headRevisionId:details.headRevisionId||record.headRevisionId,canReadRevisions:details.capabilities?.canReadRevisions??record.canReadRevisions,canDownload:details.capabilities?.canDownload??record.canDownload,driveModifiedTime:details.modifiedTime||record.driveModifiedTime,lastSynchronizedAt:new Date().toISOString()})
 
 function loadGoogleIdentity() {
   if(window.google?.accounts.oauth2)return Promise.resolve()
@@ -197,9 +211,9 @@ export async function linkDriveCalendarSubscription(record:DriveSyncRecord,subsc
   const {data,details}=await loadDriveTrip(record.fileId,record.resourceKey),current=data as TripExport
   if(!current?.trip||!current.collaboration?.revision)throw new Error('The Google Drive itinerary JSON could not be linked to its calendar feed.')
   const existing=current.calendarSubscription,calendarSubscription=calendarSubscriptionMetadata(subscription,existing?.fileId===subscription.fileId&&existing.publicUrl===subscription.webContentLink?existing.linkedAt:undefined)
-  if(JSON.stringify(existing)===JSON.stringify(calendarSubscription))return saveDriveSyncRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,version:details.version,calendarSubscription})
+  if(JSON.stringify(existing)===JSON.stringify(calendarSubscription))return saveDriveSyncRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,version:details.version||record.version,calendarSubscription})
   const updated=await uploadDriveExport(record,{...current,exportedAt:new Date().toISOString(),calendarSubscription})
-  return saveDriveSyncRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,version:updated.version||details.version,calendarSubscription})
+  return saveDriveSyncRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,version:updated.version||details.version||record.version,calendarSubscription})
 }
 
 export async function trashDriveCalendarSubscription(tripId:string) {
@@ -215,10 +229,10 @@ export async function createDriveTrip(trip:Trip) {
   const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(tripExport(trip,revision))}\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
   const file=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as {id:string;resourceKey?:string}
   const details=await getDriveFileDetails(file.id,file.resourceKey)
-  let record:DriveSyncRecord={tripId:trip.id,fileId:file.id,ownedByMe:details.ownedByMe??true,resourceKey:details.resourceKey||file.resourceKey,version:details.version,lastSyncedUpdatedAt:trip.updatedAt,revision,baseTrip:trip}
+  let record:DriveSyncRecord={tripId:trip.id,fileId:file.id,ownedByMe:details.ownedByMe??true,resourceKey:details.resourceKey||file.resourceKey,version:details.version,headRevisionId:details.headRevisionId,canReadRevisions:details.capabilities?.canReadRevisions,canDownload:details.capabilities?.canDownload,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:new Date().toISOString(),driveModifiedTime:details.modifiedTime,revision,baseTrip:trip}
   record.permissions=await listDrivePermissions(record)
   const updated=await uploadDriveExport(record,tripExport(trip,revision,undefined,record))
-  record={...record,version:updated.version||details.version}
+  record=synchronizedRecord(record,updated)
   return saveDriveSyncRecord(record)
 }
 
@@ -231,14 +245,14 @@ export async function enableDriveTripSharing(record:DriveSyncRecord) {
 }
 
 async function getDriveFileDetails(fileId:string,resourceKey?:string){
-  const query=new URLSearchParams({fields:'id,name,version,modifiedTime,resourceKey,ownedByMe'})
-  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${query}`,{headers:resourceKeyHeaders(fileId,resourceKey)}).then(response=>response.json()) as Promise<{id:string;name:string;version?:string;modifiedTime?:string;resourceKey?:string;ownedByMe?:boolean}>
+  const query=new URLSearchParams({fields:'id,name,version,headRevisionId,modifiedTime,resourceKey,ownedByMe,capabilities(canReadRevisions,canDownload)'})
+  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${query}`,{headers:resourceKeyHeaders(fileId,resourceKey)}).then(response=>response.json()) as Promise<{id:string;name:string;version?:string;headRevisionId?:string;modifiedTime?:string;resourceKey?:string;ownedByMe?:boolean;capabilities?:{canReadRevisions?:boolean;canDownload?:boolean}}>
 }
 
 async function uploadDriveExport(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>,value:TripExport){
   await driveFetch(`${DRIVE_UPLOAD_API}/files/${encodeURIComponent(record.fileId)}?uploadType=media&fields=id`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify(value)})
   const shared=!!value.collaboration?.drive?.permissions.some(permission=>permission.role!=='owner')
-  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id,version,modifiedTime`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({appProperties:{waypoint:'trip',tripId:value.trip.id,travelEnd:tripLastTravelDate(value.trip),archived:String(!!value.trip.archivedAt),shared:String(shared),hasCalendar:String(!!value.calendarSubscription)}})}).then(response=>response.json()) as Promise<{version?:string}>
+  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id,version,headRevisionId,modifiedTime,capabilities(canReadRevisions,canDownload)`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({appProperties:{waypoint:'trip',tripId:value.trip.id,travelEnd:tripLastTravelDate(value.trip),archived:String(!!value.trip.archivedAt),shared:String(shared),hasCalendar:String(!!value.calendarSubscription)}})}).then(response=>response.json()) as Promise<DriveFileCheckpoint>
 }
 
 export async function listDrivePermissions(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>) {
@@ -252,7 +266,7 @@ async function persistDriveAccessMetadata(record:DriveSyncRecord) {
   const {data,details}=await loadDriveTrip(record.fileId,record.resourceKey)
   const current=data as TripExport
   const identified={...record,ownedByMe:details.ownedByMe??record.ownedByMe}
-  if(!current?.trip||!current.collaboration?.revision)return identified
+  if(!current?.trip||!current.collaboration?.revision)return {...identified,version:details.version||record.version}
   const value:TripExport={...current,exportedAt:new Date().toISOString(),collaboration:{...current.collaboration,drive:driveMetadata(record)}}
   const updated=await uploadDriveExport(record,value)
   return {...identified,version:updated.version||record.version}
@@ -280,24 +294,68 @@ export async function loadDriveTrip(fileId:string,resourceKey?:string) {
   return {details,data}
 }
 
+export async function listDriveTripRevisions(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'headRevisionId'|'canReadRevisions'|'canDownload'>,refreshFileDetails=false) {
+  const needsFreshCapabilities=refreshFileDetails||!record.headRevisionId||record.canReadRevisions!==true||record.canDownload!==true
+  const details=needsFreshCapabilities?await getDriveFileDetails(record.fileId,record.resourceKey):undefined
+  const canReadRevisions=details?.capabilities?.canReadRevisions??record.canReadRevisions
+  if(canReadRevisions===false)throw new Error('Google Drive does not allow this account to read version history for the trip.')
+  const revisions:DriveRevisionSummary[]=[]
+  let pageToken:string|undefined
+  do{
+    const query=new URLSearchParams({pageSize:'1000',fields:'nextPageToken,revisions(id,modifiedTime,keepForever)'})
+    if(pageToken)query.set('pageToken',pageToken)
+    const page=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}/revisions?${query}`,{headers:resourceKeyHeaders(record.fileId,record.resourceKey)}).then(response=>response.json()) as {revisions?:DriveRevisionSummary[];nextPageToken?:string}
+    revisions.push(...(page.revisions||[]))
+    pageToken=page.nextPageToken
+  }while(pageToken)
+  return {revisions,headRevisionId:details?.headRevisionId||record.headRevisionId,canDownload:details?.capabilities?.canDownload??record.canDownload}
+}
+
+export async function loadDriveTripRevision(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'canDownload'>,revision:DriveRevisionSummary) {
+  if(record.canDownload===false)throw new Error('Google Drive does not allow this account to download trip versions.')
+  let kept=revision
+  if(!revision.keepForever){
+    kept=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}/revisions/${encodeURIComponent(revision.id)}?fields=id,modifiedTime,keepForever`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({keepForever:true})}).then(response=>response.json()) as DriveRevisionSummary
+  }
+  const data=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}/revisions/${encodeURIComponent(revision.id)}?alt=media`,{headers:resourceKeyHeaders(record.fileId,record.resourceKey)}).then(response=>response.json())
+  return {data,revision:{...revision,keepForever:kept.keepForever===true}}
+}
+
+function downloadDriveTrip(fileId:string,resourceKey?:string) {
+  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`,{headers:resourceKeyHeaders(fileId,resourceKey)}).then(response=>response.json())
+}
+
 export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
   if(record.tripId!==trip.id)throw new Error('Sync stopped because the selected trip does not match this Google Drive file.')
-  const {details,data}=await loadDriveTrip(record.fileId,record.resourceKey)
+  const details=await getDriveFileDetails(record.fileId,record.resourceKey)
+  const base=record.baseTrip
+  const localChanged=!base||JSON.stringify(trip)!==JSON.stringify(base)
+  if(base&&!hasIncomingDriveUpdates(record,details)){
+    if(!localChanged){
+      const nextRecord=saveDriveSyncRecord(synchronizedRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe},details))
+      return {record:nextRecord,trip,conflicts:0,changed:false}
+    }
+    const revision=crypto.randomUUID()
+    const updated=await uploadDriveExport(record,tripExport(trip,revision,record.revision,record,record.calendarSubscription))
+    const nextRecord=saveDriveSyncRecord(synchronizedRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,lastSyncedUpdatedAt:trip.updatedAt,revision,baseTrip:trip},updated))
+    return {record:nextRecord,trip,conflicts:0,changed:true}
+  }
+  const data=await downloadDriveTrip(record.fileId,record.resourceKey)
   const remote=data as TripExport
   if(!remote?.trip||!Array.isArray(remote.trip.items))throw new Error('The Drive file no longer contains a supported Waypoint trip.')
   if(remote.trip.id!==trip.id)throw new Error('Sync stopped because this Google Drive file belongs to a different trip.')
-  const base=record.baseTrip||remote.trip
-  const localChanged=JSON.stringify(trip)!==JSON.stringify(base)
-  const remoteChanged=JSON.stringify(remote.trip)!==JSON.stringify(base)
-  if(!localChanged){
-    const nextRecord=saveDriveSyncRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,version:details.version,lastSyncedUpdatedAt:remote.trip.updatedAt,revision:remote.collaboration?.revision||record.revision,permissions:record.permissions||remote.collaboration?.drive?.permissions,calendarSubscription:remote.calendarSubscription,baseTrip:remote.trip})
+  const mergeBase=base||remote.trip
+  const hasLocalUpdates=JSON.stringify(trip)!==JSON.stringify(mergeBase)
+  const remoteChanged=JSON.stringify(remote.trip)!==JSON.stringify(mergeBase)
+  if(!hasLocalUpdates){
+    const nextRecord=saveDriveSyncRecord(synchronizedRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,lastSyncedUpdatedAt:remote.trip.updatedAt,revision:remote.collaboration?.revision||record.revision,permissions:record.permissions||remote.collaboration?.drive?.permissions,calendarSubscription:remote.calendarSubscription,baseTrip:remote.trip},details))
     return {record:nextRecord,trip:remote.trip,conflicts:0,changed:remoteChanged}
   }
-  const {trip:merged,conflicts}=mergeTripVersions(base,trip,remote.trip)
+  const {trip:merged,conflicts}=remoteChanged?mergeTripVersions(mergeBase,trip,remote.trip):{trip,conflicts:0}
   const revision=crypto.randomUUID()
   const parentRevision=remote.collaboration?.revision||record.revision
   const updated=await uploadDriveExport(record,tripExport(merged,revision,parentRevision,record,remote.calendarSubscription||record.calendarSubscription))
-  const nextRecord=saveDriveSyncRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,version:updated.version||details.version,lastSyncedUpdatedAt:merged.updatedAt,revision,calendarSubscription:remote.calendarSubscription||record.calendarSubscription,baseTrip:merged})
+  const nextRecord=saveDriveSyncRecord(synchronizedRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,lastSyncedUpdatedAt:merged.updatedAt,revision,calendarSubscription:remote.calendarSubscription||record.calendarSubscription,baseTrip:merged},updated))
   return {record:nextRecord,trip:merged,conflicts,changed:true}
 }
 
