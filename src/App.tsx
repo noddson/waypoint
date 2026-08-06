@@ -27,7 +27,7 @@ import { BuildVersion, loadBuildVersion } from './buildVersion'
 import { loadVersionHistoryEnabled, numberDriveRevisions, NumberedDriveRevision, restoredTripFromVersion, saveVersionHistoryEnabled } from './versionHistory'
 import { isRecentDriveSyncCheckpoint } from './driveSync'
 import { AgendaDayWeather } from './WeatherForecast'
-import { isWeatherForecastDate, loadWeatherDisplay, localWeatherDate, saveWeatherDisplay, tripWeatherWindow, useWeatherForecasts, WeatherDayPlan, WeatherDisplay, weatherPlansForDates, WeatherTemperatureUnit } from './weather'
+import { agendaWeatherPlans, isWeatherForecastDate, loadWeatherDisplay, localWeatherDate, saveWeatherDisplay, tripWeatherWindow, useWeatherForecasts, WeatherDayPlan, WeatherDisplay, WeatherTemperatureUnit } from './weather'
 
 const zones = ['America/Toronto','Europe/Dublin','Europe/London','Pacific/Honolulu','UTC']
 const blank = (type:ItemType='event'):TripItem => ({id:uid(),type,title:'',start:new Date().toISOString().slice(0,16),timeZone:'Europe/Dublin',status:'planned'})
@@ -106,10 +106,10 @@ export default function App(){
  const promptReady=!!(emailPrompt.tripName.trim()&&emailPrompt.destination.trim()&&emailPrompt.travelStart&&emailPrompt.travelEnd&&emailPrompt.emailStart&&emailPrompt.emailEnd&&emailPrompt.emailStart<=emailPrompt.emailEnd)
  const today=localWeatherDate(now)
  const routeWeatherWindow=useMemo(()=>tripWeatherWindow(active?.items||[],today),[active?.items,today])
- const groups=useMemo(()=>{const days=new Map<string,TripItem[]>();for(const item of sorted){const key=item.start.slice(0,10);days.set(key,[...(days.get(key)||[]),item])}if(weatherEnabled&&filter==='all'&&destinationFilter==='all')for(const day of routeWeatherWindow.dates)if(!days.has(day))days.set(day,[]);return [...days.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([day,items])=>[day,sortTripItems(items)] as const)},[sorted,weatherEnabled,filter,destinationFilter,routeWeatherWindow.dates.join('|')])
- const agendaWeatherPlans=useMemo(()=>{const windowDates=new Set(routeWeatherWindow.dates);return weatherPlansForDates(active?.items||[],groups.map(([day])=>day).filter(day=>windowDates.has(day)))},[active?.items,groups,routeWeatherWindow.dates.join('|')])
- const agendaWeatherByDate=useMemo(()=>{const plans=new Map<string,WeatherDayPlan[]>();for(const plan of agendaWeatherPlans)plans.set(plan.date,[...(plans.get(plan.date)||[]),plan]);return plans},[agendaWeatherPlans])
- const weatherRequestPlans=useMemo(()=>agendaWeatherPlans.filter(plan=>isWeatherForecastDate(plan.date,today)),[agendaWeatherPlans,today])
+ const groups=useMemo(()=>{const days=new Map<string,TripItem[]>();for(const item of sorted){const key=item.start.slice(0,10);days.set(key,[...(days.get(key)||[]),item])}return [...days.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([day,items])=>[day,sortTripItems(items)] as const)},[sorted])
+ const itineraryWeatherPlans=useMemo(()=>agendaWeatherPlans(active?.items||[],groups.map(([day])=>day),routeWeatherWindow.dates,today),[active?.items,groups,routeWeatherWindow.dates.join('|'),today])
+ const agendaWeatherByDate=useMemo(()=>{const plans=new Map<string,WeatherDayPlan[]>();for(const plan of itineraryWeatherPlans)plans.set(plan.agendaDate,[...(plans.get(plan.agendaDate)||[]),plan]);return plans},[itineraryWeatherPlans])
+ const weatherRequestPlans=useMemo(()=>itineraryWeatherPlans.filter(plan=>isWeatherForecastDate(plan.date,today)),[itineraryWeatherPlans,today])
  const weatherForecasts=useWeatherForecasts(weatherRequestPlans.map(plan=>plan.target),weatherEnabled,Math.floor(now/(30*60*1000)))
  const canEdit=!!active&&!readOnly&&!active.archivedAt
  const canAccessSourceEmails=ownsTripItinerary(readOnly,driveRecord)

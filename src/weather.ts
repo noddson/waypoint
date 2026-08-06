@@ -20,6 +20,7 @@ export interface WeatherTarget {
 }
 
 export interface WeatherDayPlan {
+  agendaDate: string
   date: string
   target: WeatherTarget
 }
@@ -185,7 +186,7 @@ type LocatedCandidate = {address:string;time:string;priority:number}
 const itemCandidatesForDate = (item:TripItem,date:string):LocatedCandidate[] => {
   const candidates:LocatedCandidate[]=[]
   const startDate=item.start.slice(0,10),endDate=item.end?.slice(0,10)
-  if(item.type==='stay'&&item.location&&startDate<=date&&(!endDate||date<=endDate))candidates.push({address:item.location,time:'00:00',priority:1})
+  if(item.type==='stay'&&item.location&&startDate<=date&&(!endDate||date<=endDate))candidates.push({address:item.location,time:startDate===date?item.start.slice(11,16)||'12:00':'00:00',priority:1})
   if(startDate===date&&item.type!=='insurance'){
     if(item.location)candidates.push({address:item.location,time:item.start.slice(11,16)||'12:00',priority:2})
     if(item.type!=='flight'&&item.endLocation)candidates.push({address:item.endLocation,time:item.end?.slice(11,16)||item.start.slice(11,16)||'12:00',priority:3})
@@ -230,7 +231,18 @@ export function weatherTargetsForDate(items:TripItem[],date:string) {
 }
 
 export function weatherPlansForDates(items:TripItem[],dates:string[]) {
-  return dates.flatMap(date=>weatherTargetsForDate(items,date).map(target=>({date,target})))
+  return dates.flatMap(date=>weatherTargetsForDate(items,date).map(target=>({agendaDate:date,date,target})))
+}
+
+export function agendaWeatherPlans(items:TripItem[],agendaDates:string[],forecastDates:string[],today:string) {
+  const agendaDateSet=new Set(agendaDates),forecastDateSet=new Set(forecastDates)
+  const activeStays=!agendaDateSet.has(today)&&forecastDateSet.has(today)?sortTripItems(items)
+    .filter(item=>item.type==='stay'&&item.start.slice(0,10)<=today&&(!item.end||item.end.slice(0,10)>=today)&&agendaDateSet.has(item.start.slice(0,10))):[]
+  const activeStayDate=activeStays[activeStays.length-1]?.start.slice(0,10)
+  return agendaDates.flatMap(agendaDate=>{
+    const date=forecastDateSet.has(agendaDate)?agendaDate:agendaDate===activeStayDate?today:undefined
+    return date?weatherTargetsForDate(items,date).map(target=>({agendaDate,date,target})):[]
+  })
 }
 
 export function weatherSearchUrl(target:WeatherTarget,date?:string) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { TripItem } from './types'
-import { addWeatherDays, formatWeatherTemperature, formatWeatherTemperaturePair, isWeatherForecastDate, parseDailyWeatherResponse, resolveWeatherDisplay, tripWeatherWindow, weatherCountryCode, weatherDescription, weatherPlansForDates, weatherSearchUrl, weatherTargetForDate, weatherTargetFromAddress, weatherTargetsForDate } from './weather'
+import { addWeatherDays, agendaWeatherPlans, formatWeatherTemperature, formatWeatherTemperaturePair, isWeatherForecastDate, parseDailyWeatherResponse, resolveWeatherDisplay, tripWeatherWindow, weatherCountryCode, weatherDescription, weatherPlansForDates, weatherSearchUrl, weatherTargetForDate, weatherTargetFromAddress, weatherTargetsForDate } from './weather'
 
 const item=(id:string,type:TripItem['type'],start:string,location?:string,end?:string,endLocation?:string):TripItem=>({id,type,title:id,start,end,timeZone:'Europe/Dublin',location,endLocation,status:'confirmed'})
 
@@ -69,6 +69,32 @@ describe('itinerary weather planning',()=>{
     ]
     expect(weatherTargetsForDate(items,'2026-07-20').map(target=>target.label)).toEqual(['Dublin'])
     expect(weatherTargetsForDate(items,'2026-07-21').map(target=>target.label)).toEqual(['Dublin','Belfast'])
+  })
+
+  it('orders same-day weather locations by itinerary time',()=>{
+    const items=[
+      item('flight','flight','2026-08-07T09:35','Toronto Pearson International Airport (YYZ), Toronto, Canada','2026-08-07T11:15','Winnipeg Richardson International Airport (YWG), Winnipeg, Canada'),
+      item('stay','stay','2026-08-07T14:00','320 McLean Ave, Keewatin, ON, Canada','2026-08-14T11:00'),
+    ]
+    expect(weatherTargetsForDate(items,'2026-08-07').map(target=>target.label)).toEqual(['Toronto','Winnipeg','Keewatin'])
+  })
+
+  it('keeps forecasts on itinerary rows and rolls an active multi-day stay forward to today',()=>{
+    const items=[
+      item('stay','stay','2026-08-07T14:00','Keewatin, ON, Canada','2026-08-14T11:00'),
+      item('event','event','2026-08-10T10:00','Winnipeg, MB, Canada'),
+    ]
+    const agendaDates=['2026-08-07','2026-08-10']
+    const upcoming=agendaWeatherPlans(items,agendaDates,['2026-08-07','2026-08-08','2026-08-09','2026-08-10'],'2026-08-06')
+    expect([...new Set(upcoming.map(plan=>plan.agendaDate))]).toEqual(agendaDates)
+    expect([...new Set(upcoming.map(plan=>plan.date))]).toEqual(agendaDates)
+
+    const active=agendaWeatherPlans(items,agendaDates,['2026-08-09','2026-08-10'],'2026-08-09')
+    expect(active.map(plan=>[plan.agendaDate,plan.date,plan.target.label])).toEqual([
+      ['2026-08-07','2026-08-09','Keewatin'],
+      ['2026-08-10','2026-08-10','Keewatin'],
+      ['2026-08-10','2026-08-10','Winnipeg'],
+    ])
   })
 })
 
