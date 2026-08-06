@@ -25,4 +25,15 @@ describe('ground route flight selection',()=>{
     expect(routeStepFlightItemIds(segment,0)).toEqual(['to-minneapolis','to-honolulu'])
     expect(routeStepFlightItemIds(segment,2)).toEqual(['to-san-francisco','home'])
   })
+
+  it('uses the destination filter for a single-stop segment',()=>{
+    const singleStopSegment:GroundRouteSegment={
+      id:'ground-2',
+      label:'British Columbia',
+      stops:[{id:'tofino',label:'Tofino',address:'Tofino, BC'}],
+      arrivalFlightItemIds:['to-tofino'],
+      departureFlightItemIds:['from-tofino'],
+    }
+    expect(routeStepFlightFilterId(singleStopSegment,0)).toBeUndefined()
+  })
 })
