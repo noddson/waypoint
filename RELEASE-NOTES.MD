@@ -4,6 +4,27 @@ This history summarizes the repository's product changes, newest first. Timestam
 
 # August 6, 2026
 
+## Localize empty and loading itinerary states
+
+**Commit:** `28d802513f1aee4520b1ae4d7f2dae3bfa781e07` (`28d8025`)
+**Committed:** `2026-08-06 23:16:47 -04:00`
+
+Completed the remaining empty and transient localization paths across every supported non-English language. The empty agenda, local trip-library startup, Google Drive trip loading, Drive configuration and connection guidance, and local-copy restoration progress now render through explicit translation helpers, with all-language regression coverage preventing those states from reverting to English during React updates.
+
+## Complete internationalized trip interface
+
+**Commit:** `f8c0d692375d03c6d30b21dad9dc3a757f93f46c` (`f8c0d69`)
+**Committed:** `2026-08-06 22:48:11 -04:00`
+
+Moved the compact flag language selector into Trip Actions beside Settings and completed localization throughout the itinerary header, date and day-count summaries, Drive and calendar state, route links, agenda and booking metadata, durations, weather, footer, settings, trip chooser, and Add Item JSON interface. Dynamic notices, mutation progress, confirmation-code controls, icon tooltips, accessible labels, and variable-bearing messages now translate while canonical itinerary JSON fields and recognized map, temperature-scale, and product names remain unchanged.
+
+## Add multilingual Waypoint UI
+
+**Commit:** `23c2e616a9e34fc6009afd189133b65ce4ab671f` (`23c2e61`)
+**Committed:** `2026-08-06 21:42:13 -04:00`
+
+Added English, German, Greek, Spanish, French, Icelandic, Italian, Japanese, and Pirate interface support with first-visit browser-language detection, an English fallback, and a locally persisted explicit selection. Interface text, accessibility metadata, and date and time formatting became localizable while itinerary data, external links, integrations, JSON and ICS exports, and the generated email-extraction prompt retained their canonical content.
+
 ## Align weather forecasts with itinerary events
 
 **Commit:** `010eaeea12e137b70b678737d5ec63106fb846d6` (`010eaee`)
