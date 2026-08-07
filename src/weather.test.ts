@@ -90,6 +90,23 @@ describe('itinerary weather planning',()=>{
     expect(weatherTargetsForDate(items,'2026-08-07').map(target=>target.label)).toEqual(['Toronto','Winnipeg','Keewatin'])
   })
 
+  it('collapses return-day airport details into distinct itinerary cities',()=>{
+    const items=[
+      item('car-return','car','2026-08-01T09:05','Budget Dublin North Office, 151 Lower Drumcondra Road, Dublin 9, Ireland'),
+      item('flight','flight','2026-08-01T09:20','Dublin Airport (DUB), Terminal 1','2026-08-01T11:25','Toronto Pearson International Airport (YYZ), Terminal 1'),
+      item('taxi','transport','2026-08-01T11:55','Toronto Pearson International Airport (YYZ), Terminal 1, pre-arranged taxi and limo kiosk near Door A',undefined,'516 Hallmark Drive, Waterloo, Ontario, Canada'),
+    ]
+    expect(weatherTargetsForDate(items,'2026-08-01').map(target=>target.label)).toEqual(['Dublin','Toronto','Waterloo'])
+  })
+
+  it('keeps same-name cities separate when their countries are known to differ',()=>{
+    const items=[
+      item('ontario','event','2026-08-01T09:00','London, Ontario, Canada'),
+      item('england','event','2026-08-01T15:00','London, England'),
+    ]
+    expect(weatherTargetsForDate(items,'2026-08-01').map(target=>[target.label,target.countryCode])).toEqual([['London','CA'],['London','GB']])
+  })
+
   it('keeps forecasts on itinerary rows and rolls an active multi-day stay forward to today',()=>{
     const items=[
       item('stay','stay','2026-08-07T14:00','Keewatin, ON, Canada','2026-08-14T11:00'),
@@ -120,6 +137,8 @@ describe('weather locations and links',()=>{
   it('turns airport addresses into their itinerary city rather than a device position',()=>{
     expect(weatherTargetFromAddress('Dublin Airport (DUB), Dublin, Ireland')).toMatchObject({label:'Dublin',countryCode:'IE'})
     expect(weatherTargetFromAddress('Toronto Pearson International Airport (YYZ), Toronto, Ontario, Canada')).toMatchObject({label:'Toronto',countryCode:'CA'})
+    expect(weatherTargetFromAddress('Dublin Airport (DUB), Terminal 1')).toMatchObject({label:'Dublin'})
+    expect(weatherTargetFromAddress('Toronto Pearson International Airport (YYZ), Terminal 1, pre-arranged taxi and limo kiosk near Door A')).toMatchObject({label:'Toronto'})
   })
 
   it('creates a dated weather-search link for the displayed itinerary location',()=>{
