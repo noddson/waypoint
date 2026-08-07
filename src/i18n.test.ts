@@ -67,4 +67,12 @@ describe('UI language selection',()=>{
   it('localizes confirmation-code controls with their dynamic values',()=>{
     expect(uiMessage('Confirmation {value}. Enlarge code. Double click or double tap to show {format}','de',{value:'AHPSU8',format:uiText('Code 128 barcode','de')})).toBe('Bestätigung AHPSU8. Code vergrößern. Doppelklicken oder doppeltippen, um Code-128-Barcode anzuzeigen')
   })
+
+  it('localizes empty and transient loading states in every non-English language',()=>{
+    for(const language of languageCodes.filter(language=>language!=='en')){
+      expect(uiText('No items yet. Add an item or import Waypoint JSON.',language)).not.toBe('No items yet. Add an item or import Waypoint JSON.')
+      expect(uiText('Loading Google Drive trips…',language)).not.toBe('Loading Google Drive trips…')
+      expect(uiText('Opening your local trip library…',language)).not.toBe('Opening your local trip library…')
+    }
+  })
 })
