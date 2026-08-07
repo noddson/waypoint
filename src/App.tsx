@@ -77,9 +77,12 @@ export default function App(){
  const [showVersionHistory,setShowVersionHistory]=useState(loadVersionHistoryEnabled),[driveVersions,setDriveVersions]=useState<DriveVersion[]>([]),[driveVersionsCheckpoint,setDriveVersionsCheckpoint]=useState(''),[driveVersionsLoadedAt,setDriveVersionsLoadedAt]=useState(0),[driveVersionsLoading,setDriveVersionsLoading]=useState(false),[driveVersionError,setDriveVersionError]=useState(''),[historicalVersion,setHistoricalVersion]=useState<HistoricalVersionView|null>(null),[driveSyncBusy,setDriveSyncBusy]=useState(false),[restoringVersion,setRestoringVersion]=useState(false)
  const [weatherDisplay,setWeatherDisplay]=useState(loadWeatherDisplay)
  const [language,setLanguage]=useState<LanguageCode>(loadLanguage)
+ const [mobileLandscape,setMobileLandscape]=useState(isMobileLandscape),[footerExpanded,setFooterExpanded]=useState(false)
  const t=(value:string)=>uiText(value,language),message=(value:string,variables:Record<string,string|number>)=>uiMessage(value,language,variables)
  const weatherEnabled=weatherDisplay!=='off',weatherTemperatureUnit:WeatherTemperatureUnit=weatherDisplay==='off'?'celsius':weatherDisplay
  useEffect(()=>observeUiLanguage(language),[language])
+ useEffect(()=>{const query=window.matchMedia('(orientation: landscape)'),update=()=>setMobileLandscape(isMobileLandscape());update();query.addEventListener('change',update);window.addEventListener('resize',update);return()=>{query.removeEventListener('change',update);window.removeEventListener('resize',update)}},[])
+ useEffect(()=>{if(mobileLandscape)setFooterExpanded(false)},[mobileLandscape])
  const selectLanguage=(next:LanguageCode)=>{saveLanguage(next);setLanguage(next)}
  const googleClientId=import.meta.env.VITE_GOOGLE_CLIENT_ID||''
  const activateTrip=(trip:Trip)=>{activeTripId.current=trip.id;setActive(trip)}
@@ -290,8 +293,8 @@ export default function App(){
 </div>
  </article>})}</div></div>)}</div></>}</section>
  <footer className="app-footer">
-  <details className="app-footer-disclosure">
-   <summary className="app-version" onClick={event=>{if(!isMobileLandscape())event.preventDefault()}}>
+  <details className="app-footer-disclosure" open={!mobileLandscape||footerExpanded}>
+   <summary className="app-version" tabIndex={mobileLandscape?0:-1} onClick={event=>{event.preventDefault();if(mobileLandscape)setFooterExpanded(current=>!current)}}>
     <span>{t('Version:')} {buildVersion?<a href={buildVersion.githubCommitUrl} target="_blank" rel="noreferrer" title={buildVersion.fullSha} onClick={event=>event.stopPropagation()}>{buildVersion.displayVersion}</a>:t('Unknown')}</span>
     <span className="app-footer-chevron" aria-hidden="true">⌄</span>
    </summary>
