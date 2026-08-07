@@ -1,5 +1,6 @@
 import {afterEach,describe,expect,it,vi} from 'vitest'
 import {browserLanguage,currentLocale,languageCodes,languageMetadata,languageStorageKey,loadLanguage,localizedItemJsonExample,saveLanguage,uiMessage,uiText} from './i18n'
+import {journalPhrases,journalRefinements} from './i18nJournalRefinements'
 
 class MemoryStorage {
   values=new Map<string,string>()
@@ -76,6 +77,18 @@ describe('UI language selection',()=>{
 
   it('localizes confirmation-code controls with their dynamic values',()=>{
     expect(uiMessage('Confirmation {value}. Enlarge code. Double click or double tap to show {format}','de',{value:'AHPSU8',format:uiText('Code 128 barcode','de')})).toBe('Bestätigung AHPSU8. Code vergrößern. Doppelklicken oder doppeltippen, um Code-128-Barcode anzuzeigen')
+  })
+
+  it('localizes the journal controls in every non-English language',()=>{
+    for(const language of languageCodes.filter(language=>language!=='en')){
+      expect(Object.keys(journalRefinements[language])).toHaveLength(journalPhrases.length)
+      for(const phrase of journalPhrases)expect(journalRefinements[language][phrase],`${language}: ${phrase}`).toBeTruthy()
+      expect(uiText('Journal',language)).not.toBe('Journal')
+      expect(uiText('Add journal entry',language)).not.toBe('Add journal entry')
+      expect(uiText('Connect Google Drive to add or view photos. Text entries remain available locally.',language)).not.toContain('Connect Google Drive')
+      expect(uiText('Journal · 3',language)).not.toBe('Journal · 3')
+      expect(uiText('Add journal entry for 2026-08-07',language)).not.toBe('Add journal entry for 2026-08-07')
+    }
   })
 
   it('localizes empty and transient loading states in every non-English language',()=>{

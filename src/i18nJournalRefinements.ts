@@ -1,0 +1,107 @@
+type JournalLanguage='en'|'de'|'el'|'es'|'fr'|'is'|'it'|'jp'|'xx'
+
+export const journalPhrases=[
+  'Trip journal',
+  'Show a dated trip journal with optional itinerary links and Google Drive photos.',
+  'TRIP JOURNAL',
+  'Journal',
+  'Journal · {count}',
+  'Note',
+  'Add journal entry for {date}',
+  'Add entry',
+  'No journal entries yet. Add a note or connect Google Drive to include photos.',
+  'Related to {title}',
+  'Day note',
+  'Local conflict',
+  'Drive conflict',
+  'Edit',
+  'Photo in Google Drive',
+  'Reconnect to view',
+  'Photo unavailable',
+  'Loading photo…',
+  'Add journal entry',
+  'Edit journal entry',
+  'Date',
+  'Related itinerary item',
+  'Journal note',
+  'What happened today?',
+  'Remove',
+  'Add photos',
+  'Connect Google Drive to add or view photos. Text entries remain available locally.',
+  'Saving…',
+  'Save entry',
+  'Add text or at least one photo before saving this journal entry.',
+  'Wait for the current Google Drive operation to finish before saving this journal entry.',
+  '{count} photo added to the journal.',
+  '{count} photos added to the journal.',
+  'Journal entry saved.',
+  'The journal entry could not be saved.',
+  'Delete this journal entry?',
+  'Delete this journal entry and move its photos to Google Drive trash?',
+  'Wait for the current Google Drive operation to finish before deleting this journal entry.',
+  'Journal entry deleted.',
+  'The journal entry could not be deleted.',
+  'The Drive owner must open and synchronize this trip before collaborators can add photos.',
+  'Choose an image file to add to the journal.',
+  'Google Drive did not provide a resumable photo-upload URL.',
+  '+ Note',
+  '{count} simultaneous edit was kept as a conflict copy for manual resolution.',
+  '{count} simultaneous edits were kept as conflict copies for manual resolution.',
+] as const
+
+const translation=(values:string[])=>{
+  if(values.length!==journalPhrases.length)throw new Error(`Journal translation has ${values.length} values; expected ${journalPhrases.length}.`)
+  return Object.fromEntries(journalPhrases.map((phrase,index)=>[phrase,values[index]]))
+}
+
+export const journalRefinements:Record<JournalLanguage,Record<string,string>>={
+  en:{},
+  de:translation([
+    'Reisetagebuch','Ein datiertes Reisetagebuch mit optionalen Reiseplan-Verknüpfungen und Google-Drive-Fotos anzeigen.','REISETAGEBUCH','Reisetagebuch','Reisetagebuch · {count}','Notiz','Tagebucheintrag für {date} hinzufügen','Eintrag hinzufügen','Noch keine Tagebucheinträge. Füge eine Notiz hinzu oder verbinde Google Drive, um Fotos einzufügen.','Verknüpft mit {title}','Tagesnotiz','Lokaler Konflikt','Drive-Konflikt','Bearbeiten','Foto in Google Drive','Zum Anzeigen erneut verbinden','Foto nicht verfügbar','Foto wird geladen…','Tagebucheintrag hinzufügen','Tagebucheintrag bearbeiten','Datum','Zugehöriger Reiseplaneintrag','Tagebuchnotiz','Was ist heute passiert?','Entfernen','Fotos hinzufügen','Verbinde Google Drive, um Fotos hinzuzufügen oder anzuzeigen. Texteinträge bleiben lokal verfügbar.','Wird gespeichert…','Eintrag speichern','Füge vor dem Speichern Text oder mindestens ein Foto hinzu.','Warte, bis der aktuelle Google-Drive-Vorgang abgeschlossen ist, bevor du diesen Tagebucheintrag speicherst.','{count} Foto zum Tagebuch hinzugefügt.','{count} Fotos zum Tagebuch hinzugefügt.','Tagebucheintrag gespeichert.','Der Tagebucheintrag konnte nicht gespeichert werden.','Diesen Tagebucheintrag löschen?','Diesen Tagebucheintrag löschen und seine Fotos in den Google-Drive-Papierkorb verschieben?','Warte, bis der aktuelle Google-Drive-Vorgang abgeschlossen ist, bevor du diesen Tagebucheintrag löschst.','Tagebucheintrag gelöscht.','Der Tagebucheintrag konnte nicht gelöscht werden.','Der Drive-Eigentümer muss diese Reise öffnen und synchronisieren, bevor Mitwirkende Fotos hinzufügen können.','Wähle eine Bilddatei für das Tagebuch aus.','Google Drive hat keine URL für den fortsetzbaren Foto-Upload bereitgestellt.',
+    '+ Notiz',
+    '{count} gleichzeitige Bearbeitung wurde als Konfliktkopie zur manuellen Lösung beibehalten.',
+    '{count} gleichzeitige Bearbeitungen wurden als Konfliktkopien zur manuellen Lösung beibehalten.',
+  ]),
+  el:translation([
+    'Ημερολόγιο ταξιδιού','Εμφάνιση ημερολογίου ταξιδιού με ημερομηνίες, προαιρετικούς συνδέσμους δρομολογίου και φωτογραφίες Google Drive.','ΗΜΕΡΟΛΟΓΙΟ ΤΑΞΙΔΙΟΥ','Ημερολόγιο','Ημερολόγιο · {count}','Σημείωση','Προσθήκη καταχώρισης ημερολογίου για {date}','Προσθήκη καταχώρισης','Δεν υπάρχουν ακόμη καταχωρίσεις. Προσθέστε μια σημείωση ή συνδέστε το Google Drive για φωτογραφίες.','Σχετικό με {title}','Σημείωση ημέρας','Τοπική διένεξη','Διένεξη Drive','Επεξεργασία','Φωτογραφία στο Google Drive','Επανασύνδεση για προβολή','Η φωτογραφία δεν είναι διαθέσιμη','Φόρτωση φωτογραφίας…','Προσθήκη καταχώρισης ημερολογίου','Επεξεργασία καταχώρισης ημερολογίου','Ημερομηνία','Σχετικό στοιχείο δρομολογίου','Σημείωση ημερολογίου','Τι συνέβη σήμερα;','Αφαίρεση','Προσθήκη φωτογραφιών','Συνδέστε το Google Drive για προσθήκη ή προβολή φωτογραφιών. Οι καταχωρίσεις κειμένου παραμένουν τοπικά διαθέσιμες.','Αποθήκευση…','Αποθήκευση καταχώρισης','Προσθέστε κείμενο ή τουλάχιστον μία φωτογραφία πριν από την αποθήκευση.','Περιμένετε να ολοκληρωθεί η τρέχουσα λειτουργία του Google Drive πριν αποθηκεύσετε αυτή την καταχώριση.','Προστέθηκε {count} φωτογραφία στο ημερολόγιο.','Προστέθηκαν {count} φωτογραφίες στο ημερολόγιο.','Η καταχώριση ημερολογίου αποθηκεύτηκε.','Δεν ήταν δυνατή η αποθήκευση της καταχώρισης ημερολογίου.','Να διαγραφεί αυτή η καταχώριση ημερολογίου;','Να διαγραφεί αυτή η καταχώριση και να μεταφερθούν οι φωτογραφίες της στον κάδο του Google Drive;','Περιμένετε να ολοκληρωθεί η τρέχουσα λειτουργία του Google Drive πριν διαγράψετε αυτή την καταχώριση.','Η καταχώριση ημερολογίου διαγράφηκε.','Δεν ήταν δυνατή η διαγραφή της καταχώρισης ημερολογίου.','Ο κάτοχος του Drive πρέπει να ανοίξει και να συγχρονίσει αυτό το ταξίδι πριν οι συνεργάτες προσθέσουν φωτογραφίες.','Επιλέξτε ένα αρχείο εικόνας για το ημερολόγιο.','Το Google Drive δεν παρείχε διεύθυνση URL για συνεχιζόμενη μεταφόρτωση φωτογραφίας.',
+    '+ Σημείωση',
+    '{count} ταυτόχρονη επεξεργασία διατηρήθηκε ως αντίγραφο διένεξης για μη αυτόματη επίλυση.',
+    '{count} ταυτόχρονες επεξεργασίες διατηρήθηκαν ως αντίγραφα διένεξης για μη αυτόματη επίλυση.',
+  ]),
+  es:translation([
+    'Diario de viaje','Muestra un diario de viaje por fechas con enlaces opcionales al itinerario y fotos de Google Drive.','DIARIO DE VIAJE','Diario','Diario · {count}','Nota','Añadir entrada de diario para {date}','Añadir entrada','Todavía no hay entradas. Añade una nota o conecta Google Drive para incluir fotos.','Relacionado con {title}','Nota del día','Conflicto local','Conflicto de Drive','Editar','Foto en Google Drive','Vuelve a conectar para verla','Foto no disponible','Cargando foto…','Añadir entrada al diario','Editar entrada del diario','Fecha','Elemento relacionado del itinerario','Nota del diario','¿Qué pasó hoy?','Quitar','Añadir fotos','Conecta Google Drive para añadir o ver fotos. Las entradas de texto siguen disponibles localmente.','Guardando…','Guardar entrada','Añade texto o al menos una foto antes de guardar esta entrada.','Espera a que termine la operación actual de Google Drive antes de guardar esta entrada.','Se añadió {count} foto al diario.','Se añadieron {count} fotos al diario.','Entrada del diario guardada.','No se pudo guardar la entrada del diario.','¿Eliminar esta entrada del diario?','¿Eliminar esta entrada y mover sus fotos a la papelera de Google Drive?','Espera a que termine la operación actual de Google Drive antes de eliminar esta entrada.','Entrada del diario eliminada.','No se pudo eliminar la entrada del diario.','El propietario de Drive debe abrir y sincronizar este viaje antes de que los colaboradores puedan añadir fotos.','Elige un archivo de imagen para añadirlo al diario.','Google Drive no proporcionó una URL para reanudar la subida de la foto.',
+    '+ Nota',
+    'Se conservó {count} edición simultánea como copia en conflicto para resolverla manualmente.',
+    'Se conservaron {count} ediciones simultáneas como copias en conflicto para resolverlas manualmente.',
+  ]),
+  fr:translation([
+    'Carnet de voyage','Afficher un carnet daté avec des liens facultatifs vers l’itinéraire et des photos Google Drive.','CARNET DE VOYAGE','Carnet de voyage','Carnet · {count}','Note','Ajouter une entrée pour le {date}','Ajouter une entrée','Aucune entrée pour le moment. Ajoutez une note ou connectez Google Drive pour inclure des photos.','Associé à {title}','Note du jour','Conflit local','Conflit Drive','Modifier','Photo dans Google Drive','Reconnectez-vous pour afficher','Photo indisponible','Chargement de la photo…','Ajouter une entrée au journal','Modifier l’entrée du journal','Date','Élément d’itinéraire associé','Note du journal','Que s’est-il passé aujourd’hui ?','Retirer','Ajouter des photos','Connectez Google Drive pour ajouter ou afficher des photos. Les entrées textuelles restent disponibles localement.','Enregistrement…','Enregistrer l’entrée','Ajoutez du texte ou au moins une photo avant d’enregistrer cette entrée.','Attendez la fin de l’opération Google Drive en cours avant d’enregistrer cette entrée.','{count} photo ajoutée au journal.','{count} photos ajoutées au journal.','Entrée du journal enregistrée.','Impossible d’enregistrer l’entrée du journal.','Supprimer cette entrée du journal ?','Supprimer cette entrée et placer ses photos dans la corbeille Google Drive ?','Attendez la fin de l’opération Google Drive en cours avant de supprimer cette entrée.','Entrée du journal supprimée.','Impossible de supprimer l’entrée du journal.','Le propriétaire Drive doit ouvrir et synchroniser ce voyage avant que les collaborateurs puissent ajouter des photos.','Choisissez un fichier image à ajouter au journal.','Google Drive n’a pas fourni d’URL de téléversement de photo avec reprise.',
+    '+ Note',
+    '{count} modification simultanée a été conservée comme copie en conflit à résoudre manuellement.',
+    '{count} modifications simultanées ont été conservées comme copies en conflit à résoudre manuellement.',
+  ]),
+  is:translation([
+    'Ferðadagbók','Sýna dagsetta ferðadagbók með valfrjálsum tengingum við ferðaáætlun og myndum á Google Drive.','FERÐADAGBÓK','Ferðadagbók','Ferðadagbók · {count}','Athugasemd','Bæta við dagbókarfærslu fyrir {date}','Bæta við færslu','Engar dagbókarfærslur enn. Bættu við athugasemd eða tengdu Google Drive til að setja inn myndir.','Tengt við {title}','Dagsathugasemd','Staðbundinn árekstur','Drive-árekstur','Breyta','Mynd í Google Drive','Tengdu aftur til að skoða','Mynd ekki tiltæk','Hleð mynd…','Bæta við dagbókarfærslu','Breyta dagbókarfærslu','Dagsetning','Tengt atriði í ferðaáætlun','Dagbókarfærsla','Hvað gerðist í dag?','Fjarlægja','Bæta við myndum','Tengdu Google Drive til að bæta við eða skoða myndir. Textafærslur eru áfram tiltækar á tækinu.','Vista…','Vista færslu','Bættu við texta eða að minnsta kosti einni mynd áður en færslan er vistuð.','Bíddu þar til núverandi Google Drive-aðgerð lýkur áður en færslan er vistuð.','{count} mynd bætt við dagbókina.','{count} myndum bætt við dagbókina.','Dagbókarfærsla vistuð.','Ekki tókst að vista dagbókarfærsluna.','Eyða þessari dagbókarfærslu?','Eyða þessari færslu og færa myndir hennar í ruslið á Google Drive?','Bíddu þar til núverandi Google Drive-aðgerð lýkur áður en færslunni er eytt.','Dagbókarfærslu eytt.','Ekki tókst að eyða dagbókarfærslunni.','Eigandi Drive verður að opna og samstilla ferðina áður en samstarfsfólk getur bætt við myndum.','Veldu myndaskrá fyrir dagbókina.','Google Drive gaf ekki upp slóð fyrir endurupptakanlega myndaupphleðslu.',
+    '+ Athugasemd',
+    '{count} samtímabreyting var geymd sem árekstrareintak til handvirkrar úrlausnar.',
+    '{count} samtímabreytingar voru geymdar sem árekstrareintök til handvirkrar úrlausnar.',
+  ]),
+  it:translation([
+    'Diario di viaggio','Mostra un diario di viaggio per data con collegamenti facoltativi all’itinerario e foto di Google Drive.','DIARIO DI VIAGGIO','Diario','Diario · {count}','Nota','Aggiungi voce del diario per {date}','Aggiungi voce','Non ci sono ancora voci. Aggiungi una nota o collega Google Drive per includere foto.','Collegato a {title}','Nota del giorno','Conflitto locale','Conflitto Drive','Modifica','Foto in Google Drive','Riconnetti per visualizzare','Foto non disponibile','Caricamento foto…','Aggiungi voce al diario','Modifica voce del diario','Data','Elemento dell’itinerario correlato','Nota del diario','Cosa è successo oggi?','Rimuovi','Aggiungi foto','Connetti Google Drive per aggiungere o visualizzare foto. Le voci di testo restano disponibili localmente.','Salvataggio…','Salva voce','Aggiungi testo o almeno una foto prima di salvare questa voce.','Attendi il completamento dell’operazione Google Drive in corso prima di salvare questa voce.','{count} foto aggiunta al diario.','{count} foto aggiunte al diario.','Voce del diario salvata.','Impossibile salvare la voce del diario.','Eliminare questa voce del diario?','Eliminare questa voce e spostare le sue foto nel cestino di Google Drive?','Attendi il completamento dell’operazione Google Drive in corso prima di eliminare questa voce.','Voce del diario eliminata.','Impossibile eliminare la voce del diario.','Il proprietario di Drive deve aprire e sincronizzare questo viaggio prima che i collaboratori possano aggiungere foto.','Scegli un file immagine da aggiungere al diario.','Google Drive non ha fornito un URL per il caricamento ripristinabile della foto.',
+    '+ Nota',
+    '{count} modifica simultanea è stata conservata come copia in conflitto da risolvere manualmente.',
+    '{count} modifiche simultanee sono state conservate come copie in conflitto da risolvere manualmente.',
+  ]),
+  jp:translation([
+    '旅行日記','日付別の旅行日記に、旅程への任意リンクや Google Drive の写真を表示します。','旅行日記','旅行日記','旅行日記 · {count}','メモ','{date} の旅行日記を追加','記録を追加','旅行日記はまだありません。メモを追加するか、Google Drive に接続して写真を含めてください。','{title} に関連','一日のメモ','ローカルの競合','Drive の競合','編集','Google Drive の写真','表示するには再接続','写真を利用できません','写真を読み込み中…','旅行日記を追加','旅行日記を編集','日付','関連する旅程項目','旅行日記','今日は何がありましたか？','削除','写真を追加','写真を追加または表示するには Google Drive に接続してください。テキストの記録はローカルで引き続き利用できます。','保存中…','記録を保存','保存する前にテキストまたは写真を1枚以上追加してください。','この記録を保存する前に、現在の Google Drive 操作が完了するまでお待ちください。','旅行日記に写真を {count} 枚追加しました。','旅行日記に写真を {count} 枚追加しました。','旅行日記を保存しました。','旅行日記を保存できませんでした。','この旅行日記を削除しますか？','この記録を削除し、写真を Google Drive のゴミ箱に移動しますか？','この記録を削除する前に、現在の Google Drive 操作が完了するまでお待ちください。','旅行日記を削除しました。','旅行日記を削除できませんでした。','共同編集者が写真を追加するには、Drive の所有者がこの旅行を開いて同期する必要があります。','旅行日記に追加する画像ファイルを選択してください。','Google Drive から再開可能な写真アップロード URL が返されませんでした。',
+    '+ メモ',
+    '{count} 件の同時編集を、手動解決用の競合コピーとして保持しました。',
+    '{count} 件の同時編集を、手動解決用の競合コピーとして保持しました。',
+  ]),
+  xx:translation([
+    "Captain's log","Show a dated captain's log with voyage links and Google Drive portraits.",'CAPTAIN’S LOG',"Captain's log","Captain's log · {count}",'Log note','Add log entry for {date}','Add log entry','No log entries yet. Add a note or board Google Drive for portraits.','Tied to {title}','Daily log','Local squall','Drive squall','Revise','Portrait in Google Drive','Reconnect to spy it','Portrait be unavailable','Loadin’ portrait…','Add captain’s log entry','Edit captain’s log entry','Log date','Related voyage booty','Log entry','What happened on today’s watch?','Cast off','Add portraits','Board Google Drive to add or spy portraits. Written logs remain aboard.','Stowin’…','Stow entry','Add words or at least one portrait before stowing this log entry.','Wait for the current Google Drive task to finish before stowing this log entry.','{count} portrait added to the log.','{count} portraits added to the log.','Log entry stowed.','The log entry could not be stowed.','Scuttle this log entry?','Scuttle this log entry and send its portraits to Google Drive trash?','Wait for the current Google Drive task to finish before scuttling this log entry.','Log entry scuttled.','The log entry could not be scuttled.','The Drive captain must open and sync this voyage before crewmates can add portraits.','Choose a portrait file for the log.','Google Drive gave no resumable portrait-upload URL.',
+    '+ Log note',
+    '{count} clashing edit was kept as a squall copy for the crew to settle.',
+    '{count} clashing edits were kept as squall copies for the crew to settle.',
+  ]),
+}

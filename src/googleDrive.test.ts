@@ -38,6 +38,7 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
 
   const creationReplies = (cleanup:Reply[]=[{body:{id:'rev-1',keepForever:true}},{status:204},{body:{id:'file-1'}}]):Reply[]=>[
     {body:{files:[{id:'folder-1'}]}},
+    {body:{files:[{id:'trip-folder-1',resourceKey:'trip-folder-key'}]}},
     {body:{id:'file-1',resourceKey:'resource-key',headRevisionId:'rev-1'}},
     {body:{id:'file-1',name:'Restored trip.waypoint.json',version:'1',headRevisionId:'rev-1',modifiedTime:'2026-08-06T11:41:00.000Z',resourceKey:'resource-key',ownedByMe:true,capabilities:{canReadRevisions:true,canDownload:true}}},
     {body:{permissions:[{id:'owner-1',type:'user',role:'owner'}]}},
@@ -51,20 +52,21 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
     const {createDriveTrip,getDriveSyncRecord}=await import('./googleDrive')
     const record=await createDriveTrip(trip)
 
-    expect(record).toMatchObject({fileId:'file-1',headRevisionId:'rev-2',bootstrapRevisionId:'rev-1'})
+    expect(record).toMatchObject({fileId:'file-1',tripFolderId:'trip-folder-1',headRevisionId:'rev-2',bootstrapRevisionId:'rev-1'})
     expect(record.pendingBootstrapRevisionId).toBeUndefined()
     expect(getDriveSyncRecord(trip.id)?.pendingBootstrapRevisionId).toBeUndefined()
-    expect(fetchMock).toHaveBeenCalledTimes(9)
-    expect(String(fetchMock.mock.calls[1][0])).toContain('fields=id,resourceKey,headRevisionId')
+    expect(fetchMock).toHaveBeenCalledTimes(10)
+    expect(String(fetchMock.mock.calls[2][0])).toContain('fields=id,resourceKey,headRevisionId')
 
-    const completeBody=JSON.parse(String(fetchMock.mock.calls[4][1]?.body))
+    const completeBody=JSON.parse(String(fetchMock.mock.calls[5][1]?.body))
+    expect(completeBody.collaboration.drive.tripFolderId).toBe('trip-folder-1')
     expect(completeBody.collaboration.drive.bootstrapRevisionId).toBe('rev-1')
-    expect(String(fetchMock.mock.calls[6][0])).toContain('/files/file-1/revisions/rev-1?fields=id,keepForever')
-    expect(fetchMock.mock.calls[6][1]).toMatchObject({method:'PATCH',body:JSON.stringify({keepForever:true})})
-    expect(new Headers(fetchMock.mock.calls[6][1]?.headers).get('X-Goog-Drive-Resource-Keys')).toBe('file-1/resource-key')
-    expect(String(fetchMock.mock.calls[7][0])).toContain('/files/file-1/revisions/rev-1')
-    expect(fetchMock.mock.calls[7][1]).toMatchObject({method:'DELETE'})
-    expect(fetchMock.mock.calls[8][1]).toMatchObject({method:'PATCH',body:JSON.stringify({appProperties:{waypointBootstrapRevision:null}})})
+    expect(String(fetchMock.mock.calls[7][0])).toContain('/files/file-1/revisions/rev-1?fields=id,keepForever')
+    expect(fetchMock.mock.calls[7][1]).toMatchObject({method:'PATCH',body:JSON.stringify({keepForever:true})})
+    expect(new Headers(fetchMock.mock.calls[7][1]?.headers).get('X-Goog-Drive-Resource-Keys')).toBe('file-1/resource-key')
+    expect(String(fetchMock.mock.calls[8][0])).toContain('/files/file-1/revisions/rev-1')
+    expect(fetchMock.mock.calls[8][1]).toMatchObject({method:'DELETE'})
+    expect(fetchMock.mock.calls[9][1]).toMatchObject({method:'PATCH',body:JSON.stringify({appProperties:{waypointBootstrapRevision:null}})})
   })
 
   it('keeps a valid v2 record and retries a failed permanent deletion',async()=>{
@@ -100,11 +102,11 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
   })
 
   it('never attempts cleanup when the complete v2 upload fails',async()=>{
-    replies.push(...creationReplies([]).slice(0,4),{status:500,body:{error:{message:'Upload failed'}}})
+    replies.push(...creationReplies([]).slice(0,5),{status:500,body:{error:{message:'Upload failed'}}})
     const {createDriveTrip,getDriveSyncRecord}=await import('./googleDrive')
 
     await expect(createDriveTrip(trip)).rejects.toThrow('Upload failed')
-    expect(fetchMock).toHaveBeenCalledTimes(5)
+    expect(fetchMock).toHaveBeenCalledTimes(6)
     expect(getDriveSyncRecord(trip.id)).toBeUndefined()
   })
 
@@ -137,7 +139,7 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
       {body:{id:'file-1'}},
     )
     const {updateDriveTrip}=await import('./googleDrive')
-    const record={tripId:trip.id,fileId:'file-1',ownedByMe:true,headRevisionId:'rev-2',lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:trip.updatedAt,baseTrip:trip}
+    const record={tripId:trip.id,fileId:'file-1',tripFolderId:'trip-folder-1',tripFolderName:trip.name,ownedByMe:true,headRevisionId:'rev-2',lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:trip.updatedAt,baseTrip:trip}
 
     const result=await updateDriveTrip(record,trip)
     expect(result.record.bootstrapRevisionId).toBe('rev-1')
@@ -179,5 +181,73 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
       {id:'inferred',start:'2000-07-18',end:'2000-08-01'},
     ])
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the trip folder as the permission and trash boundary',async()=>{
+    replies.push({body:{permissions:[{id:'owner-1',type:'user',role:'owner'},{id:'anyone',type:'anyone',role:'writer'}]}},{body:{id:'trip-folder-1',trashed:true}})
+    const {listDrivePermissions,trashDriveTrip}=await import('./googleDrive')
+    const record={fileId:'file-1',resourceKey:'file-key',tripFolderId:'trip-folder-1',tripFolderResourceKey:'folder-key'}
+    expect(await listDrivePermissions(record)).toHaveLength(2)
+    await trashDriveTrip(record)
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/files/trip-folder-1/permissions')
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get('X-Goog-Drive-Resource-Keys')).toBe('trip-folder-1/folder-key')
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/files/trip-folder-1?')
+  })
+
+  it('migrates a legacy itinerary into a shared trip folder without changing its file id',async()=>{
+    replies.push(
+      {body:{files:[{id:'waypoint-root'}]}},
+      {body:{files:[{id:'trip-folder-1',resourceKey:'folder-key'}]}},
+      {body:{permissions:[{id:'owner-1',type:'user',role:'owner'},{id:'anyone',type:'anyone',role:'writer',allowFileDiscovery:false}]}},
+      {body:{permissions:[{id:'owner-1',type:'user',role:'owner'}]}},
+      {body:{id:'anyone'}},
+      {body:{permissions:[{id:'owner-1',type:'user',role:'owner'},{id:'anyone',type:'anyone',role:'writer',allowFileDiscovery:false}]}},
+      {body:{id:'file-1',parents:['waypoint-root']}},
+      {body:{id:'file-1',parents:['trip-folder-1']}},
+      {body:{files:[]}},
+      {status:204},
+    )
+    const {ensureDriveTripStructure}=await import('./googleDrive')
+    const record={tripId:trip.id,fileId:'file-1',resourceKey:'file-key',ownedByMe:true,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:trip.updatedAt}
+    const migrated=await ensureDriveTripStructure(record,trip)
+    expect(migrated).toMatchObject({fileId:'file-1',tripFolderId:'trip-folder-1',tripFolderResourceKey:'folder-key',shared:true})
+    expect(String(fetchMock.mock.calls[7][0])).toContain('addParents=trip-folder-1')
+    expect(fetchMock.mock.calls[9][1]).toMatchObject({method:'DELETE'})
+  })
+
+  it('publishes a calendar inside a limited-access trip subfolder',async()=>{
+    replies.push(
+      {body:{files:[]}},
+      {body:{files:[]}},
+      {body:{id:'calendar-folder',capabilities:{canDisableInheritedPermissions:true}}},
+      {body:{id:'calendar-folder',capabilities:{canDisableInheritedPermissions:true}}},
+      {body:{id:'calendar-file',resourceKey:'calendar-key'}},
+      {body:{id:'calendar-file',resourceKey:'calendar-key',webContentLink:'https://drive.google.com/calendar-feed',modifiedTime:'2026-08-07T12:00:00.000Z'}},
+      {body:{permissions:[]}},
+      {body:{id:'public-reader'}},
+      {body:{id:'calendar-file',resourceKey:'calendar-key',webContentLink:'https://drive.google.com/calendar-feed',modifiedTime:'2026-08-07T12:00:00.000Z'}},
+    )
+    const {publishDriveCalendarSubscription}=await import('./googleDrive')
+    const subscription=await publishDriveCalendarSubscription(trip,'BEGIN:VCALENDAR\r\nEND:VCALENDAR',{tripFolderId:'trip-folder-1'})
+    expect(subscription.fileId).toBe('calendar-file')
+    expect(fetchMock.mock.calls[3][1]).toMatchObject({method:'PATCH',body:JSON.stringify({inheritedPermissionsDisabled:true})})
+    const uploadBody=fetchMock.mock.calls[4][1]?.body as Blob
+    expect(await uploadBody.text()).toContain('"parents":["calendar-folder"]')
+  })
+
+  it('uploads journal photos into the inherited trip media folder',async()=>{
+    replies.push(
+      {body:{files:[]}},
+      {body:{id:'media-folder',resourceKey:'media-key'}},
+      {body:{id:'photo-file',resourceKey:'photo-key',name:'arrival.jpg',mimeType:'image/jpeg',size:'4'}},
+    )
+    const {uploadDriveJournalPhoto}=await import('./googleDrive')
+    const record={tripId:trip.id,fileId:'file-1',tripFolderId:'trip-folder-1',tripFolderName:trip.name,ownedByMe:true,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:trip.updatedAt}
+    const file=new File(['test'],'arrival.jpg',{type:'image/jpeg'})
+    const result=await uploadDriveJournalPhoto(record,trip,'entry-1',file)
+    expect(result.record.journalMediaFolderId).toBe('media-folder')
+    expect(result.photo).toMatchObject({driveFileId:'photo-file',name:'arrival.jpg',mimeType:'image/jpeg',size:4})
+    const uploadBody=fetchMock.mock.calls[2][1]?.body as Blob
+    expect(await uploadBody.text()).toContain('"journalEntryId":"entry-1"')
   })
 })

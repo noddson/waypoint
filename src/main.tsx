@@ -7,6 +7,7 @@ import './mobile.css'
 import './tripPicker.css'
 import './routeSegments.css'
 import './weather.css'
+import './journal.css'
 
 const mobileExperience = shouldEnableMobileExperience()
 document.body.classList.toggle('mobile-experience', mobileExperience)

@@ -7,7 +7,27 @@ export interface TripItem {
   notes?: string; link?: string; emailLink?: string; bookedBy?: string; status: Status; quantity?: string; flightNumber?: string; durationMinutes?: number; allDay?: boolean
   conflictOf?: string; conflictSource?: 'local'|'drive'
 }
-export interface Trip { id: string; name: string; destination: string; createdAt: string; updatedAt: string; archivedAt?: string; items: TripItem[] }
+export interface JournalPhoto {
+  id: string
+  driveFileId: string
+  resourceKey?: string
+  name: string
+  mimeType: string
+  size: number
+  createdAt: string
+}
+export interface JournalEntry {
+  id: string
+  date: string
+  text?: string
+  relatedItemId?: string
+  photos: JournalPhoto[]
+  createdAt: string
+  updatedAt: string
+  conflictOf?: string
+  conflictSource?: 'local'|'drive'
+}
+export interface Trip { id: string; name: string; destination: string; createdAt: string; updatedAt: string; archivedAt?: string; items: TripItem[]; journalEntries?: JournalEntry[] }
 export interface DrivePermissionSnapshot {
   id: string
   type: 'user'|'group'|'domain'|'anyone'|string
@@ -36,7 +56,7 @@ export interface TripExport {
   collaboration?: {
     revision: string
     parentRevision?: string
-    drive?: {fileId:string;resourceKey?:string;permissions:DrivePermissionSnapshot[];capturedAt:string;bootstrapRevisionId?:string}
+    drive?: {fileId:string;resourceKey?:string;tripFolderId?:string;tripFolderResourceKey?:string;journalMediaFolderId?:string;journalMediaFolderResourceKey?:string;permissions:DrivePermissionSnapshot[];capturedAt:string;bootstrapRevisionId?:string}
   }
 }
 export const types: ItemType[] = ['flight','stay','car','event','transport','insurance']

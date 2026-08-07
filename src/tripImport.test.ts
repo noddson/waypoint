@@ -15,6 +15,24 @@ describe('Waypoint JSON validation', () => {
     expect(validTripExport(exportData())).toBe(true)
   })
 
+  it('accepts text and Drive-photo journal entries',()=>{
+    const value=exportData()
+    ;(value.trip as typeof value.trip&{journalEntries:unknown[]}).journalEntries=[
+      {id:'entry-1',date:'2026-07-18',text:'Arrived in Dublin.',relatedItemId:'item-1',photos:[],createdAt:'2026-07-18T12:00:00.000Z',updatedAt:'2026-07-18T12:00:00.000Z'},
+      {id:'entry-2',date:'2026-07-19',photos:[{id:'photo-1',driveFileId:'drive-photo-1',resourceKey:'photo-key',name:'castle.jpg',mimeType:'image/jpeg',size:1234,createdAt:'2026-07-19T12:00:00.000Z'}],createdAt:'2026-07-19T12:00:00.000Z',updatedAt:'2026-07-19T12:00:00.000Z'},
+    ]
+    expect(validTripExport(value)).toBe(true)
+  })
+
+  it('rejects empty, malformed, and duplicate journal data',()=>{
+    const empty=exportData();(empty.trip as typeof empty.trip&{journalEntries:unknown[]}).journalEntries=[{id:'entry-1',date:'2026-07-18',photos:[],createdAt:'2026-07-18T12:00:00.000Z',updatedAt:'2026-07-18T12:00:00.000Z'}]
+    expect(validTripExport(empty)).toBe(false)
+    const malformed=exportData();(malformed.trip as typeof malformed.trip&{journalEntries:unknown[]}).journalEntries=[{id:'entry-1',date:'July 18',text:'Note',photos:[],createdAt:'2026-07-18T12:00:00.000Z',updatedAt:'2026-07-18T12:00:00.000Z'}]
+    expect(validTripExport(malformed)).toBe(false)
+    const duplicate=exportData();(duplicate.trip as typeof duplicate.trip&{journalEntries:unknown[]}).journalEntries=[{id:'entry-1',date:'2026-07-18',text:'Note',photos:[{id:'photo-1',driveFileId:'file-1',name:'a.jpg',mimeType:'image/jpeg',size:1,createdAt:'2026-07-18T12:00:00.000Z'},{id:'photo-1',driveFileId:'file-2',name:'b.jpg',mimeType:'image/jpeg',size:1,createdAt:'2026-07-18T12:00:00.000Z'}],createdAt:'2026-07-18T12:00:00.000Z',updatedAt:'2026-07-18T12:00:00.000Z'}]
+    expect(validTripExport(duplicate)).toBe(false)
+  })
+
   it('accepts a linked public calendar subscription and rejects an unsafe URL',()=>{
     const linked={...exportData(),calendarSubscription:{provider:'google-drive',format:'ics',mimeType:'text/calendar',access:'public-read-only',fileId:'calendar-file',resourceKey:'resource-key',publicUrl:'https://drive.google.com/uc?id=calendar-file&export=download',linkedAt:'2026-08-04T12:00:00.000Z'}}
     expect(validTripExport(linked)).toBe(true)

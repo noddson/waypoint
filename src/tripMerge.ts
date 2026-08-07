@@ -1,8 +1,9 @@
-import { Trip, TripItem, sortTripItems } from './types'
+import { JournalEntry, Trip, TripItem, sortTripItems } from './types'
 import { tripRouteStops } from './destinations'
 
 const same = (a:unknown,b:unknown) => JSON.stringify(a)===JSON.stringify(b)
-const byId = (items:TripItem[]) => new Map(items.map(item=>[item.id,item]))
+const byId = <T extends {id:string}>(items:T[]) => new Map(items.map(item=>[item.id,item]))
+const journalConflictCopy = (entry:JournalEntry,id:string,source:'local'|'drive'):JournalEntry => ({...entry,id,conflictOf:entry.id,conflictSource:source,photos:entry.photos.map(photo=>({...photo,id:crypto.randomUUID()}))})
 
 const chooseField = <T,>(base:T,local:T,remote:T) => {
   if(local===remote)return local
@@ -38,9 +39,34 @@ export function mergeTripVersions(base:Trip,local:Trip,remote:Trip) {
     }else items.push(remoteChanged?theirs:ours)
   }
 
+  const baseEntries=byId(base.journalEntries||[]),localEntries=byId(local.journalEntries||[]),remoteEntries=byId(remote.journalEntries||[])
+  const entryIds=new Set([...baseEntries.keys(),...localEntries.keys(),...remoteEntries.keys()])
+  const journalEntries:JournalEntry[]=[]
+  for(const id of entryIds){
+    const before=baseEntries.get(id),ours=localEntries.get(id),theirs=remoteEntries.get(id)
+    if(!before){
+      if(ours&&theirs&&!same(ours,theirs)){
+        conflicts++
+        journalEntries.push({...ours,conflictOf:id,conflictSource:'local'})
+        journalEntries.push(journalConflictCopy(theirs,crypto.randomUUID(),'drive'))
+      }else if(ours||theirs)journalEntries.push((ours||theirs)!)
+      continue
+    }
+    if(!ours&&!theirs)continue
+    if(!ours){if(!same(theirs,before))journalEntries.push(theirs!);continue}
+    if(!theirs){if(!same(ours,before))journalEntries.push(ours);continue}
+    const localChanged=!same(ours,before),remoteChanged=!same(theirs,before)
+    if(localChanged&&remoteChanged&&!same(ours,theirs)){
+      conflicts++
+      journalEntries.push({...ours,conflictOf:id,conflictSource:'local'})
+      journalEntries.push(journalConflictCopy(theirs,crypto.randomUUID(),'drive'))
+    }else journalEntries.push(remoteChanged?theirs:ours)
+  }
+
   const sortedItems=sortTripItems(items)
+  journalEntries.sort((a,b)=>a.date.localeCompare(b.date)||a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id))
   return {
-    trip:{...remote,name:chooseField(base.name,local.name,remote.name),destination:tripRouteStops(sortedItems).map(stop=>stop.label).join(' → '),archivedAt:chooseField(base.archivedAt,local.archivedAt,remote.archivedAt),updatedAt:new Date().toISOString(),items:sortedItems},
+    trip:{...remote,name:chooseField(base.name,local.name,remote.name),destination:tripRouteStops(sortedItems).map(stop=>stop.label).join(' → '),archivedAt:chooseField(base.archivedAt,local.archivedAt,remote.archivedAt),updatedAt:new Date().toISOString(),items:sortedItems,journalEntries},
     conflicts,
   }
 }

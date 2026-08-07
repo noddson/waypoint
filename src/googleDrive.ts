@@ -1,4 +1,4 @@
-import { CalendarSubscriptionMetadata, DrivePermissionSnapshot, SCHEMA_VERSION, Trip, TripExport, sortTripItems } from './types'
+import { CalendarSubscriptionMetadata, DrivePermissionSnapshot, JournalPhoto, SCHEMA_VERSION, Trip, TripExport, sortTripItems } from './types'
 import { mergeTripVersions } from './tripMerge'
 import { compareTripDateSummaries, tripFirstTravelDate, tripLastTravelDate } from './tripOrder'
 import { tripCalendarFilename } from './calendarExport'
@@ -8,6 +8,8 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 const DRIVE_API = 'https://www.googleapis.com/drive/v3'
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3'
 const FOLDER_NAME = 'Waypoint travel planner'
+const PUBLISHED_CALENDARS_FOLDER_NAME = 'Published calendars'
+const JOURNAL_MEDIA_FOLDER_NAME = 'journal-media'
 const SYNC_STORAGE_KEY = 'waypoint-drive-sync'
 const TOKEN_STORAGE_KEY = 'waypoint-drive-session'
 const BOOTSTRAP_REVISION_PROPERTY = 'waypointBootstrapRevision'
@@ -26,6 +28,11 @@ export interface DriveSyncRecord {
   fileId: string
   ownedByMe?: boolean
   resourceKey?: string
+  tripFolderId?: string
+  tripFolderResourceKey?: string
+  tripFolderName?: string
+  journalMediaFolderId?: string
+  journalMediaFolderResourceKey?: string
   version?: string
   headRevisionId?: string
   canReadRevisions?: boolean
@@ -75,11 +82,11 @@ let accessToken = storedToken.accessToken||''
 let accessTokenExpiresAt = storedToken.expiresAt||0
 let googleScriptPromise: Promise<void> | null = null
 
-const driveMetadata = (record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'permissions'|'bootstrapRevisionId'>) => ({fileId:record.fileId,resourceKey:record.resourceKey,permissions:record.permissions||[],capturedAt:new Date().toISOString(),bootstrapRevisionId:record.bootstrapRevisionId})
-const tripExport = (trip:Trip,revision=crypto.randomUUID(),parentRevision?:string,record?:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'permissions'|'bootstrapRevisionId'>,calendarSubscription?:CalendarSubscriptionMetadata):TripExport => ({schemaVersion:SCHEMA_VERSION,exportedAt:new Date().toISOString(),trip:{...trip,items:sortTripItems(trip.items)},calendarSubscription,collaboration:{revision,parentRevision,drive:record?driveMetadata(record):undefined}})
+const driveMetadata = (record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'tripFolderId'|'tripFolderResourceKey'|'journalMediaFolderId'|'journalMediaFolderResourceKey'|'permissions'|'bootstrapRevisionId'>) => ({fileId:record.fileId,resourceKey:record.resourceKey,tripFolderId:record.tripFolderId,tripFolderResourceKey:record.tripFolderResourceKey,journalMediaFolderId:record.journalMediaFolderId,journalMediaFolderResourceKey:record.journalMediaFolderResourceKey,permissions:record.permissions||[],capturedAt:new Date().toISOString(),bootstrapRevisionId:record.bootstrapRevisionId})
+const tripExport = (trip:Trip,revision=crypto.randomUUID(),parentRevision?:string,record?:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'tripFolderId'|'tripFolderResourceKey'|'journalMediaFolderId'|'journalMediaFolderResourceKey'|'permissions'|'bootstrapRevisionId'>,calendarSubscription?:CalendarSubscriptionMetadata):TripExport => ({schemaVersion:SCHEMA_VERSION,exportedAt:new Date().toISOString(),trip:{...trip,items:sortTripItems(trip.items)},calendarSubscription,collaboration:{revision,parentRevision,drive:record?driveMetadata(record):undefined}})
 const resourceKeyHeaders = (fileId:string,resourceKey?:string):Record<string,string> => resourceKey?{'X-Goog-Drive-Resource-Keys':`${fileId}/${resourceKey}`}:{ }
 type DriveFileCheckpoint = {version?:string;modifiedTime?:string;headRevisionId?:string;capabilities?:{canReadRevisions?:boolean;canDownload?:boolean}}
-type DriveFileDetails = DriveFileCheckpoint&{id:string;name:string;resourceKey?:string;ownedByMe?:boolean;bootstrapRevisionId?:string}
+type DriveFileDetails = DriveFileCheckpoint&{id:string;name:string;resourceKey?:string;ownedByMe?:boolean;parents?:string[];bootstrapRevisionId?:string}
 const synchronizedRecord = <T extends DriveSyncRecord>(record:T,details:DriveFileCheckpoint):T => ({...record,version:details.version||record.version,headRevisionId:details.headRevisionId||record.headRevisionId,canReadRevisions:details.capabilities?.canReadRevisions??record.canReadRevisions,canDownload:details.capabilities?.canDownload??record.canDownload,driveModifiedTime:details.modifiedTime||record.driveModifiedTime,lastSynchronizedAt:new Date().toISOString()})
 
 function loadGoogleIdentity() {
@@ -151,8 +158,9 @@ export function getDriveSyncRecordByFileId(fileId:string){return Object.values(r
 export function saveDriveSyncRecord(record:DriveSyncRecord){const records=readSyncRecords();records[record.tripId]=record;localStorage.setItem(SYNC_STORAGE_KEY,JSON.stringify(records));return record}
 export function removeDriveSyncRecord(tripId:string){const records=readSyncRecords();delete records[tripId];localStorage.setItem(SYNC_STORAGE_KEY,JSON.stringify(records))}
 
-export async function trashDriveTrip(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>) {
-  await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id,trashed`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({trashed:true})})
+export async function trashDriveTrip(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'tripFolderId'|'tripFolderResourceKey'>) {
+  const targetId=record.tripFolderId||record.fileId,targetResourceKey=record.tripFolderId?record.tripFolderResourceKey:record.resourceKey
+  await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(targetId)}?fields=id,trashed`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(targetId,targetResourceKey)},body:JSON.stringify({trashed:true})})
 }
 
 async function findOrCreateFolder() {
@@ -162,6 +170,58 @@ async function findOrCreateFolder() {
   if(found.files?.[0])return found.files[0].id
   const created=await driveFetch(`${DRIVE_API}/files?fields=id`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:FOLDER_NAME,mimeType:'application/vnd.google-apps.folder'})}).then(response=>response.json()) as {id:string}
   return created.id
+}
+
+type DriveFolder = {id:string;resourceKey?:string;inheritedPermissionsDisabled?:boolean;capabilities?:{canDisableInheritedPermissions?:boolean}}
+const driveSafeName = (value:string,fallback:string) => value.replace(/[\\/:*?"<>|]+/g,'-').trim()||fallback
+const appPropertyQuery = (key:string,value:string) => `appProperties has { key='${key.replace(/'/g,"\\'")}' and value='${value.replace(/'/g,"\\'")}' }`
+
+async function findAppFolder(parentId:string,waypoint:string,tripId?:string):Promise<DriveFolder|undefined> {
+  const clauses=[`'${parentId.replace(/'/g,"\\'")}' in parents`,`mimeType='application/vnd.google-apps.folder'`,appPropertyQuery('waypoint',waypoint),'trashed=false']
+  if(tripId)clauses.push(appPropertyQuery('tripId',tripId))
+  const query=new URLSearchParams({q:clauses.join(' and '),spaces:'drive',pageSize:'10',fields:'files(id,resourceKey,inheritedPermissionsDisabled,capabilities(canDisableInheritedPermissions))'})
+  const result=await driveFetch(`${DRIVE_API}/files?${query}`).then(response=>response.json()) as {files?:DriveFolder[]}
+  return result.files?.[0]
+}
+
+async function createAppFolder(parentId:string,name:string,waypoint:string,tripId?:string):Promise<DriveFolder> {
+  const appProperties:Record<string,string>={waypoint}
+  if(tripId)appProperties.tripId=tripId
+  return driveFetch(`${DRIVE_API}/files?fields=id,resourceKey,inheritedPermissionsDisabled,capabilities(canDisableInheritedPermissions)`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,mimeType:'application/vnd.google-apps.folder',parents:[parentId],appProperties})}).then(response=>response.json()) as Promise<DriveFolder>
+}
+
+async function findOrCreateTripFolder(trip:Trip):Promise<DriveFolder> {
+  const rootId=await findOrCreateFolder()
+  return await findAppFolder(rootId,'trip-folder',trip.id)||await createAppFolder(rootId,driveSafeName(trip.name,'Trip'),'trip-folder',trip.id)
+}
+
+async function findOrCreatePublishedCalendarsFolder():Promise<DriveFolder> {
+  const rootId=await findOrCreateFolder()
+  return await findAppFolder(rootId,'published-calendars')||await createAppFolder(rootId,PUBLISHED_CALENDARS_FOLDER_NAME,'published-calendars')
+}
+
+async function ensureLimitedCalendarFolder(trip:Trip,record?:Pick<DriveSyncRecord,'tripFolderId'>):Promise<DriveFolder> {
+  if(record?.tripFolderId){
+    const existing=await findAppFolder(record.tripFolderId,'published-calendar',trip.id)
+    if(existing?.inheritedPermissionsDisabled)return existing
+    const candidate=existing||await createAppFolder(record.tripFolderId,'published-calendar','published-calendar',trip.id)
+    if(candidate.capabilities?.canDisableInheritedPermissions){
+      try{
+        return await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(candidate.id)}?fields=id,resourceKey,inheritedPermissionsDisabled,capabilities(canDisableInheritedPermissions)`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({inheritedPermissionsDisabled:true})}).then(response=>response.json()) as DriveFolder
+      }catch{/* Fall through to the separately permissioned published-calendar area. */}
+    }
+    try{await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(candidate.id)}?fields=id,trashed`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({trashed:true})})}catch{/* An unused folder is harmless if Drive refuses cleanup. */}
+  }
+  return findOrCreatePublishedCalendarsFolder()
+}
+
+async function moveDriveFile(fileId:string,parentId:string,resourceKey?:string) {
+  const query=new URLSearchParams({fields:'id,parents,resourceKey'})
+  const details=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${query}`,{headers:resourceKeyHeaders(fileId,resourceKey)}).then(response=>response.json()) as {id:string;parents?:string[];resourceKey?:string}
+  if(details.parents?.includes(parentId))return details
+  const moveQuery=new URLSearchParams({addParents:parentId,fields:'id,parents,resourceKey'})
+  if(details.parents?.length)moveQuery.set('removeParents',details.parents.join(','))
+  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${moveQuery}`,{method:'PATCH',headers:resourceKeyHeaders(fileId,resourceKey)}).then(response=>response.json()) as Promise<{id:string;parents?:string[];resourceKey?:string}>
 }
 
 export async function findDriveCalendarSubscription(tripId:string):Promise<DriveCalendarSubscription|undefined> {
@@ -197,11 +257,11 @@ async function uploadCalendarFile(subscription:Pick<DriveCalendarSubscription,'f
   return {fileId:file.id,resourceKey:file.resourceKey||subscription.resourceKey,webContentLink:file.webContentLink,modifiedTime:file.modifiedTime}
 }
 
-export async function publishDriveCalendarSubscription(trip:Trip,calendar:string):Promise<DriveCalendarSubscription> {
+export async function publishDriveCalendarSubscription(trip:Trip,calendar:string,record?:Pick<DriveSyncRecord,'tripFolderId'>):Promise<DriveCalendarSubscription> {
   let subscription=await findDriveCalendarSubscription(trip.id)
   if(!subscription){
-    const folderId=await findOrCreateFolder(),boundary=`waypoint-calendar-${crypto.randomUUID()}`
-    const metadata={name:tripCalendarFilename(trip),mimeType:'text/calendar',parents:[folderId],appProperties:{waypoint:'calendar',tripId:trip.id}}
+    const folder=await ensureLimitedCalendarFolder(trip,record||getDriveSyncRecord(trip.id)),boundary=`waypoint-calendar-${crypto.randomUUID()}`
+    const metadata={name:tripCalendarFilename(trip),mimeType:'text/calendar',parents:[folder.id],appProperties:{waypoint:'calendar',tripId:trip.id}}
     const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: text/calendar; charset=UTF-8\r\n\r\n${calendar}\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
     const file=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as {id:string;resourceKey?:string}
     subscription=await calendarFileDetails(file.id,file.resourceKey)
@@ -213,6 +273,43 @@ export async function publishDriveCalendarSubscription(trip:Trip,calendar:string
 export async function refreshDriveCalendarSubscription(trip:Trip,calendar:string,knownSubscription?:DriveCalendarSubscription) {
   const subscription=knownSubscription||await findDriveCalendarSubscription(trip.id)
   return subscription?uploadCalendarFile(subscription,trip,calendar):undefined
+}
+
+async function ensureJournalMediaFolder(record:DriveSyncRecord,trip:Trip) {
+  let structured=await ensureDriveTripStructure(record,trip)
+  if(!structured.tripFolderId)throw new Error('The Drive owner must open and synchronize this trip before collaborators can add photos.')
+  if(structured.journalMediaFolderId)return {record:structured,folder:{id:structured.journalMediaFolderId,resourceKey:structured.journalMediaFolderResourceKey} as DriveFolder}
+  const folder=await findAppFolder(structured.tripFolderId,'journal-media',trip.id)||await createAppFolder(structured.tripFolderId,JOURNAL_MEDIA_FOLDER_NAME,'journal-media',trip.id)
+  structured=saveDriveSyncRecord({...structured,journalMediaFolderId:folder.id,journalMediaFolderResourceKey:folder.resourceKey})
+  return {record:structured,folder}
+}
+
+const journalPhotoMetadata = (trip:Trip,entryId:string,attachmentId:string,file:File,parentId:string) => ({name:driveSafeName(file.name,'photo'),mimeType:file.type||'application/octet-stream',parents:[parentId],appProperties:{waypoint:'journal-photo',tripId:trip.id,journalEntryId:entryId,attachmentId}})
+const journalPhotoFromDrive = (attachmentId:string,file:File,createdAt:string,uploaded:{id:string;resourceKey?:string;name?:string;mimeType?:string;size?:string|number}):JournalPhoto => ({id:attachmentId,driveFileId:uploaded.id,resourceKey:uploaded.resourceKey,name:uploaded.name||file.name,mimeType:uploaded.mimeType||file.type||'application/octet-stream',size:Number(uploaded.size??file.size),createdAt})
+
+export async function uploadDriveJournalPhoto(record:DriveSyncRecord,trip:Trip,entryId:string,file:File):Promise<{record:DriveSyncRecord;photo:JournalPhoto}> {
+  if(!file.type.startsWith('image/'))throw new Error('Choose an image file to add to the journal.')
+  const {record:structured,folder}=await ensureJournalMediaFolder(record,trip),attachmentId=crypto.randomUUID(),createdAt=new Date().toISOString(),metadata=journalPhotoMetadata(trip,entryId,attachmentId,file,folder.id)
+  let uploaded:{id:string;resourceKey?:string;name?:string;mimeType?:string;size?:string|number}
+  if(file.size<=5*1024*1024){
+    const boundary=`waypoint-photo-${crypto.randomUUID()}`
+    const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${file.type||'application/octet-stream'}\r\n\r\n`,file,`\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
+    uploaded=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey,name,mimeType,size`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as typeof uploaded
+  }else{
+    const session=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=resumable&fields=id,resourceKey,name,mimeType,size`,{method:'POST',headers:{'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':file.type||'application/octet-stream','X-Upload-Content-Length':String(file.size)},body:JSON.stringify(metadata)})
+    const location=session.headers.get('Location')
+    if(!location)throw new Error('Google Drive did not provide a resumable photo-upload URL.')
+    uploaded=await driveFetch(location,{method:'PUT',headers:{'Content-Type':file.type||'application/octet-stream'},body:file}).then(response=>response.json()) as typeof uploaded
+  }
+  return {record:structured,photo:journalPhotoFromDrive(attachmentId,file,createdAt,uploaded)}
+}
+
+export async function loadDriveJournalPhoto(photo:Pick<JournalPhoto,'driveFileId'|'resourceKey'>) {
+  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(photo.driveFileId)}?alt=media`,{headers:resourceKeyHeaders(photo.driveFileId,photo.resourceKey)}).then(response=>response.blob())
+}
+
+export async function trashDriveJournalPhoto(photo:Pick<JournalPhoto,'driveFileId'|'resourceKey'>) {
+  await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(photo.driveFileId)}?fields=id,trashed`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(photo.driveFileId,photo.resourceKey)},body:JSON.stringify({trashed:true})})
 }
 
 const calendarSubscriptionMetadata = (subscription:DriveCalendarSubscription,linkedAt=new Date().toISOString()):CalendarSubscriptionMetadata => ({provider:'google-drive',format:'ics',mimeType:'text/calendar',access:'public-read-only',fileId:subscription.fileId,resourceKey:subscription.resourceKey,publicUrl:subscription.webContentLink,linkedAt})
@@ -232,14 +329,14 @@ export async function trashDriveCalendarSubscription(tripId:string) {
 }
 
 export async function createDriveTrip(trip:Trip) {
-  const folderId=await findOrCreateFolder()
+  const folder=await findOrCreateTripFolder(trip)
   const revision=crypto.randomUUID()
   const boundary=`waypoint-${crypto.randomUUID()}`
-  const metadata={name:`${trip.name.replace(/[\\/:*?"<>|]+/g,'-')||'Trip'}.waypoint.json`,mimeType:'application/json',parents:[folderId],appProperties:{waypoint:'trip',tripId:trip.id,travelStart:tripFirstTravelDate(trip),travelEnd:tripLastTravelDate(trip),archived:String(!!trip.archivedAt),shared:'false',hasCalendar:'false'}}
+  const metadata={name:`${driveSafeName(trip.name,'Trip')}.waypoint.json`,mimeType:'application/json',parents:[folder.id],appProperties:{waypoint:'trip',tripId:trip.id,travelStart:tripFirstTravelDate(trip),travelEnd:tripLastTravelDate(trip),archived:String(!!trip.archivedAt),shared:'false',hasCalendar:'false'}}
   const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(tripExport(trip,revision))}\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
   const file=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey,headRevisionId`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as {id:string;resourceKey?:string;headRevisionId?:string}
   const details=await getDriveFileDetails(file.id,file.resourceKey)
-  let record:DriveSyncRecord={tripId:trip.id,fileId:file.id,ownedByMe:details.ownedByMe??true,resourceKey:details.resourceKey||file.resourceKey,version:details.version,headRevisionId:details.headRevisionId,canReadRevisions:details.capabilities?.canReadRevisions,canDownload:details.capabilities?.canDownload,bootstrapRevisionId:file.headRevisionId||details.headRevisionId,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:new Date().toISOString(),driveModifiedTime:details.modifiedTime,revision,baseTrip:trip}
+  let record:DriveSyncRecord={tripId:trip.id,fileId:file.id,ownedByMe:details.ownedByMe??true,resourceKey:details.resourceKey||file.resourceKey,tripFolderId:folder.id,tripFolderResourceKey:folder.resourceKey,tripFolderName:driveSafeName(trip.name,'Trip'),version:details.version,headRevisionId:details.headRevisionId,canReadRevisions:details.capabilities?.canReadRevisions,canDownload:details.capabilities?.canDownload,bootstrapRevisionId:file.headRevisionId||details.headRevisionId,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:new Date().toISOString(),driveModifiedTime:details.modifiedTime,revision,baseTrip:trip}
   record.permissions=await listDrivePermissions(record)
   const updated=await uploadDriveExport(record,tripExport(trip,revision,undefined,record),record.bootstrapRevisionId)
   record=synchronizedRecord(record,updated)
@@ -248,16 +345,69 @@ export async function createDriveTrip(trip:Trip) {
   return retryDriveBootstrapRevisionCleanup(record,true)
 }
 
+const permissionKey = (permission:DrivePermissionSnapshot) => `${permission.type}\0${permission.emailAddress||permission.domain||''}\0${permission.role}`
+const permissionBody = (permission:DrivePermissionSnapshot) => {
+  const body:Record<string,unknown>={type:permission.type,role:permission.role}
+  if(permission.type==='user'||permission.type==='group'){
+    if(!permission.emailAddress)return undefined
+    body.emailAddress=permission.emailAddress
+  }
+  if(permission.type==='domain'){
+    if(!permission.domain)return undefined
+    body.domain=permission.domain
+  }
+  if(permission.allowFileDiscovery!==undefined)body.allowFileDiscovery=permission.allowFileDiscovery
+  return body
+}
+
+async function copyDrivePermissionsToFolder(record:DriveSyncRecord,folder:DriveFolder) {
+  const source=await listDrivePermissions({...record,tripFolderId:undefined,tripFolderResourceKey:undefined})
+  const folderRecord={...record,tripFolderId:folder.id,tripFolderResourceKey:folder.resourceKey}
+  const existing=await listDrivePermissions(folderRecord),keys=new Set(existing.map(permissionKey))
+  for(const permission of source){
+    if(permission.role==='owner'||keys.has(permissionKey(permission)))continue
+    const body=permissionBody(permission)
+    if(!body)continue
+    await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(folder.id)}/permissions?sendNotificationEmail=false`,{method:'POST',headers:{'Content-Type':'application/json',...resourceKeyHeaders(folder.id,folder.resourceKey)},body:JSON.stringify(body)})
+  }
+  return {source,permissions:await listDrivePermissions(folderRecord)}
+}
+
+export async function ensureDriveTripStructure(record:DriveSyncRecord,trip:Trip):Promise<DriveSyncRecord> {
+  const folderName=driveSafeName(trip.name,'Trip')
+  if(record.tripFolderId){
+    if(record.ownedByMe===true&&record.tripFolderName!==folderName){
+      try{await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.tripFolderId)}?fields=id,name`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.tripFolderId,record.tripFolderResourceKey)},body:JSON.stringify({name:folderName})});return saveDriveSyncRecord({...record,tripFolderName:folderName})}catch{/* Renaming organization must not block itinerary synchronization. */}
+    }
+    return record
+  }
+  if(record.ownedByMe!==true)return record
+  const folder=await findOrCreateTripFolder(trip)
+  const {source,permissions}=await copyDrivePermissionsToFolder(record,folder)
+  await moveDriveFile(record.fileId,folder.id,record.resourceKey)
+  const subscription=await findDriveCalendarSubscription(trip.id)
+  if(subscription){
+    const calendarFolder=await ensureLimitedCalendarFolder(trip,{tripFolderId:folder.id})
+    await moveDriveFile(subscription.fileId,calendarFolder.id,subscription.resourceKey)
+  }
+  for(const permission of source){
+    if(permission.role==='owner')continue
+    try{await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}/permissions/${encodeURIComponent(permission.id)}`,{method:'DELETE',headers:resourceKeyHeaders(record.fileId,record.resourceKey)})}catch{/* Folder access is authoritative; a redundant direct permission can be cleaned up on a later migration pass. */}
+  }
+  return saveDriveSyncRecord({...record,tripFolderId:folder.id,tripFolderResourceKey:folder.resourceKey,tripFolderName:folderName,permissions,shared:permissions.some(permission=>permission.role!=='owner')})
+}
+
 export async function enableDriveTripSharing(record:DriveSyncRecord) {
   const existing=record.permissions||await listDrivePermissions(record)
+  const targetId=record.tripFolderId||record.fileId,targetResourceKey=record.tripFolderId?record.tripFolderResourceKey:record.resourceKey
   if(!existing.some(permission=>permission.type==='anyone'&&permission.role==='writer')){
-    await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}/permissions?sendNotificationEmail=false`,{method:'POST',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({type:'anyone',role:'writer',allowFileDiscovery:false})})
+    await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(targetId)}/permissions?sendNotificationEmail=false`,{method:'POST',headers:{'Content-Type':'application/json',...resourceKeyHeaders(targetId,targetResourceKey)},body:JSON.stringify({type:'anyone',role:'writer',allowFileDiscovery:false})})
   }
   return refreshDriveAccess(record)
 }
 
 async function getDriveFileDetails(fileId:string,resourceKey?:string){
-  const query=new URLSearchParams({fields:'id,name,version,headRevisionId,modifiedTime,resourceKey,ownedByMe,appProperties,capabilities(canReadRevisions,canDownload)'})
+  const query=new URLSearchParams({fields:'id,name,parents,version,headRevisionId,modifiedTime,resourceKey,ownedByMe,appProperties,capabilities(canReadRevisions,canDownload)'})
   const file=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${query}`,{headers:resourceKeyHeaders(fileId,resourceKey)}).then(response=>response.json()) as DriveFileCheckpoint&{id:string;name:string;resourceKey?:string;ownedByMe?:boolean;appProperties?:Record<string,string>}
   return {...file,bootstrapRevisionId:file.appProperties?.[BOOTSTRAP_REVISION_PROPERTY]} satisfies DriveFileDetails
 }
@@ -312,10 +462,11 @@ async function uploadDriveExport(record:Pick<DriveSyncRecord,'fileId'|'resourceK
   return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id,version,headRevisionId,modifiedTime,capabilities(canReadRevisions,canDownload)`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({appProperties})}).then(response=>response.json()) as Promise<DriveFileCheckpoint>
 }
 
-export async function listDrivePermissions(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>) {
+export async function listDrivePermissions(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'tripFolderId'|'tripFolderResourceKey'>) {
+  const targetId=record.tripFolderId||record.fileId,targetResourceKey=record.tripFolderId?record.tripFolderResourceKey:record.resourceKey
   const fields='permissions(id,type,role,displayName,emailAddress,photoLink,domain,allowFileDiscovery)'
   const query=new URLSearchParams({fields})
-  const result=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}/permissions?${query}`,{headers:resourceKeyHeaders(record.fileId,record.resourceKey)}).then(response=>response.json()) as {permissions?:DrivePermissionSnapshot[]}
+  const result=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(targetId)}/permissions?${query}`,{headers:resourceKeyHeaders(targetId,targetResourceKey)}).then(response=>response.json()) as {permissions?:DrivePermissionSnapshot[]}
   return (result.permissions||[]).sort((a,b)=>(a.role==='owner'?-1:b.role==='owner'?1:0)||(a.displayName||a.emailAddress||a.type).localeCompare(b.displayName||b.emailAddress||b.type))
 }
 
@@ -339,7 +490,8 @@ export async function refreshDriveAccess(record:DriveSyncRecord) {
 export async function revokeDrivePermission(record:DriveSyncRecord,permissionId:string) {
   const permission=(record.permissions||[]).find(value=>value.id===permissionId)
   if(permission?.role==='owner')throw new Error('The file owner cannot be removed from the itinerary.')
-  await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}/permissions/${encodeURIComponent(permissionId)}`,{method:'DELETE',headers:resourceKeyHeaders(record.fileId,record.resourceKey)})
+  const targetId=record.tripFolderId||record.fileId,targetResourceKey=record.tripFolderId?record.tripFolderResourceKey:record.resourceKey
+  await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(targetId)}/permissions/${encodeURIComponent(permissionId)}`,{method:'DELETE',headers:resourceKeyHeaders(targetId,targetResourceKey)})
   return refreshDriveAccess(record)
 }
 
@@ -393,8 +545,17 @@ export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
   const discoveredCleanup=!cleanupCompleted&&!record.pendingBootstrapRevisionId&&!!details.bootstrapRevisionId&&details.bootstrapRevisionId!==details.headRevisionId
   record=withDriveBootstrapCleanupMarker(record,details)
   if(discoveredCleanup&&record.pendingBootstrapRevisionId)record=await retryDriveBootstrapRevisionCleanup(record,true)
+  const structureWasMissing=!record.tripFolderId
+  record=await ensureDriveTripStructure({...record,ownedByMe:details.ownedByMe??record.ownedByMe},trip)
+  const structureChanged=structureWasMissing&&!!record.tripFolderId
+  if(!record.tripFolderId&&record.ownedByMe===false){
+    try{
+      const current=await downloadDriveTrip(record.fileId,record.resourceKey) as TripExport,drive=current.collaboration?.drive
+      if(drive?.tripFolderId)record=saveDriveSyncRecord({...record,tripFolderId:drive.tripFolderId,tripFolderResourceKey:drive.tripFolderResourceKey,journalMediaFolderId:drive.journalMediaFolderId,journalMediaFolderResourceKey:drive.journalMediaFolderResourceKey})
+    }catch{/* Legacy shared files remain usable without folder-backed journal photos. */}
+  }
   const base=record.baseTrip
-  const localChanged=!base||JSON.stringify(trip)!==JSON.stringify(base)
+  const localChanged=!base||JSON.stringify(trip)!==JSON.stringify(base)||structureChanged
   if(base&&!hasIncomingDriveUpdates(record,details)){
     if(!localChanged){
       const nextRecord=saveDriveSyncRecord(synchronizedRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe},details))
@@ -409,7 +570,7 @@ export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
   const remote=data as TripExport
   if(!remote?.trip||!Array.isArray(remote.trip.items))throw new Error('The Drive file no longer contains a supported Waypoint trip.')
   if(remote.trip.id!==trip.id)throw new Error('Sync stopped because this Google Drive file belongs to a different trip.')
-  record={...record,bootstrapRevisionId:record.bootstrapRevisionId||remote.collaboration?.drive?.bootstrapRevisionId}
+  record={...record,bootstrapRevisionId:record.bootstrapRevisionId||remote.collaboration?.drive?.bootstrapRevisionId,tripFolderId:record.tripFolderId||remote.collaboration?.drive?.tripFolderId,tripFolderResourceKey:record.tripFolderResourceKey||remote.collaboration?.drive?.tripFolderResourceKey,journalMediaFolderId:record.journalMediaFolderId||remote.collaboration?.drive?.journalMediaFolderId,journalMediaFolderResourceKey:record.journalMediaFolderResourceKey||remote.collaboration?.drive?.journalMediaFolderResourceKey}
   const mergeBase=base||remote.trip
   const hasLocalUpdates=JSON.stringify(trip)!==JSON.stringify(mergeBase)
   const remoteChanged=JSON.stringify(remote.trip)!==JSON.stringify(mergeBase)

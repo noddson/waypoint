@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { Trip, TripItem } from './types'
+import { JournalEntry, SCHEMA_VERSION, Trip, TripItem } from './types'
 import { mergeTripVersions } from './tripMerge'
+import { validTripExport } from './tripImport'
 
 const item=(id:string,title:string):TripItem=>({id,type:'event',title,start:'2026-07-18T10:00',timeZone:'UTC',status:'planned'})
 const trip=(items:TripItem[]):Trip=>({id:'trip',name:'Trip',destination:'Dublin',createdAt:'2026-01-01T00:00:00Z',updatedAt:'2026-01-01T00:00:00Z',items})
+const entry=(id:string,text:string):JournalEntry=>({id,date:'2026-07-18',text,photos:[],createdAt:'2026-07-18T12:00:00Z',updatedAt:'2026-07-18T12:00:00Z'})
 
 describe('collaborative trip merging',()=>{
   it('combines independent additions',()=>{
@@ -39,6 +41,34 @@ describe('collaborative trip merging',()=>{
     const base=trip([]),archived={...base,archivedAt:'2026-08-02T12:00:00Z'}
     expect(mergeTripVersions(base,base,archived).trip.archivedAt).toBe(archived.archivedAt)
     expect(mergeTripVersions(base,archived,base).trip.archivedAt).toBe(archived.archivedAt)
+  })
+
+  it('combines independent journal entries and keeps concurrent edits',()=>{
+    const base={...trip([]),journalEntries:[entry('shared','Original')]}
+    const local={...base,journalEntries:[entry('shared','Local edit'),entry('local','Local note')]}
+    const remote={...base,journalEntries:[entry('shared','Drive edit'),entry('remote','Drive note')]}
+    const merged=mergeTripVersions(base,local,remote)
+    expect(merged.conflicts).toBe(1)
+    expect(merged.trip.journalEntries).toHaveLength(4)
+    expect(merged.trip.journalEntries?.map(value=>value.text).sort()).toEqual(['Drive edit','Drive note','Local edit','Local note'])
+    expect(merged.trip.journalEntries?.filter(value=>value.conflictOf==='shared').map(value=>value.conflictSource).sort()).toEqual(['drive','local'])
+  })
+
+  it('gives duplicated photo descriptors fresh IDs when a journal entry conflicts',()=>{
+    const shared={...entry('shared','Original'),photos:[{id:'photo',driveFileId:'drive-photo',name:'lake.jpg',mimeType:'image/jpeg',size:1200,createdAt:'2026-07-18T12:00:00Z'}]}
+    const base={...trip([]),journalEntries:[shared]}
+    const merged=mergeTripVersions(base,{...base,journalEntries:[{...shared,text:'Local edit'}]},{...base,journalEntries:[{...shared,text:'Drive edit'}]})
+    const photos=merged.trip.journalEntries!.flatMap(value=>value.photos)
+    expect(new Set(photos.map(photo=>photo.id)).size).toBe(2)
+    expect(new Set(photos.map(photo=>photo.driveFileId))).toEqual(new Set(['drive-photo']))
+    expect(validTripExport({schemaVersion:SCHEMA_VERSION,exportedAt:new Date().toISOString(),trip:merged.trip})).toBe(true)
+  })
+
+  it('preserves an edited journal entry when the other side deletes it',()=>{
+    const base={...trip([]),journalEntries:[entry('shared','Original')]}
+    const local={...base,journalEntries:[]}
+    const remote={...base,journalEntries:[entry('shared','Drive edit')]}
+    expect(mergeTripVersions(base,local,remote).trip.journalEntries?.[0].text).toBe('Drive edit')
   })
 
   it('derives the route summary from merged item locations',()=>{
