@@ -4,6 +4,13 @@ This history summarizes the repository's product changes, newest first. Timestam
 
 # August 6, 2026
 
+## Add historical weather for completed trips
+
+**Commit:** `51979ec775143ef636cbc4e2cb25346855ef1ce1` (`51979ec`)
+**Committed:** `2026-08-06 23:34:31 -04:00`
+
+Completed itineraries dated January 1, 2022 or later now load day-level conditions on demand from Open-Meteo's Historical Forecast API, using the same itinerary-derived locations, high and low temperatures, weather codes, precipitation probabilities, wind values, temperature preferences, and short-lived in-memory caching as the live weather experience. Trips before archive coverage show no historical weather interface, while active and upcoming trips continue to use the live Forecast API unchanged. Historical attribution, failure states, and revised settings guidance are translated across all nine supported language modes, and the feature does not change trip JSON or Google Drive schemas.
+
 ## Localize empty and loading itinerary states
 
 **Commit:** `28d802513f1aee4520b1ae4d7f2dae3bfa781e07` (`28d8025`)
