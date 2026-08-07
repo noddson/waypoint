@@ -1,18 +1,26 @@
+import { interfaceRefinements } from './i18nRefinements'
+import { noticeRefinements } from './i18nNoticeRefinements'
+import { stateRefinements } from './i18nStateRefinements'
+import { tooltipRefinements } from './i18nTooltipRefinements'
+import { transientRefinements } from './i18nTransientRefinements'
+import { accessibilityRefinements } from './i18nAccessibilityRefinements'
+import { confirmationRefinements } from './i18nConfirmationRefinements'
+
 export const languageCodes = ['en','de','el','es','fr','is','it','jp','xx'] as const
 export type LanguageCode = typeof languageCodes[number]
 
 export const languageStorageKey = 'waypoint-language'
 
-export const languageMetadata:Record<LanguageCode,{name:string;locale:string;htmlLang:string}> = {
-  en:{name:'English',locale:'en-CA',htmlLang:'en'},
-  de:{name:'Deutsch',locale:'de-DE',htmlLang:'de'},
-  el:{name:'Ελληνικά',locale:'el-GR',htmlLang:'el'},
-  es:{name:'Español',locale:'es-ES',htmlLang:'es'},
-  fr:{name:'Français',locale:'fr-FR',htmlLang:'fr'},
-  is:{name:'Íslenska',locale:'is-IS',htmlLang:'is'},
-  it:{name:'Italiano',locale:'it-IT',htmlLang:'it'},
-  jp:{name:'日本語',locale:'ja-JP',htmlLang:'ja'},
-  xx:{name:'Pirate',locale:'en-CA',htmlLang:'en-x-pirate'},
+export const languageMetadata:Record<LanguageCode,{name:string;flag:string;locale:string;htmlLang:string}> = {
+  en:{name:'English',flag:'🇨🇦',locale:'en-CA',htmlLang:'en'},
+  de:{name:'Deutsch',flag:'🇩🇪',locale:'de-DE',htmlLang:'de'},
+  el:{name:'Ελληνικά',flag:'🇬🇷',locale:'el-GR',htmlLang:'el'},
+  es:{name:'Español',flag:'🇪🇸',locale:'es-ES',htmlLang:'es'},
+  fr:{name:'Français',flag:'🇫🇷',locale:'fr-FR',htmlLang:'fr'},
+  is:{name:'Íslenska',flag:'🇮🇸',locale:'is-IS',htmlLang:'is'},
+  it:{name:'Italiano',flag:'🇮🇹',locale:'it-IT',htmlLang:'it'},
+  jp:{name:'日本語',flag:'🇯🇵',locale:'ja-JP',htmlLang:'ja'},
+  xx:{name:'Pirate',flag:'🏴‍☠️',locale:'en-CA',htmlLang:'en-x-pirate'},
 }
 
 type PhraseMap=Record<string,string>
@@ -34,6 +42,7 @@ const jp:PhraseMap={'Language':'言語','Settings':'設定','Close settings':'�
 const xx:PhraseMap={'Language':'Tongue','Settings':"Ship's settings",'Close settings':"Batten down settings",'Trip actions':'Voyage actions','Your trips':'Yer voyages','Choose trip':'Choose a voyage','New trip':'New voyage','Add item':'Add booty','Edit item':'Edit booty','Itinerary':"Ship's log",'All':'All hands','Flight':'Sky ship','Stay':'Berth','Car rental':'Hire wagon','Transport':'Passage','Insurance':'Assurance','Event':'Gatherin’','Confirmed':'Shipshape','Pending':'Awaitin’','Planned':'Charted','Details':'Particulars','Type':'Kind','Title':'Name','Starts':'Sets sail','Ends':'Makes port','Time zone':'Time waters','Provider':'Purser','Confirmation':'Secret code','Booked by':'Booked by','Location':'Port','End location':'Final port','Status':'State o’ affairs','Notes':'Log notes','Delete':'Scuttle','Cancel':'Belay','Save item':'Stow item','Close':'Close hatch','Done':'Done, matey','Show version history':'Show old logs','QR codes':'QR runes','Itinerary weather':'Voyage weather','Preferred maps app':'Favoured charts','Calendar delivery':'Calendar passage','Off':'Off','Export':'Export','Subscription':'Subscription','All day':'All day','Favourites':'Treasured','Synced':'Synced','Archived':'Stowed away','Open booking ↗':'Open booking ↗','Check flight status':'Spy flight status','Available closer to trip':'Available nearer the voyage','Forecast unavailable':'Forecast lost at sea','Loading…':'Loadin’…','Open weather ↗':'Spy weather ↗','Rain':'Rain','Time not specified':'Time be unknown','Quantity':'Count','Open settings':"Open ship's settings",'Archive trip':'Stow voyage away','Delete trip':'Scuttle voyage','Export JSON':'Export JSON','Import JSON':'Import JSON','Share snapshot':'Share a frozen chart','Share live trip':'Share live voyage','Sync to Google Drive':'Sync to Google Drive','Favourite trip':'Treasure this voyage','Reload':'Reload','A newer Waypoint version is available.':'A newer Waypoint be available.','Disclaimer:':'Here be a warning:','Unknown':'Unknown waters','No destinations yet':'No ports charted yet','No trip dates yet':'No voyage dates yet'}
 
 const dictionaries:Record<LanguageCode,PhraseMap>={en:{},de,el,es,fr,is:is_,it,jp,xx}
+for(const language of languageCodes)Object.assign(dictionaries[language],interfaceRefinements[language],stateRefinements[language],noticeRefinements[language],tooltipRefinements[language],transientRefinements[language],accessibilityRefinements[language],confirmationRefinements[language])
 let activeLanguage:LanguageCode='en'
 const validLanguage=(value:unknown):value is LanguageCode=>typeof value==='string'&&(languageCodes as readonly string[]).includes(value)
 
@@ -45,14 +54,33 @@ export function loadLanguage():LanguageCode {
   try{const saved=localStorage.getItem(languageStorageKey);if(validLanguage(saved)){activeLanguage=saved;return saved}}catch{/* Use browser language when storage is unavailable. */}
   activeLanguage=browserLanguage();return activeLanguage
 }
-export function saveLanguage(language:LanguageCode){try{localStorage.setItem(languageStorageKey,language)}catch{/* The selection remains active for this session. */}}
+export function saveLanguage(language:LanguageCode){activeLanguage=language;try{localStorage.setItem(languageStorageKey,language)}catch{/* The selection remains active for this session. */}}
 export const currentLocale=()=>languageMetadata[activeLanguage].locale
 export const currentLanguage=()=>activeLanguage
 
 const skipSelector='.editable-title,.editable-title-input,.trip-list-title,.route-track,.item h4,.item p,.confirmation-details dd,.location-line,.booked-by,.prompt-preview textarea,.item-json-editor,input,textarea,code'
 const canonical=new Map<string,string>()
 for(const dictionary of Object.values(dictionaries))for(const [english,translated] of Object.entries(dictionary))canonical.set(translated,english)
-export const uiText=(value:string,language:LanguageCode)=>dictionaries[language][canonical.get(value)||value]||canonical.get(value)||value
+const escapePattern=(value:string)=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')
+const templatePattern=(value:string)=>{const names:string[]=[];let source='^',last=0;for(const match of value.matchAll(/\{(\w+)\}/g)){source+=escapePattern(value.slice(last,match.index))+'(.+?)';names.push(match[1]);last=(match.index||0)+match[0].length}source+=escapePattern(value.slice(last))+'$';return {names,regex:new RegExp(source)}}
+const templateTranslations=[...new Set(Object.values(dictionaries).flatMap(dictionary=>Object.keys(dictionary)))].filter(value=>value.includes('{')).map(english=>({english,sources:[english,...languageCodes.map(language=>dictionaries[language][english]).filter((value):value is string=>!!value)].map(templatePattern)}))
+const dynamicTranslationCache=new Map<string,string>()
+export const uiText=(value:string,language:LanguageCode)=>{
+  const normalized=value.startsWith('Wait for the current Google Drive operation to finish')?'Wait for the current Google Drive operation to finish, then try again.':value
+  const direct=dictionaries[language][canonical.get(normalized)||normalized]||canonical.get(normalized)
+  if(direct)return direct
+  const cacheKey=`${language}\0${normalized}`,cached=dynamicTranslationCache.get(cacheKey);if(cached)return cached
+  for(const template of templateTranslations)for(const source of template.sources){const match=normalized.match(source.regex);if(!match)continue;const variables=Object.fromEntries(source.names.map((name,index)=>[name,match[index+1]])),translated=(dictionaries[language][template.english]||template.english).replace(/\{(\w+)\}/g,(placeholder,key)=>variables[key]??placeholder);dynamicTranslationCache.set(cacheKey,translated);return translated}
+  return normalized
+}
+export const uiMessage=(value:string,language:LanguageCode,variables:Record<string,string|number>)=>uiText(value,language).replace(/\{(\w+)\}/g,(match,key)=>key in variables?String(variables[key]):match)
+export const localizedItemJsonExample=(language:LanguageCode)=>JSON.stringify({
+  [uiText('Type',language)]:uiText('Event',language),
+  [uiText('Title',language)]:uiText('Museum visit',language),
+  [uiText('Starts',language)]:'2026-08-04T10:00',
+  [uiText('Time zone',language)]:'Europe/Dublin',
+  [uiText('Status',language)]:uiText('Planned',language),
+},null,2)
 const translateNode=(node:Text,language:LanguageCode)=>{
   const parent=node.parentElement;if(!parent||parent.closest(skipSelector))return
   const match=node.data.match(/^(\s*)(.*?)(\s*)$/s);if(!match||!match[2])return
@@ -68,7 +96,7 @@ export function applyUiLanguage(language:LanguageCode,root:ParentNode=document){
 }
 export function observeUiLanguage(language:LanguageCode){
   applyUiLanguage(language)
-  const observer=new MutationObserver(records=>{for(const record of records){if(record.type==='characterData')translateNode(record.target as Text,language);else for(const added of record.addedNodes){if(added.nodeType===Node.TEXT_NODE)translateNode(added as Text,language);else if(added instanceof HTMLElement)applyUiLanguage(language,added)}}})
-  observer.observe(document.body,{subtree:true,childList:true,characterData:true})
+  const observer=new MutationObserver(records=>{for(const record of records){if(record.type==='characterData')translateNode(record.target as Text,language);else if(record.type==='attributes'&&record.target instanceof HTMLElement){const attribute=record.attributeName,value=attribute&&record.target.getAttribute(attribute);if(attribute&&value){const next=uiText(value,language);if(next!==value)record.target.setAttribute(attribute,next)}}else for(const added of record.addedNodes){if(added.nodeType===Node.TEXT_NODE)translateNode(added as Text,language);else if(added instanceof HTMLElement)applyUiLanguage(language,added)}}})
+  observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['aria-label','title','placeholder']})
   return()=>observer.disconnect()
 }

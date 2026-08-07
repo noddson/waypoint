@@ -2,8 +2,9 @@ import JsBarcode from 'jsbarcode'
 import QRCode from 'qrcode'
 import { useEffect, useRef, useState } from 'react'
 import { ConfirmationCodeFormat, nextConfirmationCodeFormat } from './confirmationCodeFormat'
+import { currentLanguage, LanguageCode, uiMessage, uiText } from './i18n'
 
-export function ConfirmationCode({value,title,expanded=false,onToggleExpanded}:{value:string;title:string;expanded?:boolean;onToggleExpanded:()=>void}) {
+export function ConfirmationCode({value,title,language,expanded=false,onToggleExpanded}:{value:string;title:string;language?:LanguageCode;expanded?:boolean;onToggleExpanded:()=>void}) {
   const [format,setFormat]=useState<ConfirmationCodeFormat>('qr')
   const [failed,setFailed]=useState(false)
   const canvasRef=useRef<HTMLCanvasElement>(null)
@@ -45,21 +46,24 @@ export function ConfirmationCode({value,title,expanded=false,onToggleExpanded}:{
     return()=>{root.style.overflow=previous.rootOverflow;root.style.overscrollBehavior=previous.rootOverscroll;root.style.scrollbarGutter=previous.rootScrollbarGutter;body.style.overflow=previous.bodyOverflow;body.style.overscrollBehavior=previous.bodyOverscroll;body.style.position=previous.bodyPosition;body.style.top=previous.bodyTop;body.style.left=previous.bodyLeft;body.style.right=previous.bodyRight;body.style.width=previous.bodyWidth;window.scrollTo(scrollX,scrollY)}
   },[expanded])
 
-  const next=format==='qr'?'Code 128 barcode':'QR code'
+  const activeLanguage=language||currentLanguage()
+  const next=uiText(format==='qr'?'Code 128 barcode':'QR code',activeLanguage)
+  const label=uiMessage(expanded?'Confirmation {value}. Return to item view. Double click or double tap to show {format}':'Confirmation {value}. Enlarge code. Double click or double tap to show {format}',activeLanguage,{value,format:next})
+  const tooltip=uiMessage(expanded?'Click or tap to return to the item view. Double click or double tap to show {format}.':'Click or tap to enlarge. Double click or double tap to show {format}.',activeLanguage,{format:next})
   return <button
     type="button"
     className={`confirmation-code confirmation-code-${format}${expanded?' confirmation-code-expanded':''}`}
-    aria-label={`Confirmation ${value}. ${expanded?'Return to item view':'Enlarge code'}. Double click or double tap to show ${next}`}
+    aria-label={label}
     aria-expanded={expanded}
     aria-pressed={format==='code128'}
-    title={`${expanded?'Click or tap to return to the item view':'Click or tap to enlarge'}. Double click or double tap to show ${next}.`}
+    title={tooltip}
     onClick={event=>{event.stopPropagation();if(clickTimer.current!==undefined)window.clearTimeout(clickTimer.current);clickTimer.current=window.setTimeout(()=>{clickTimer.current=undefined;onToggleExpanded()},250)}}
     onDoubleClick={event=>{event.stopPropagation();if(clickTimer.current!==undefined){window.clearTimeout(clickTimer.current);clickTimer.current=undefined}setFormat(current=>nextConfirmationCodeFormat(current))}}
     onWheel={event=>{if(expanded){event.preventDefault();event.stopPropagation()}}}
     onTouchMove={event=>{if(expanded){event.preventDefault();event.stopPropagation()}}}
   >
     <canvas ref={canvasRef} aria-hidden="true"/>
-    {failed&&<span>Code unavailable</span>}
+    {failed&&<span>{uiText('Code unavailable',activeLanguage)}</span>}
     {expanded&&<strong className="confirmation-code-title">{title}</strong>}
   </button>
 }

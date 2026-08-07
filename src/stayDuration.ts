@@ -1,4 +1,5 @@
 import type { TripItem } from './types'
+import { currentLanguage, LanguageCode, uiMessage } from './i18n'
 
 const millisecondsPerDay=86_400_000
 
@@ -18,8 +19,8 @@ export function stayNightCount(start:string,end?:string) {
   return last-first
 }
 
-export function multiNightStayLabel(item:Pick<TripItem,'type'|'start'|'end'>) {
+export function multiNightStayLabel(item:Pick<TripItem,'type'|'start'|'end'>,language:LanguageCode=currentLanguage()) {
   if(item.type!=='stay')return undefined
   const nights=stayNightCount(item.start,item.end)
-  return nights&&nights>1?`${nights} nights`:undefined
+  return nights&&nights>1?uiMessage(nights===1?'{count} night':'{count} nights',language,{count:nights}):undefined
 }

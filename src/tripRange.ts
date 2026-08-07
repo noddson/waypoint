@@ -1,5 +1,5 @@
 import { TripItem } from './types'
-import { currentLocale } from './i18n'
+import { currentLanguage, languageMetadata, LanguageCode, uiMessage, uiText } from './i18n'
 
 const utcDate = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00Z`)
 const dateBounds = (items: TripItem[]) => items.length ? {
@@ -141,37 +141,40 @@ const travelBoundaryDates = (items: TripItem[]) => {
   return dates
 }
 
-export function formatTravelDateRange(first?:string, last?:string) {
-  if (!first || !last) return 'No trip dates yet'
+export function formatTravelDateRange(first?:string, last?:string, language:LanguageCode=currentLanguage()) {
+  if (!first || !last) return uiText('No trip dates yet',language)
 
   const firstDate = utcDate(first)
   const lastDate = utcDate(last)
   const sameYear = firstDate.getUTCFullYear() === lastDate.getUTCFullYear()
-  const startLabel = new Intl.DateTimeFormat(currentLocale(), {timeZone:'UTC',month:'short',day:'numeric',year:sameYear?undefined:'numeric'}).format(firstDate)
-  const endLabel = new Intl.DateTimeFormat(currentLocale(), {timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}).format(lastDate)
+  const locale=languageMetadata[language].locale
+  const startLabel = new Intl.DateTimeFormat(locale, {timeZone:'UTC',month:'short',day:'numeric',year:sameYear?undefined:'numeric'}).format(firstDate)
+  const endLabel = new Intl.DateTimeFormat(locale, {timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}).format(lastDate)
   return first.slice(0,10) === last.slice(0,10) ? endLabel : `${startLabel} – ${endLabel}`
 }
 
-export function formatTripDateRange(items: TripItem[]) {
+export function formatTripDateRange(items: TripItem[],language:LanguageCode=currentLanguage()) {
   const bounds = dateBounds(items)
-  return formatTravelDateRange(bounds?.first, bounds?.last)
+  return formatTravelDateRange(bounds?.first, bounds?.last,language)
 }
 
-export function formatTripRange(items: TripItem[]) {
+export function formatTripRange(items: TripItem[],language:LanguageCode=currentLanguage()) {
   const bounds = dateBounds(items)
-  if (!bounds) return 'No trip dates yet'
+  if (!bounds) return uiText('No trip dates yet',language)
 
   const firstDate = utcDate(bounds.first)
   const lastDate = utcDate(bounds.last)
   const durationDays = Math.round((lastDate.getTime() - firstDate.getTime()) / 86_400_000) + 1
   const sameYear = firstDate.getUTCFullYear() === lastDate.getUTCFullYear()
-  const startLabel = new Intl.DateTimeFormat(currentLocale(), {timeZone:'UTC',month:'short',day:'numeric',year:sameYear?undefined:'numeric'}).format(firstDate)
-  const endLabel = new Intl.DateTimeFormat(currentLocale(), {timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}).format(lastDate)
+  const locale=languageMetadata[language].locale
+  const startLabel = new Intl.DateTimeFormat(locale, {timeZone:'UTC',month:'short',day:'numeric',year:sameYear?undefined:'numeric'}).format(firstDate)
+  const endLabel = new Intl.DateTimeFormat(locale, {timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}).format(lastDate)
   const travelDays = travelBoundaryDates(items).size
   const tripDays = Math.max(durationDays - travelDays, 0)
+  const count=(value:number,singular:string,plural:string)=>uiMessage(value===1?singular:plural,language,{count:value})
   const durationLabel = travelDays
-    ? `${durationDays} ${durationDays === 1 ? 'day' : 'days'} total · ${tripDays} trip ${tripDays === 1 ? 'day' : 'days'} · ${travelDays} travel ${travelDays === 1 ? 'day' : 'days'}`
-    : `${durationDays} ${durationDays === 1 ? 'day' : 'days'}`
+    ? `${count(durationDays,'{count} day total','{count} days total')} · ${count(tripDays,'{count} trip day','{count} trip days')} · ${count(travelDays,'{count} travel day','{count} travel days')}`
+    : count(durationDays,'{count} day','{count} days')
 
   return `${startLabel} – ${endLabel} · ${durationLabel}`
 }

@@ -44,6 +44,17 @@ describe('trip date range', () => {
     expect(label).toContain('2 travel days')
   })
 
+  it('localizes total, destination, and travel-day counts',()=>{
+    const label=formatTripRange([
+      flight('outbound','2026-07-18T20:50','2026-07-19T08:15'),
+      item('stay','2026-07-19T15:00','2026-07-23T11:00'),
+      flight('return','2026-07-24T09:20','2026-07-24T11:25'),
+    ],'de')
+    expect(label).toContain('7 Tage insgesamt')
+    expect(label).toContain('5 Tage am Reiseziel')
+    expect(label).toContain('2 Reisetage')
+  })
+
   it('does not classify flights between destinations as outer travel days', () => {
     const label = formatTripRange([
       flight('outbound','2026-07-18T20:50','2026-07-19T08:15'),

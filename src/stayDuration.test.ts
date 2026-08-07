@@ -13,6 +13,7 @@ describe('stay duration',()=>{
 
   it('labels only multi-night stays',()=>{
     expect(multiNightStayLabel({type:'stay',start:'2026-07-23T15:00',end:'2026-07-25T11:00'})).toBe('2 nights')
+    expect(multiNightStayLabel({type:'stay',start:'2026-07-23T15:00',end:'2026-07-30T11:00'},'fr')).toBe('7 nuits')
     expect(multiNightStayLabel({type:'stay',start:'2026-07-23T15:00',end:'2026-07-24T11:00'})).toBeUndefined()
     expect(multiNightStayLabel({type:'event',start:'2026-07-23T15:00',end:'2026-07-25T11:00'})).toBeUndefined()
   })
