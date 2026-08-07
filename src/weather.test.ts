@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { TripItem } from './types'
-import { addWeatherDays, agendaWeatherPlans, formatWeatherTemperature, formatWeatherTemperaturePair, isWeatherForecastDate, parseDailyWeatherResponse, resolveWeatherDisplay, tripWeatherWindow, weatherCountryCode, weatherDescription, weatherPlansForDates, weatherSearchUrl, weatherTargetForDate, weatherTargetFromAddress, weatherTargetsForDate } from './weather'
+import { addWeatherDays, agendaWeatherPlans, formatWeatherTemperature, formatWeatherTemperaturePair, HISTORICAL_WEATHER_START_DATE, isHistoricalWeatherDate, isWeatherForecastDate, parseDailyWeatherResponse, resolveWeatherDisplay, tripWeatherWindow, weatherApiUrl, weatherCountryCode, weatherDescription, weatherPlansForDates, weatherRequestsForPlans, weatherSearchUrl, weatherTargetForDate, weatherTargetFromAddress, weatherTargetsForDate } from './weather'
 
 const item=(id:string,type:TripItem['type'],start:string,location?:string,end?:string,endLocation?:string):TripItem=>({id,type,title:id,start,end,timeZone:'Europe/Dublin',location,endLocation,status:'confirmed'})
 
@@ -18,13 +18,24 @@ describe('itinerary weather planning',()=>{
     expect(weatherTargetForDate(items,'2026-07-19')?.label).toBe('Dublin')
   })
 
-  it('moves the window with today during a trip and removes itinerary weather after the trip',()=>{
+  it('moves the window with today during a trip and exposes historical dates after the trip',()=>{
     const items=[item('stay','stay','2026-07-10T15:00','Dublin, Ireland','2026-07-30T11:00')]
     const active=tripWeatherWindow(items,'2026-07-20')
     expect(active.state).toBe('active')
     expect(active.anchor).toBe('2026-07-20')
     expect(active.dates[active.dates.length-1]).toBe('2026-07-30')
-    expect(tripWeatherWindow(items,'2026-07-31')).toEqual({state:'completed',dates:[]})
+    const completed=tripWeatherWindow(items,'2026-07-31')
+    expect(completed.state).toBe('completed')
+    expect(completed.dates[0]).toBe('2026-07-10')
+    expect(completed.dates[completed.dates.length-1]).toBe('2026-07-30')
+  })
+
+  it('does not expose historical weather before provider coverage begins',()=>{
+    const oldTrip=[item('stay','stay','2021-07-10T15:00','Dublin, Ireland','2021-07-20T11:00')]
+    expect(HISTORICAL_WEATHER_START_DATE).toBe('2022-01-01')
+    expect(tripWeatherWindow(oldTrip,'2021-07-21')).toEqual({state:'completed',dates:[]})
+    expect(isHistoricalWeatherDate('2021-12-31','2026-08-06')).toBe(false)
+    expect(isHistoricalWeatherDate('2022-01-01','2026-08-06')).toBe(true)
   })
 
   it('limits the weather window to fourteen itinerary days',()=>{
@@ -123,6 +134,27 @@ describe('weather locations and links',()=>{
     expect(addWeatherDays('2026-07-16',15)).toBe('2026-07-31')
     expect(isWeatherForecastDate('2026-07-31','2026-07-16')).toBe(true)
     expect(isWeatherForecastDate('2026-08-01','2026-07-16')).toBe(false)
+  })
+
+  it('selects the historical archive and requested trip dates for completed plans',()=>{
+    const target=weatherTargetFromAddress('Dublin 8, Ireland')!,date='2023-07-19'
+    const [request]=weatherRequestsForPlans([{agendaDate:date,date,target}],'2026-08-06')
+    const url=weatherApiUrl(request,{latitude:53.3498,longitude:-6.2603})
+    expect(request).toMatchObject({source:'historical',startDate:date,endDate:date})
+    expect(url.hostname).toBe('historical-forecast-api.open-meteo.com')
+    expect(url.searchParams.get('start_date')).toBe(date)
+    expect(url.searchParams.get('end_date')).toBe(date)
+    expect(url.searchParams.has('forecast_days')).toBe(false)
+  })
+
+  it('keeps upcoming plans on the live forecast endpoint',()=>{
+    const target=weatherTargetFromAddress('Dublin 8, Ireland')!,date='2026-08-10'
+    const [request]=weatherRequestsForPlans([{agendaDate:date,date,target}],'2026-08-06')
+    const url=weatherApiUrl(request,{latitude:53.3498,longitude:-6.2603})
+    expect(request.source).toBe('forecast')
+    expect(url.hostname).toBe('api.open-meteo.com')
+    expect(url.searchParams.get('forecast_days')).toBe('16')
+    expect(url.searchParams.has('start_date')).toBe(false)
   })
 
   it('maps WMO weather codes to readable conditions',()=>{

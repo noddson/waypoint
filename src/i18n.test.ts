@@ -58,10 +58,20 @@ describe('UI language selection',()=>{
 
   it('localizes weather, settings guidance, and the display-only JSON example',()=>{
     expect(uiText('Overcast','de')).toBe('Bedeckt')
+    expect(uiText('Historical weather unavailable','de')).toBe('Historische Wetterdaten nicht verfügbar')
     expect(uiText('Show QR and Code 128 confirmation codes beside bookings.','fr')).toContain('codes de confirmation')
     expect(localizedItemJsonExample('de')).toContain('"Typ": "Veranstaltung"')
     expect(localizedItemJsonExample('de')).toContain('"Titel": "Museumsbesuch"')
     expect(localizedItemJsonExample('de')).not.toContain('"type"')
+  })
+
+  it('localizes historical weather states in every non-English language',()=>{
+    const guidance='Choose a temperature scale or turn day-level weather off. Waypoint never uses your device location, and completed trips from 2022 onward show historical weather.'
+    for(const language of languageCodes.filter(language=>language!=='en')){
+      expect(uiText('Historical weather unavailable',language)).not.toBe('Historical weather unavailable')
+      expect(uiText('Historical weather: Open-Meteo',language)).not.toBe('Historical weather: Open-Meteo')
+      expect(uiText(guidance,language)).not.toBe(guidance)
+    }
   })
 
   it('localizes confirmation-code controls with their dynamic values',()=>{

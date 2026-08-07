@@ -4,6 +4,7 @@ import { sortTripItems, TripItem } from './types'
 
 export const WEATHER_FORECAST_DAYS = 14
 export const WEATHER_API_DAYS = 16
+export const HISTORICAL_WEATHER_START_DATE = '2022-01-01'
 const weatherDisplayStorageKey = 'waypoint-weather-display'
 const legacyWeatherEnabledStorageKey = 'waypoint-weather-enabled'
 const legacyWeatherTemperatureUnitStorageKey = 'waypoint-weather-temperature-unit'
@@ -23,6 +24,13 @@ export interface WeatherDayPlan {
   agendaDate: string
   date: string
   target: WeatherTarget
+}
+
+export interface WeatherRequest {
+  source: 'forecast'|'historical'
+  target: WeatherTarget
+  startDate?: string
+  endDate?: string
 }
 
 export interface DailyWeather {
@@ -109,7 +117,10 @@ const inclusiveDates = (start:string,end:string) => {
 export function tripWeatherWindow(items:TripItem[],today:string):TripWeatherWindow {
   const bounds=tripBounds(items)
   if(!bounds)return {state:'empty',dates:[]}
-  if(today>bounds.end)return {state:'completed',dates:[]}
+  if(today>bounds.end){
+    const start=bounds.start>HISTORICAL_WEATHER_START_DATE?bounds.start:HISTORICAL_WEATHER_START_DATE
+    return start>bounds.end?{state:'completed',dates:[]}:{state:'completed',anchor:start,dates:inclusiveDates(start,bounds.end)}
+  }
   const state=today<bounds.start?'upcoming':'active',anchor=state==='upcoming'?bounds.start:today
   const end=[bounds.end,addWeatherDays(anchor,WEATHER_FORECAST_DAYS-1)].sort()[0]
   return {state,anchor,dates:inclusiveDates(anchor,end)}
@@ -117,6 +128,14 @@ export function tripWeatherWindow(items:TripItem[],today:string):TripWeatherWind
 
 export function isWeatherForecastDate(date:string,today:string) {
   return date>=today&&date<=addWeatherDays(today,WEATHER_API_DAYS-1)
+}
+
+export function isHistoricalWeatherDate(date:string,today:string) {
+  return date>=HISTORICAL_WEATHER_START_DATE&&date<today
+}
+
+export function isWeatherAvailableDate(date:string,today:string) {
+  return isWeatherForecastDate(date,today)||isHistoricalWeatherDate(date,today)
 }
 
 const countryAliases:Record<string,string> = {
@@ -245,6 +264,24 @@ export function agendaWeatherPlans(items:TripItem[],agendaDates:string[],forecas
   })
 }
 
+export function weatherRequestsForPlans(plans:WeatherDayPlan[],today:string) {
+  const requests=new Map<string,WeatherRequest>()
+  for(const plan of plans){
+    const source=isWeatherForecastDate(plan.date,today)?'forecast':isHistoricalWeatherDate(plan.date,today)?'historical':undefined
+    if(!source)continue
+    const key=`${source}:${plan.target.key}`,existing=requests.get(key)
+    if(source==='forecast'){
+      if(!existing)requests.set(key,{source,target:plan.target})
+      continue
+    }
+    if(existing){
+      existing.startDate=[existing.startDate!,plan.date].sort()[0]
+      existing.endDate=existing.endDate!>plan.date?existing.endDate:plan.date
+    }else requests.set(key,{source,target:plan.target,startDate:plan.date,endDate:plan.date})
+  }
+  return [...requests.values()]
+}
+
 export function weatherSearchUrl(target:WeatherTarget,date?:string) {
   const query=[target.label,target.countryCode,date,'weather'].filter(Boolean).join(' ')
   return `https://www.google.com/search?q=${encodeURIComponent(query)}`
@@ -328,53 +365,61 @@ async function geocodeWeatherTarget(target:WeatherTarget) {
   throw new Error(`Weather location not found for ${target.label}.`)
 }
 
-async function requestLocationWeather(target:WeatherTarget):Promise<LocationWeather> {
-  const location=await geocodeWeatherTarget(target)
-  const url=new URL('https://api.open-meteo.com/v1/forecast')
+export function weatherApiUrl(request:WeatherRequest,location:{latitude:number;longitude:number}) {
+  const url=new URL(request.source==='historical'?'https://historical-forecast-api.open-meteo.com/v1/forecast':'https://api.open-meteo.com/v1/forecast')
   url.searchParams.set('latitude',String(location.latitude));url.searchParams.set('longitude',String(location.longitude))
   url.searchParams.set('daily','weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max')
-  url.searchParams.set('timezone','auto');url.searchParams.set('forecast_days',String(WEATHER_API_DAYS))
+  url.searchParams.set('timezone','auto')
+  if(request.source==='historical'){
+    url.searchParams.set('start_date',request.startDate!);url.searchParams.set('end_date',request.endDate!)
+  }else url.searchParams.set('forecast_days',String(WEATHER_API_DAYS))
+  return url
+}
+
+async function requestLocationWeather(request:WeatherRequest):Promise<LocationWeather> {
+  const {target}=request,location=await geocodeWeatherTarget(target),url=weatherApiUrl(request,location)
   const response=await fetch(url)
-  if(!response.ok)throw new Error(`Weather forecast failed for ${target.label}.`)
+  if(!response.ok)throw new Error(`${request.source==='historical'?'Historical weather':'Weather forecast'} failed for ${target.label}.`)
   const days=parseDailyWeatherResponse(await response.json())
-  if(!days.size)throw new Error(`Weather forecast was incomplete for ${target.label}.`)
+  if(!days.size)throw new Error(`${request.source==='historical'?'Historical weather':'Weather forecast'} was incomplete for ${target.label}.`)
   return {target,...location,loadedAt:Date.now(),days}
 }
 
-function loadLocationWeather(target:WeatherTarget) {
-  const resolved=resolvedForecasts.get(target.key)
+const weatherRequestKey = (request:WeatherRequest) => [request.source,request.target.key,request.startDate,request.endDate].filter(Boolean).join(':')
+
+function loadLocationWeather(request:WeatherRequest) {
+  const key=weatherRequestKey(request),resolved=resolvedForecasts.get(key)
   if(resolved&&Date.now()-resolved.loadedAt<weatherCacheMilliseconds)return Promise.resolve(resolved)
-  if(resolved)resolvedForecasts.delete(target.key)
-  const running=forecastRequests.get(target.key)
+  if(resolved)resolvedForecasts.delete(key)
+  const running=forecastRequests.get(key)
   if(running)return running
-  const request=requestLocationWeather(target).then(forecast=>{resolvedForecasts.set(target.key,forecast);return forecast}).finally(()=>forecastRequests.delete(target.key))
-  forecastRequests.set(target.key,request)
-  return request
+  const runningRequest=requestLocationWeather(request).then(forecast=>{resolvedForecasts.set(key,forecast);return forecast}).finally(()=>forecastRequests.delete(key))
+  forecastRequests.set(key,runningRequest)
+  return runningRequest
 }
 
-export function useWeatherForecasts(targets:WeatherTarget[],enabled=true,refreshKey:string|number=''):WeatherForecastState {
-  const targetKey=targets.map(target=>target.key).sort().join('~')
-  const uniqueTargets=useMemo(()=>{
-    const found=new Map<string,WeatherTarget>()
-    for(const target of targets)found.set(target.key,target)
-    return [...found.values()]
-  },[targetKey])
+const mergeLocationWeather = (current:LocationWeather|undefined,next:LocationWeather):LocationWeather => current?{...next,loadedAt:Math.max(current.loadedAt,next.loadedAt),days:new Map([...current.days,...next.days])}:next
+
+export function useWeatherForecasts(plans:WeatherDayPlan[],today:string,enabled=true,refreshKey:string|number=''):WeatherForecastState {
+  const planKey=plans.map(plan=>`${plan.date}:${plan.target.key}`).sort().join('~')
+  const requests=useMemo(()=>weatherRequestsForPlans(plans,today),[planKey,today])
+  const requestKey=requests.map(weatherRequestKey).sort().join('~')
   const [state,setState]=useState<WeatherForecastState>({forecasts:new Map(),failedTargets:new Set(),loadingTargets:new Set()})
 
   useEffect(()=>{
     let cancelled=false
-    if(!enabled||!uniqueTargets.length){setState({forecasts:new Map(),failedTargets:new Set(),loadingTargets:new Set()});return()=>{cancelled=true}}
-    const forecasts=new Map<string,LocationWeather>(),failedTargets=new Set<string>(),loadingTargets=new Set(uniqueTargets.filter(target=>!resolvedForecasts.has(target.key)).map(target=>target.key))
-    for(const target of uniqueTargets){const cached=resolvedForecasts.get(target.key);if(cached)forecasts.set(target.key,cached)}
+    if(!enabled||!requests.length){setState({forecasts:new Map(),failedTargets:new Set(),loadingTargets:new Set()});return()=>{cancelled=true}}
+    const forecasts=new Map<string,LocationWeather>(),failedTargets=new Set<string>(),loadingTargets=new Set<string>()
+    for(const request of requests){const cached=resolvedForecasts.get(weatherRequestKey(request));if(cached)forecasts.set(request.target.key,mergeLocationWeather(forecasts.get(request.target.key),cached));else loadingTargets.add(request.target.key)}
     setState({forecasts:new Map(forecasts),failedTargets:new Set(),loadingTargets:new Set(loadingTargets)})
-    void Promise.allSettled(uniqueTargets.map(async target=>{
-      try{const forecast=await loadLocationWeather(target);forecasts.set(target.key,forecast)}catch{failedTargets.add(target.key)}finally{
-        loadingTargets.delete(target.key)
+    void Promise.allSettled(requests.map(async request=>{
+      try{const forecast=await loadLocationWeather(request);forecasts.set(request.target.key,mergeLocationWeather(forecasts.get(request.target.key),forecast))}catch{failedTargets.add(request.target.key)}finally{
+        loadingTargets.delete(request.target.key)
         if(!cancelled)setState({forecasts:new Map(forecasts),failedTargets:new Set(failedTargets),loadingTargets:new Set(loadingTargets)})
       }
     }))
     return()=>{cancelled=true}
-  },[enabled,targetKey,refreshKey])
+  },[enabled,requestKey,refreshKey])
 
   return state
 }
