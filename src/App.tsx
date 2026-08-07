@@ -28,12 +28,13 @@ import { loadVersionHistoryEnabled, numberDriveRevisions, NumberedDriveRevision,
 import { isRecentDriveSyncCheckpoint } from './driveSync'
 import { AgendaDayWeather } from './WeatherForecast'
 import { agendaWeatherPlans, isWeatherForecastDate, loadWeatherDisplay, localWeatherDate, saveWeatherDisplay, tripWeatherWindow, useWeatherForecasts, WeatherDayPlan, WeatherDisplay, WeatherTemperatureUnit } from './weather'
+import { currentLocale, languageCodes, languageMetadata, LanguageCode, loadLanguage, observeUiLanguage, saveLanguage } from './i18n'
 
 const zones = ['America/Toronto','Europe/Dublin','Europe/London','Pacific/Honolulu','UTC']
 const blank = (type:ItemType='event'):TripItem => ({id:uid(),type,title:'',start:new Date().toISOString().slice(0,16),timeZone:'Europe/Dublin',status:'planned'})
-const dateFmt = (value:string, _zone:string, opts:Intl.DateTimeFormatOptions={}) => new Intl.DateTimeFormat(undefined,{timeZone:'UTC',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',...opts}).format(new Date(`${value}:00Z`))
-const dayFmt = (value:string) => new Intl.DateTimeFormat(undefined,{timeZone:'UTC',weekday:'short',month:'short',day:'numeric',year:'numeric'}).format(new Date(`${value}T12:00:00Z`))
-const localTime = (value:string) => { const [hours,minutes]=value.slice(11,16).split(':').map(Number); return `${hours%12||12}:${String(minutes).padStart(2,'0')} ${hours<12?'AM':'PM'}` }
+const dateFmt = (value:string, _zone:string, opts:Intl.DateTimeFormatOptions={}) => new Intl.DateTimeFormat(currentLocale(),{timeZone:'UTC',weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',...opts}).format(new Date(`${value}:00Z`))
+const dayFmt = (value:string) => new Intl.DateTimeFormat(currentLocale(),{timeZone:'UTC',weekday:'short',month:'short',day:'numeric',year:'numeric'}).format(new Date(`${value}T12:00:00Z`))
+const localTime = (value:string) => new Intl.DateTimeFormat(currentLocale(),{timeZone:'UTC',hour:'numeric',minute:'2-digit'}).format(new Date(`1970-01-01T${value.slice(11,16)}:00Z`))
 const durationFmt = (minutes?:number) => minutes ? `${Math.floor(minutes/60)}h ${String(minutes%60).padStart(2,'0')}m` : ''
 const derivedDestination = (items:TripItem[]) => tripRouteStops(items).map(stop=>stop.label).join(' → ')
 const withDerivedDestination = (trip:Trip):Trip => ({...trip,destination:derivedDestination(trip.items)})
@@ -51,7 +52,7 @@ const upgradeKnownTripDetails = (trip:Trip) => { let changed=false;const name=tr
 const emptyEmailPrompt:EmailExtractionPromptInput = {tripName:'',destination:'',travelStart:'',travelEnd:'',emailStart:'',emailEnd:'',people:'',clues:'',searchCategories:{...defaultEmailSearchCategories}}
 const emailSearchCategoryIcons:Record<EmailSearchCategory,string> = {flight:'✈',train:'🚆',car:'🚗',hotel:'🏨',events:'🎟'}
 const tripDateBounds = (items:TripItem[]) => items.length?{start:items.reduce((first,item)=>item.start<first?item.start:first,items[0].start).slice(0,10),end:items.reduce((last,item)=>(item.end||item.start)>last?(item.end||item.start):last,items[0].end||items[0].start).slice(0,10)}:{start:'',end:''}
-const updatedFmt = (value?:string) => value&&!Number.isNaN(new Date(value).getTime())?new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'Unknown'
+const updatedFmt = (value?:string) => value&&!Number.isNaN(new Date(value).getTime())?new Intl.DateTimeFormat(currentLocale(),{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'Unknown'
 const bytesToBase64Url = (bytes:Uint8Array) => { let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'') }
 const base64UrlToBytes = (value:string) => { const padded=value.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-value.length%4)%4),binary=atob(padded);return Uint8Array.from(binary,char=>char.charCodeAt(0)) }
 async function encodeShareTrip(value:TripExport) { const json=JSON.stringify(value),bytes=new TextEncoder().encode(json);if('CompressionStream' in window){try{const stream=new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));return `g.${bytesToBase64Url(new Uint8Array(await new Response(stream).arrayBuffer()))}`}catch{/* Fall back to an uncompressed link on browsers with incomplete stream support. */}}return `r.${bytesToBase64Url(bytes)}` }
@@ -75,7 +76,10 @@ export default function App(){
  const [buildVersion,setBuildVersion]=useState<BuildVersion|null>(null)
  const [showVersionHistory,setShowVersionHistory]=useState(loadVersionHistoryEnabled),[driveVersions,setDriveVersions]=useState<DriveVersion[]>([]),[driveVersionsCheckpoint,setDriveVersionsCheckpoint]=useState(''),[driveVersionsLoadedAt,setDriveVersionsLoadedAt]=useState(0),[driveVersionsLoading,setDriveVersionsLoading]=useState(false),[driveVersionError,setDriveVersionError]=useState(''),[historicalVersion,setHistoricalVersion]=useState<HistoricalVersionView|null>(null),[driveSyncBusy,setDriveSyncBusy]=useState(false),[restoringVersion,setRestoringVersion]=useState(false)
  const [weatherDisplay,setWeatherDisplay]=useState(loadWeatherDisplay)
+ const [language,setLanguage]=useState<LanguageCode>(loadLanguage)
  const weatherEnabled=weatherDisplay!=='off',weatherTemperatureUnit:WeatherTemperatureUnit=weatherDisplay==='off'?'celsius':weatherDisplay
+ useEffect(()=>observeUiLanguage(language),[language])
+ const selectLanguage=(next:LanguageCode)=>{saveLanguage(next);setLanguage(next)}
  const googleClientId=import.meta.env.VITE_GOOGLE_CLIENT_ID||''
  const activateTrip=(trip:Trip)=>{activeTripId.current=trip.id;setActive(trip)}
  const setDriveSynchronizationBusy=(busy:boolean)=>{driveSyncing.current=busy;setDriveSyncBusy(busy)}
@@ -220,6 +224,7 @@ export default function App(){
   </>:mobileMenu==='settings'?<>
    <div className="sheet-heading"><h2>Settings</h2><button className="close" aria-label="Close settings" onClick={()=>setMobileMenu('none')}>×</button></div>
    <div className="settings-list">
+    <fieldset className="setting-group language-setting"><legend>Language</legend><select aria-label="Language" value={language} onChange={event=>selectLanguage(event.target.value as LanguageCode)}>{languageCodes.map(code=><option key={code} value={code}>{languageMetadata[code].name}</option>)}</select></fieldset>
     <div className="setting-row"><div><strong>Show version history</strong><p>Browse older Drive versions. Opening one retains it permanently and uses Drive storage, up to 200 per file.</p></div><label className="setting-switch"><input type="checkbox" aria-label="Show version history" checked={showVersionHistory} onChange={toggleVersionHistory}/><span aria-hidden="true"/></label></div>
     <div className="setting-row"><div><strong>QR codes</strong><p>Show QR and Code 128 confirmation codes beside bookings.</p></div><label className="setting-switch"><input type="checkbox" aria-label="Show QR codes" checked={showConfirmationCodes} onChange={toggleConfirmationCodes}/><span aria-hidden="true"/></label></div>
     <fieldset className="setting-group weather-setting"><legend>Itinerary weather</legend><p>Choose a temperature scale or turn day-level forecasts off. Waypoint never uses your device location, and completed-trip forecasts hide automatically.</p><div className="map-provider-options weather-display-options" role="radiogroup" aria-label="Itinerary weather display"><label className={weatherDisplay==='off'?'selected':''}><input type="radio" name="weather-display" value="off" checked={weatherDisplay==='off'} onChange={()=>selectWeatherDisplay('off')}/><span>Off</span></label><label className={weatherDisplay==='celsius'?'selected':''}><input type="radio" name="weather-display" value="celsius" checked={weatherDisplay==='celsius'} onChange={()=>selectWeatherDisplay('celsius')}/><span>Celsius (°C)</span></label><label className={weatherDisplay==='fahrenheit'?'selected':''}><input type="radio" name="weather-display" value="fahrenheit" checked={weatherDisplay==='fahrenheit'} onChange={()=>selectWeatherDisplay('fahrenheit')}/><span>Fahrenheit (°F)</span></label><label className={weatherDisplay==='kelvin'?'selected':''}><input type="radio" name="weather-display" value="kelvin" checked={weatherDisplay==='kelvin'} onChange={()=>selectWeatherDisplay('kelvin')}/><span>Kelvin (K) 🧪</span></label></div></fieldset>

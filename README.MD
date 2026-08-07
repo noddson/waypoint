@@ -842,6 +842,12 @@ The repository includes a detailed OWASP Top 10:2025 review, risk matrix, eviden
 
 Please avoid publishing real confirmation codes, private email links, or personal itinerary data in public bug reports, screenshots, test fixtures, or pull requests.
 
+## Languages
+
+Waypoint's interface supports English, German, Greek, Spanish, French, Icelandic, Italian, Japanese, and Pirate. On a first visit it uses the first supported browser language, falling back to English; the selection can be changed in **Trip Actions → Settings → Language** and is saved in the current browser.
+
+Localization applies to Waypoint's interface only. It does not translate itinerary data, external links and integrations, JSON or calendar exports, or the generated email-extraction prompt.
+
 ## Project status and licensing
 
 The application is under active development. Behavior, schemas, provider mappings, and sharing workflows may change.

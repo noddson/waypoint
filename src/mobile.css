@@ -57,3 +57,4 @@ body.mobile-experience {
 body .confirmation-code-qr.confirmation-code-expanded canvas{grid-row:1;width:86vmin!important;max-width:92vw!important;height:86vmin!important;max-height:86vh!important;aspect-ratio:1}
 body .confirmation-code-code128.confirmation-code-expanded canvas{grid-row:1;width:92vw!important;height:65vmin!important;max-height:75vh!important;object-fit:contain}
 .confirmation-code-expanded .confirmation-code-title{grid-row:2;display:block;max-width:92vw;margin-top:9px;padding:0;color:#17352e;font-family:inherit;font-size:clamp(16px,3vw,26px);font-weight:700;line-height:1.2;text-align:center;overflow-wrap:anywhere}
+.language-setting select{width:100%;margin-top:6px}

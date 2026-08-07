@@ -1,4 +1,5 @@
 import { TripItem } from './types'
+import { currentLocale } from './i18n'
 
 const utcDate = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00Z`)
 const dateBounds = (items: TripItem[]) => items.length ? {
@@ -146,8 +147,8 @@ export function formatTravelDateRange(first?:string, last?:string) {
   const firstDate = utcDate(first)
   const lastDate = utcDate(last)
   const sameYear = firstDate.getUTCFullYear() === lastDate.getUTCFullYear()
-  const startLabel = new Intl.DateTimeFormat(undefined, {timeZone:'UTC',month:'short',day:'numeric',year:sameYear?undefined:'numeric'}).format(firstDate)
-  const endLabel = new Intl.DateTimeFormat(undefined, {timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}).format(lastDate)
+  const startLabel = new Intl.DateTimeFormat(currentLocale(), {timeZone:'UTC',month:'short',day:'numeric',year:sameYear?undefined:'numeric'}).format(firstDate)
+  const endLabel = new Intl.DateTimeFormat(currentLocale(), {timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}).format(lastDate)
   return first.slice(0,10) === last.slice(0,10) ? endLabel : `${startLabel} – ${endLabel}`
 }
 
@@ -164,8 +165,8 @@ export function formatTripRange(items: TripItem[]) {
   const lastDate = utcDate(bounds.last)
   const durationDays = Math.round((lastDate.getTime() - firstDate.getTime()) / 86_400_000) + 1
   const sameYear = firstDate.getUTCFullYear() === lastDate.getUTCFullYear()
-  const startLabel = new Intl.DateTimeFormat(undefined, {timeZone:'UTC',month:'short',day:'numeric',year:sameYear?undefined:'numeric'}).format(firstDate)
-  const endLabel = new Intl.DateTimeFormat(undefined, {timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}).format(lastDate)
+  const startLabel = new Intl.DateTimeFormat(currentLocale(), {timeZone:'UTC',month:'short',day:'numeric',year:sameYear?undefined:'numeric'}).format(firstDate)
+  const endLabel = new Intl.DateTimeFormat(currentLocale(), {timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}).format(lastDate)
   const travelDays = travelBoundaryDates(items).size
   const tripDays = Math.max(durationDays - travelDays, 0)
   const durationLabel = travelDays

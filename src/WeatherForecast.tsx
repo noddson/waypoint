@@ -1,6 +1,7 @@
 import { DailyWeather, formatWeatherTemperaturePair, isWeatherForecastDate, WeatherDayPlan, WeatherForecastState, weatherDescription, weatherSearchUrl, WeatherTemperatureUnit } from './weather'
+import { currentLocale } from './i18n'
 
-const shortDate = (date:string) => new Intl.DateTimeFormat(undefined,{timeZone:'UTC',weekday:'short',month:'short',day:'numeric'}).format(new Date(`${date}T12:00:00Z`))
+const shortDate = (date:string) => new Intl.DateTimeFormat(currentLocale(),{timeZone:'UTC',weekday:'short',month:'short',day:'numeric'}).format(new Date(`${date}T12:00:00Z`))
 const weatherForPlan = (plan:WeatherDayPlan,state:WeatherForecastState) => state.forecasts.get(plan.target.key)?.days.get(plan.date)
 
 function ForecastValues({weather,temperatureUnit}:{weather:DailyWeather;temperatureUnit:WeatherTemperatureUnit}) {
