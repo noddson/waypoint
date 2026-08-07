@@ -24,7 +24,8 @@ body.mobile-experience .item:has(.confirmation-code-code128){grid-template-colum
 
 body.mobile-experience {
   background:#f5f1e9;
-  .app-footer{--app-footer-font-size:8px}
+  .app-footer{--app-footer-font-size:8px;-webkit-text-size-adjust:none;text-size-adjust:none}
+  .app-footer-details,.app-footer-details *{font-size:var(--app-footer-font-size)}
   main{max-width:none;padding:0 14px 28px}
   header,.tripbar{display:none}
   .mobile-header{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;position:sticky;top:0;z-index:3;min-height:78px;margin:0 -14px;padding:10px 14px;background:#f5f1e9eF;border-bottom:1px solid #ddd6ca;backdrop-filter:blur(12px)}
