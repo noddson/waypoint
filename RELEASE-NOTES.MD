@@ -4,6 +4,13 @@ This history summarizes the repository's product changes, newest first. Timestam
 
 # August 7, 2026
 
+## Scope itinerary weather to visible bookings
+
+**Commit:** `ff4b4a079956eca13eefe037a4da715f8736c564` (`ff4b4a0`)
+**Committed:** `2026-08-07 10:27:09 -04:00`
+
+Weather now follows the active itinerary filter and the booking that renders it, so Flight views exclude stay-only places, Stay views exclude flight endpoints, stationary entries show their own region, and flights or regional ground transport can show both origin and destination. Overnight routes retain origin weather on the departure date and destination weather on the arrival date, active overnight movements remain eligible when either endpoint is in range, active stays roll forward to the current day, equivalent country-qualified and unqualified places deduplicate without merging forecasts for different dates, and insurance or unlocated entries do not create fallback weather. Desktop keeps weather in the day column, while mobile portrait places item-scoped weather before an optional QR or Code 128 confirmation code and mobile landscape keeps weather on the left with booking details in the centre and the confirmation code at the far right; unused rails collapse cleanly when weather, confirmation codes, both, or neither are enabled. Print output retains the full itinerary, landscape deep links and expanded code overlays remain usable, and regression plus browser coverage verifies filtered Flight and Stay scopes, overnight flights, endpoint-only transport, same-place deduplication, active stays, optional locations, narrow portrait layouts, landscape layouts, both code formats, and all four display-setting combinations.
+
 ## Deduplicate itinerary weather locations
 
 **Commit:** `6296f8500fe0294cdeb66c46e45862b0f29c63f0` (`6296f85`)
