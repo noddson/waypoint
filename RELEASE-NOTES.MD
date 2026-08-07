@@ -4,6 +4,34 @@ This history summarizes the repository's product changes, newest first. Timestam
 
 # August 7, 2026
 
+## Keep Code 128 in the mobile landscape rail
+
+**Commit:** `030ef28ee43f76f66dda3956de1683675ed6b5cb` (`030ef28`)
+**Committed:** `2026-08-07 12:55:26 -04:00`
+
+Kept confirmation codes in a consistent left-side location when a mobile landscape user double-clicks or double-taps a QR code to switch it to Code 128. The Code 128 presentation now occupies the first itinerary grid column, matching the QR code's left edge instead of moving into a third column at the far right. Its wider 200-pixel rendering remains intact by widening the left rail and shifting the booking details column, while the time and item-specific weather continue to stack above the active confirmation-code format.
+
+## Prevent expanded mobile footer text inflation
+
+**Commit:** `1bc286e2319f8a1db2cfedb249e059cd0db65e3e` (`1bc286e`)
+**Committed:** `2026-08-07 12:42:48 -04:00`
+
+Disabled mobile-browser text-size inflation within the footer so opening the landscape disclosure no longer enlarges its disclaimer independently of the version row. The revealed paragraphs, links, and emphasized text now explicitly retain the shared 8-pixel mobile footer size, including in browsers such as Safari that otherwise enlarge landscape prose blocks.
+
+## Finalize responsive mobile footer behavior
+
+**Commit:** `eb5d07b34dbdd2f25b4855f09116190efe246042` (`eb5d07b`)
+**Committed:** `2026-08-07 12:38:16 -04:00`
+
+Standardized the mobile footer at 8 pixels while preserving the existing desktop size. Portrait mode now keeps the complete footer genuinely open and non-toggleable while leaving the commit-linked version usable; landscape starts with only the localized version and chevron, expands the supporting notices on demand, and returns to its compact state when the device rotates into landscape. Orientation and resize tracking keep those behaviors synchronized instead of relying on CSS to expose content from a natively closed disclosure.
+
+## Refine mobile landscape footer and QR placement
+
+**Commit:** `bbe088dc612a036aab29d193cbe7f6fe199f778b` (`bbe088d`)
+**Committed:** `2026-08-07 12:28:02 -04:00`
+
+Introduced the compact mobile-landscape footer disclosure with a rotating chevron while retaining the full disclaimer, contribution link, and copyright notice one tap away. QR confirmation codes moved back into the left itinerary rail beneath item weather, allowing booking details to use the remaining width; the wider Code 128 format keeps its dedicated right-side column. Desktop and portrait initially retained their complete footer presentation, and the version link remained independently clickable.
+
 ## Scope itinerary weather to visible bookings
 
 **Commit:** `ff4b4a079956eca13eefe037a4da715f8736c564` (`ff4b4a0`)
