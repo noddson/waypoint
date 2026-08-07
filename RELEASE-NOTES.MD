@@ -4,6 +4,17 @@ This history summarizes the repository's product changes, newest first. Timestam
 
 # August 7, 2026
 
+## Add opt-in trip journals
+
+**Commit:** `c4f7c27e2af5657c87e35202a4e86183898f79e0` (`c4f7c27`)
+**Committed:** `2026-08-07 19:56:56 -04:00`
+
+Added an opt-in **Trip journal** setting, disabled by default, that exposes a consolidated Journal view and per-day **+ Note** shortcuts without deleting stored entries when the setting is turned off. Journal entries are dated trip-level objects rather than scheduled itinerary items, can contain local-first text and several entries per day, and may optionally reference an itinerary item that occurs on the same date. They remain outside trip-date, route, weather, overlap, and calendar calculations; archived trips display their journals read-only. Text works without Google Drive, while photo controls become available after Drive is connected. JSON and snapshot exports retain photo descriptors but never embed photo binaries.
+
+Reorganized new synchronized trips into permission-bearing per-trip Drive folders containing the authoritative itinerary, an on-demand `journal-media` folder, and a limited-access calendar subfolder. Journal images use multipart or resumable uploads as appropriate, are loaded through authenticated Drive requests, and move to recoverable Drive trash when their final journal reference is removed. Public `.ics` feeds disable inherited trip collaboration permissions before receiving their own reader permission; when Drive cannot enforce that boundary, Waypoint uses a separately permissioned **Published calendars** folder. Existing flat Drive trips migrate lazily on their owner's next synchronization, preserving itinerary and calendar file IDs so live links and subscription URLs continue working, while collaborators can keep using unmigrated trips until the owner enables folder-backed photo storage.
+
+Extended import validation and three-way synchronization to journal entries and photo descriptors, retaining concurrent edits as labeled conflict copies while giving duplicated descriptors unique local IDs and protecting shared Drive files until their last reference disappears. Every new setting, control, accessibility label, empty state, progress message, confirmation, and Drive error is translated across English, German, Greek, Spanish, French, Icelandic, Italian, Japanese, and Pirate. Regression coverage now includes the opt-in preference, journal import limits, independent and conflicting merges, legacy Drive migration, folder-level permissions and trash behavior, calendar isolation, journal-photo uploads, full production builds, and responsive desktop and mobile browser workflows.
+
 ## Keep Code 128 in the mobile landscape rail
 
 **Commit:** `030ef28ee43f76f66dda3956de1683675ed6b5cb` (`030ef28`)
