@@ -203,7 +203,8 @@ body.mobile-experience .item-confirmation .confirmation-code-qr {
   }
 
   body.mobile-experience .item:has(.confirmation-code-code128) {
-    grid-template-columns: 104px minmax(0, 1fr) 200px;
+    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-rows: auto;
   }
 
   body.mobile-experience .item-rail {
@@ -245,18 +246,21 @@ body.mobile-experience .item-confirmation .confirmation-code-qr {
     grid-template-rows: auto;
   }
 
-  body.mobile-experience .item:has(.confirmation-code-qr) .item-rail {
+  body.mobile-experience .item:has(.confirmation-code-qr) .item-rail,
+  body.mobile-experience .item:has(.confirmation-code-code128) .item-rail {
     display: grid;
     grid-column: 1;
     grid-row: 1;
   }
 
-  body.mobile-experience .item:has(.confirmation-code-qr) .item-main {
+  body.mobile-experience .item:has(.confirmation-code-qr) .item-main,
+  body.mobile-experience .item:has(.confirmation-code-code128) .item-main {
     grid-column: 2;
     grid-row: 1;
   }
 
-  body.mobile-experience .item:has(.confirmation-code-qr) .item-confirmation {
+  body.mobile-experience .item:has(.confirmation-code-qr) .item-confirmation,
+  body.mobile-experience .item:has(.confirmation-code-code128) .item-confirmation {
     grid-column: 1;
     grid-row: 3;
   }
