@@ -239,6 +239,27 @@ body.mobile-experience .item-confirmation .confirmation-code-qr {
   body.mobile-experience .item-confirmation .confirmation-code-qr {
     width: 104px;
   }
+
+  body.mobile-experience .item:has(.confirmation-code-qr) {
+    grid-template-columns: 104px minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
+
+  body.mobile-experience .item:has(.confirmation-code-qr) .item-rail {
+    display: grid;
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  body.mobile-experience .item:has(.confirmation-code-qr) .item-main {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  body.mobile-experience .item:has(.confirmation-code-qr) .item-confirmation {
+    grid-column: 1;
+    grid-row: 3;
+  }
 }
 
 @media print {

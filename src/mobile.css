@@ -50,6 +50,12 @@ body.mobile-experience {
     .item:has(.confirmation-code-code128){grid-template-columns:200px minmax(0,1fr)}
     .confirmation-code-code128{width:200px}
     .confirmation-code-code128 canvas{width:100%!important;height:64px!important;object-fit:contain}
+    .app-footer{margin-top:10px;padding:8px 12px}
+    .app-footer-disclosure>summary{min-height:28px;cursor:pointer}
+    .app-footer-disclosure:not([open])>.app-footer-details{display:none}
+    .app-footer-details>p:first-child{margin-top:8px}
+    .app-footer-chevron{display:inline-block;font-size:18px;line-height:1;transition:transform .18s ease}
+    .app-footer-disclosure[open] .app-footer-chevron{transform:rotate(180deg)}
   }
 }
 
