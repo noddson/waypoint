@@ -1,6 +1,6 @@
 # Release History
 
-This history covers all 86 commits in the repository, newest first. Timestamps are the recorded Git committer timestamps and retain their original UTC offset.
+This history summarizes the repository's product changes, newest first. Timestamps are the recorded Git committer timestamps and retain their original UTC offset.
 
 # August 6, 2026
 
