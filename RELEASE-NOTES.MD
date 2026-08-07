@@ -2,6 +2,15 @@
 
 This history summarizes the repository's product changes, newest first. Timestamps are the recorded Git committer timestamps and retain their original UTC offset.
 
+# August 7, 2026
+
+## Deduplicate itinerary weather locations
+
+**Commit:** `6296f8500fe0294cdeb66c46e45862b0f29c63f0` (`6296f85`)
+**Committed:** `2026-08-07 01:12:23 -04:00`
+
+Stopped airport operational details such as terminals, gates, doors, kiosks, parking, and pickup instructions from becoming weather locations, and made airport-only addresses fall back to their airport city instead of querying a literal place such as “Terminal.” Same-day weather targets now use normalized place identities, merge equivalent addresses when one lacks a country hint, and prefer the country-qualified target, while same-name cities in different known countries remain separate. Regression coverage reproduces the Dublin-to-Toronto return day and confirms its rental return, flight endpoints, and taxi pickup produce exactly Dublin, Toronto, and Waterloo rather than repeated Dublin and Terminal cards.
+
 # August 6, 2026
 
 ## Add historical weather for completed trips
