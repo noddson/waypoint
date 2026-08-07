@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { TripItem } from './types'
-import { addWeatherDays, agendaWeatherPlans, formatWeatherTemperature, formatWeatherTemperaturePair, HISTORICAL_WEATHER_START_DATE, isHistoricalWeatherDate, isWeatherForecastDate, parseDailyWeatherResponse, resolveWeatherDisplay, tripWeatherWindow, weatherApiUrl, weatherCountryCode, weatherDescription, weatherPlansForDates, weatherRequestsForPlans, weatherSearchUrl, weatherTargetForDate, weatherTargetFromAddress, weatherTargetsForDate } from './weather'
+import { addWeatherDays, agendaItemWeatherPlans, agendaWeatherPlans, dedupeWeatherPlans, formatWeatherTemperature, formatWeatherTemperaturePair, HISTORICAL_WEATHER_START_DATE, isHistoricalWeatherDate, isWeatherForecastDate, parseDailyWeatherResponse, resolveWeatherDisplay, tripWeatherWindow, weatherApiUrl, weatherCountryCode, weatherDescription, weatherPlansForDates, weatherPlansForItem, weatherRequestsForPlans, weatherSearchUrl, weatherTargetForDate, weatherTargetFromAddress, weatherTargetsForDate } from './weather'
 
 const item=(id:string,type:TripItem['type'],start:string,location?:string,end?:string,endLocation?:string):TripItem=>({id,type,title:id,start,end,timeZone:'Europe/Dublin',location,endLocation,status:'confirmed'})
 
@@ -88,6 +88,79 @@ describe('itinerary weather planning',()=>{
       item('stay','stay','2026-08-07T14:00','320 McLean Ave, Keewatin, ON, Canada','2026-08-14T11:00'),
     ]
     expect(weatherTargetsForDate(items,'2026-08-07').map(target=>target.label)).toEqual(['Toronto','Winnipeg','Keewatin'])
+  })
+
+  it('limits filtered agenda weather to the entries represented by that filter',()=>{
+    const items=[
+      item('flight','flight','2026-08-07T09:35','Toronto Pearson International Airport (YYZ), Toronto, Canada','2026-08-07T11:15','Winnipeg Richardson International Airport (YWG), Winnipeg, Canada'),
+      item('stay','stay','2026-08-07T14:00','320 McLean Ave, Keewatin, ON, Canada','2026-08-14T11:00'),
+    ]
+    const labels=(visible:TripItem[])=>agendaWeatherPlans(visible,['2026-08-07'],['2026-08-07'],'2026-08-06').map(plan=>plan.target.label)
+    expect(labels(items)).toEqual(['Toronto','Winnipeg','Keewatin'])
+    expect(labels(items.filter(value=>value.type==='flight'))).toEqual(['Toronto','Winnipeg'])
+    expect(labels(items.filter(value=>value.type==='stay'))).toEqual(['Keewatin'])
+  })
+
+  it('keeps both endpoint dates on an overnight flight entry',()=>{
+    const flight=item('outbound','flight','2026-07-18T20:50','Toronto Pearson International Airport (YYZ), Toronto, Canada','2026-07-19T08:15','Dublin Airport (DUB), Dublin, Ireland')
+    expect(weatherPlansForItem(flight).map(plan=>[plan.agendaDate,plan.date,plan.target.label])).toEqual([
+      ['2026-07-18','2026-07-18','Toronto'],
+      ['2026-07-18','2026-07-19','Dublin'],
+    ])
+    expect(agendaItemWeatherPlans([flight],['2026-07-19'],'2026-07-19').map(plan=>[plan.date,plan.target.label])).toEqual([
+      ['2026-07-18','Toronto'],
+      ['2026-07-19','Dublin'],
+    ])
+  })
+
+  it('keeps both endpoints on ground transport without an end timestamp',()=>{
+    const taxi=item('taxi','transport','2026-07-18T17:00','516 Hallmark Drive, Waterloo, Ontario, Canada',undefined,'Toronto Pearson International Airport (YYZ), Toronto, Canada')
+    expect(weatherPlansForItem(taxi).map(plan=>[plan.agendaDate,plan.date,plan.target.label])).toEqual([
+      ['2026-07-18','2026-07-18','Waterloo'],
+      ['2026-07-18','2026-07-18','Toronto'],
+    ])
+  })
+
+  it('uses one item-scoped weather location for a stay',()=>{
+    const stay=item('stay','stay','2026-08-07T14:00','320 McLean Ave, Keewatin, ON, Canada','2026-08-14T11:00')
+    expect(weatherPlansForItem(stay).map(plan=>[plan.agendaDate,plan.date,plan.target.label])).toEqual([
+      ['2026-08-07','2026-08-07','Keewatin'],
+    ])
+  })
+
+  it('handles optional endpoints, equivalent places, and non-location entries',()=>{
+    const locationOnly=item('location-only','transport','2026-08-01T09:00','Waterloo, Ontario, Canada')
+    const endOnly=item('end-only','transport','2026-08-01T10:00',undefined,undefined,'Toronto, Ontario, Canada')
+    const noEndpoints=item('no-endpoints','event','2026-08-01T11:00')
+    const samePlace=item('same-place','transport','2026-08-01T12:00','Toronto Pearson International Airport (YYZ), Toronto, Canada',undefined,'Toronto, Ontario, Canada')
+    const insurance=item('insurance','insurance','2026-08-01T13:00','Waterloo, Ontario, Canada',undefined,'Toronto, Ontario, Canada')
+
+    expect(weatherPlansForItem(locationOnly).map(plan=>plan.target.label)).toEqual(['Waterloo'])
+    expect(weatherPlansForItem(endOnly).map(plan=>plan.target.label)).toEqual(['Toronto'])
+    expect(weatherPlansForItem(noEndpoints)).toEqual([])
+    expect(weatherPlansForItem(samePlace).map(plan=>[plan.target.label,plan.target.countryCode])).toEqual([['Toronto','CA']])
+    expect(weatherPlansForItem(insurance)).toEqual([])
+  })
+
+  it('deduplicates qualified and unqualified versions of the same desktop weather place',()=>{
+    const unqualified=weatherPlansForItem(item('event','event','2026-08-01T09:00','Toronto'))[0]
+    const qualified=weatherPlansForItem(item('flight','flight','2026-08-01T10:00','Toronto, Ontario, Canada',undefined,'Winnipeg, Manitoba, Canada'))
+    expect(dedupeWeatherPlans([unqualified,...qualified,{...qualified[0],date:'2026-08-02'}]).map(plan=>[plan.date,plan.target.label,plan.target.countryCode])).toEqual([
+      ['2026-08-01','Toronto','CA'],
+      ['2026-08-01','Winnipeg','CA'],
+      ['2026-08-02','Toronto','CA'],
+    ])
+  })
+
+  it('rolls an active ongoing stay item forward to today',()=>{
+    const items=[
+      item('stay','stay','2026-08-07T14:00','Keewatin, ON, Canada','2026-08-14T11:00'),
+      item('event','event','2026-08-10T10:00','Winnipeg, MB, Canada'),
+    ]
+    expect(agendaItemWeatherPlans(items,['2026-08-09','2026-08-10'],'2026-08-09').map(plan=>[plan.itemId,plan.agendaDate,plan.date,plan.target.label])).toEqual([
+      ['stay','2026-08-07','2026-08-09','Keewatin'],
+      ['event','2026-08-10','2026-08-10','Winnipeg'],
+    ])
   })
 
   it('collapses return-day airport details into distinct itinerary cities',()=>{

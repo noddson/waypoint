@@ -124,15 +124,120 @@
   font-size: 11px;
 }
 
+.item-rail {
+  flex: none;
+  width: 105px;
+  min-width: 0;
+}
+
+.item-rail .time {
+  width: auto;
+}
+
+.item-rail:has(.confirmation-code-code128) {
+  width: 150px;
+}
+
+.agenda-item-weather {
+  display: none;
+}
+
+body.mobile-experience .day-heading {
+  display: contents;
+}
+
+body.mobile-experience .day-heading > .agenda-day-weather {
+  display: none;
+}
+
+body.mobile-experience .item-rail {
+  display: grid;
+  align-content: start;
+  width: auto;
+}
+
+body.mobile-experience .agenda-item-weather {
+  display: block;
+}
+
+body.mobile-experience .agenda-item-weather .agenda-day-weather {
+  margin-top: 8px;
+}
+
+body.mobile-experience .item:has(.agenda-item-weather) {
+  grid-template-columns: 104px minmax(0, 1fr);
+}
+
+body.mobile-experience .item:has(.confirmation-code-code128) {
+  grid-template-columns: 132px minmax(0, 1fr);
+}
+
+body.mobile-experience .item-confirmation .confirmation-code-qr {
+  width: 72px;
+}
+
 @media (max-width: 720px) {
   .day-heading {
     width: 130px;
+  }
+
+  .item-rail {
+    width: 78px;
   }
 }
 
 @media (max-width: 480px) {
   .weather-display-options {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media screen and (orientation: landscape) {
+  body.mobile-experience .item {
+    grid-template-columns: 104px minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+
+  body.mobile-experience .item:has(.item-confirmation) {
+    grid-template-columns: 104px minmax(0, 1fr) 104px;
+  }
+
+  body.mobile-experience .item:has(.confirmation-code-code128) {
+    grid-template-columns: 104px minmax(0, 1fr) 200px;
+  }
+
+  body.mobile-experience .item-rail {
+    display: contents;
+  }
+
+  body.mobile-experience .item.deep-linked-item .item-rail > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  body.mobile-experience .item-rail .time {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  body.mobile-experience .agenda-item-weather {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  body.mobile-experience .item-main {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  body.mobile-experience .item-confirmation {
+    align-self: start;
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
+  body.mobile-experience .item-confirmation .confirmation-code-qr {
+    width: 104px;
   }
 }
 

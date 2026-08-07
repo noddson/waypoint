@@ -26,6 +26,10 @@ export interface WeatherDayPlan {
   target: WeatherTarget
 }
 
+export interface ItemWeatherPlan extends WeatherDayPlan {
+  itemId: string
+}
+
 export interface WeatherRequest {
   source: 'forecast'|'historical'
   target: WeatherTarget
@@ -167,6 +171,7 @@ const cleanPart = (value:string) => value.replace(/\([^)]*\)|\[[^\]]*\]/g,' ').r
 const iataCode = /^[A-Z]{3}$/
 const airportDetail = /^(?:terminal|gate|door|arrivals?|departures?|pre-arranged|taxi|limo|kiosk|parking|shuttle)\b/i
 const weatherPlaceIdentity = (value:string) => value.toLocaleLowerCase().replace(/\s+/g,' ').trim()
+const sameWeatherTarget = (left:WeatherTarget,right:WeatherTarget) => weatherPlaceIdentity(left.label)===weatherPlaceIdentity(right.label)&&(!left.countryCode||!right.countryCode||left.countryCode===right.countryCode)
 
 export function weatherCountryCode(address:string) {
   const parts=address.split(',').map(cleanPart).filter(Boolean)
@@ -204,6 +209,46 @@ export function weatherTargetFromAddress(address?:string):WeatherTarget|undefine
   const uniqueQueries=queries.filter((query,index,all)=>query.length>=2&&all.findIndex(value=>value.toLocaleLowerCase()===query.toLocaleLowerCase())===index)
   const key=`${weatherPlaceIdentity(uniqueQueries[0])}|${countryCode||''}`
   return {key,label:uniqueQueries[0],address,queries:uniqueQueries,...(countryCode?{countryCode}: {})}
+}
+
+export function weatherPlansForItem(item:TripItem,weatherDate?:string):ItemWeatherPlan[] {
+  if(item.type==='insurance')return []
+  const agendaDate=item.start.slice(0,10),startDate=weatherDate||agendaDate,endDate=item.end?.slice(0,10)||startDate
+  const candidates=[
+    ...(item.location?[{address:item.location,date:startDate}]:[]),
+    ...(item.endLocation?[{address:item.endLocation,date:endDate}]:[]),
+  ]
+  const plans:ItemWeatherPlan[]=[]
+  for(const candidate of candidates){
+    const target=weatherTargetFromAddress(candidate.address)
+    if(!target)continue
+    const index=plans.findIndex(plan=>sameWeatherTarget(plan.target,target))
+    if(index<0)plans.push({itemId:item.id,agendaDate,date:candidate.date,target})
+    else if(!plans[index].target.countryCode&&target.countryCode)plans[index]={...plans[index],target}
+  }
+  return plans
+}
+
+export function dedupeWeatherPlans<Plan extends WeatherDayPlan>(plans:Plan[]) {
+  // A rendered scope has one card per regional target and forecast date. Keep its
+  // first plan while upgrading an unqualified place with a later country hint.
+  const unique:Plan[]=[]
+  for(const plan of plans){
+    const index=unique.findIndex(existing=>existing.date===plan.date&&sameWeatherTarget(existing.target,plan.target))
+    if(index<0)unique.push(plan)
+    else if(!unique[index].target.countryCode&&plan.target.countryCode)unique[index]={...unique[index],target:plan.target}
+  }
+  return unique
+}
+
+export function agendaItemWeatherPlans(items:TripItem[],forecastDates:string[],today:string) {
+  const forecastDateSet=new Set(forecastDates)
+  return sortTripItems(items).flatMap(item=>{
+    const agendaDate=item.start.slice(0,10),plans=weatherPlansForItem(item)
+    if(plans.some(plan=>forecastDateSet.has(plan.date)))return plans
+    const activeStay=item.type==='stay'&&agendaDate<=today&&(!item.end||item.end.slice(0,10)>=today)&&forecastDateSet.has(today)
+    return activeStay?weatherPlansForItem(item,today):[]
+  })
 }
 
 type LocatedCandidate = {address:string;time:string;priority:number}
@@ -252,7 +297,7 @@ export function weatherTargetsForDate(items:TripItem[],date:string) {
   for(const candidate of candidates){
     const target=weatherTargetFromAddress(candidate.address)
     if(!target)continue
-    const index=targets.findIndex(existing=>weatherPlaceIdentity(existing.label)===weatherPlaceIdentity(target.label)&&(!existing.countryCode||!target.countryCode||existing.countryCode===target.countryCode))
+    const index=targets.findIndex(existing=>sameWeatherTarget(existing,target))
     if(index<0)targets.push(target)
     else if(!targets[index].countryCode&&target.countryCode)targets[index]=target
   }
