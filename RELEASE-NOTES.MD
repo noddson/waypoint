@@ -4,6 +4,19 @@ This history summarizes the repository's product changes, newest first. Timestam
 
 # August 7, 2026
 
+## Unify journal entries with itinerary items
+
+**Commit:** `02ac604e83391d80329b7b7743f14238e78c2da0` (`02ac604`)
+**Committed:** `2026-08-07 20:47:06 -04:00`
+
+Reworked journals from a separate dated-entry experience into the standard itinerary model. **Journal** is now a first-class Add Item type and filter alongside Flight, Stay, Car rental, Event, Transport, and Insurance. Journal rows appear in the normal daily agenda on the day and immediately after the itinerary item they reference, while the Journal filter uses the same agenda layout and leaves the trip route visible at the top. Turning the opt-in journal setting off hides journal controls and rows without deleting saved entries; turning it back on restores them in place.
+
+Removed the standalone journal view, dedicated journal-entry editor, per-day **+ Note** controls, and journal-count actions. This eliminates the mobile gap between a date and its itinerary rows and keeps mobile weather to one intended presentation instead of duplicating it around journal controls. Journal items remain excluded from route derivation and weather requests, so inherited locations do not create extra route stops, forecast cards, or changes to the trip's weather window.
+
+The normal Add/Edit Item dialog now handles the full journal workflow through the same **Details** and **JSON** tabs used by every other item. Details retain Type and Title, replace booking-specific fields with a large Notes editor and Google Drive photo controls, and allow an optional related itinerary item. Related journals dynamically inherit that item's start, end, time zone, and location; unlinked journals expose start, end, time zone, and location for manual entry. Provider, confirmation, booked-by, end-location, ticket/booking-link, source-email-link, and status controls are omitted from journal Details, while JSON editing can still validate and update journal relationships, timestamps, and photo descriptors.
+
+Existing trip-level journal entries migrate automatically into journal itinerary items without losing text, photos, timestamps, itinerary relationships, or merge-conflict history. The same migration runs for local trips, imports, snapshots, historical Drive versions, exports, and synchronization; concurrent journal edits now use the regular item merge path, with copied photo descriptors receiving fresh local IDs. Multi-item JSON pastes also remap a journal's relationship when its referenced itinerary item receives a new imported ID. Regression coverage verifies migration, relationship inheritance, sorting, route and weather isolation, JSON round trips, photo metadata, Drive conflicts, production builds, and responsive mobile behavior.
+
 ## Add opt-in trip journals
 
 **Commit:** `c4f7c27e2af5657c87e35202a4e86183898f79e0` (`c4f7c27`)
