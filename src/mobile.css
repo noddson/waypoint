@@ -45,7 +45,7 @@ body.mobile-experience {
 @media screen and (orientation:landscape){
   body.mobile-experience {
     main{padding:0 14px 20px}
-    .mobile-header,.mobile-sheet-backdrop,.notice,.drive-invite,.route-overview,.filters,.agenda-head,.archive-banner,.mobile-day-controls,.day-heading>.agenda-day-weather{display:none!important}
+    .mobile-header,.mobile-sheet-backdrop,.notice,.drive-invite,.route-overview,.filters,.agenda-head,.archive-banner,.mobile-day-controls,.day-heading .agenda-day-weather{display:none!important}
     .agenda{margin:0 -2px;padding:0;box-shadow:none}
     .agenda-days{min-height:100svh}
     .agenda-days .day{display:none!important}

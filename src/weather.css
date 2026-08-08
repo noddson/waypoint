@@ -146,7 +146,7 @@ body.mobile-experience .day-heading {
   display: contents;
 }
 
-body.mobile-experience .day-heading > .agenda-day-weather {
+body.mobile-experience .day-heading .agenda-day-weather {
   display: none;
 }
 
