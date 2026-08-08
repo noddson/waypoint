@@ -295,7 +295,10 @@ export function dedupeWeatherPlans<Plan extends WeatherDayPlan>(plans:Plan[]) {
 
 export function groupAgendaWeatherPlans(dayPlans:WeatherDayPlan[],itemPlans:WeatherDayPlan[]) {
   const grouped=new Map<string,WeatherDayPlan[]>()
-  for(const plan of [...dayPlans,...itemPlans])grouped.set(plan.agendaDate,dedupeWeatherPlans([...(grouped.get(plan.agendaDate)||[]),plan]))
+  for(const plan of [...dayPlans,...itemPlans]){
+    const plans=dedupeWeatherPlans([...(grouped.get(plan.agendaDate)||[]),plan])
+    grouped.set(plan.agendaDate,plans.sort((left,right)=>left.date.localeCompare(right.date)))
+  }
   return grouped
 }
 
@@ -305,7 +308,11 @@ export function agendaItemWeatherPlans(items:TripItem[],forecastDates:string[],t
     const agendaDate=item.start.slice(0,10),plans=weatherPlansForItem(item)
     if(plans.some(plan=>forecastDateSet.has(plan.date)))return plans
     const activeStay=item.type==='stay'&&agendaDate<=today&&(!item.end||item.end.slice(0,10)>=today)&&forecastDateSet.has(today)
-    return activeStay?weatherPlansForItem(item,today):[]
+    if(activeStay)return weatherPlansForItem(item,today)
+    // During an active trip the forecast window begins today. Retain completed
+    // movements so yesterday's flight or transport endpoints remain visible as
+    // historical weather beside the itinerary row where they occurred.
+    return plans.filter(plan=>isHistoricalWeatherDate(plan.date,today))
   })
 }
 

@@ -98,6 +98,20 @@ describe('itinerary weather planning',()=>{
     expect(weatherTargetsForDate(items,'2026-08-07').map(target=>target.label)).toEqual(['Toronto','Winnipeg','Keewatin'])
   })
 
+  it('keeps completed flight endpoints when an active stay rolls forward to today',()=>{
+    const flight={...item('flight','flight','2026-08-07T09:35','Toronto','2026-08-07T11:15','Winnipeg'),provider:'Air Canada'}
+    const stay=item('stay','stay','2026-08-07T14:00','320 McLean Ave, Keewatin, ON, P0X 1C0','2026-08-14T11:00')
+    const items=[flight,stay],agendaDate='2026-08-07',today='2026-08-08',forecastDates=['2026-08-08','2026-08-09','2026-08-10','2026-08-11','2026-08-12','2026-08-13','2026-08-14']
+    const dayPlans=agendaWeatherPlans(items,[agendaDate],forecastDates,today)
+    const itemPlans=agendaItemWeatherPlans(items,forecastDates,today)
+
+    expect(groupAgendaWeatherPlans(dayPlans,itemPlans).get(agendaDate)?.map(plan=>[plan.target.label,plan.date])).toEqual([
+      ['Toronto','2026-08-07'],
+      ['Winnipeg','2026-08-07'],
+      ['Keewatin','2026-08-08'],
+    ])
+  })
+
   it('limits filtered agenda weather to the entries represented by that filter',()=>{
     const items=[
       item('flight','flight','2026-08-07T09:35','Toronto Pearson International Airport (YYZ), Toronto, Canada','2026-08-07T11:15','Winnipeg Richardson International Airport (YWG), Winnipeg, Canada'),
