@@ -14,6 +14,13 @@ describe('scheduling helpers', () => {
     expect(sorted.map(item=>item.id)).toEqual(['early','unspecified','late','next day'])
   })
 
+  it('places a linked journal item directly after its itinerary item',()=>{
+    const stay:TripItem={id:'stay',type:'stay',title:'Hotel',start:'2026-08-07T14:00',timeZone:'America/Toronto',status:'confirmed'}
+    const journal:TripItem={id:'journal',type:'journal',title:'Arrival',start:stay.start,timeZone:stay.timeZone,status:'planned',relatedItemId:stay.id}
+    const event:TripItem={id:'event',type:'event',title:'Meet friends',start:stay.start,timeZone:stay.timeZone,status:'planned'}
+    expect(sortTripItems([journal,event,stay]).map(item=>item.id)).toEqual(['event','stay','journal'])
+  })
+
   it('opens Air Canada check-in only during the 24-hour window in the departure time zone', () => {
     const flight:TripItem = {id:'ac',type:'flight',title:'Toronto → Dublin',provider:'Air Canada',confirmation:'ABC123',start:'2026-07-18T20:50',timeZone:'America/Toronto',status:'confirmed'}
     const departure = zonedDateTimeEpoch(flight.start,flight.timeZone)

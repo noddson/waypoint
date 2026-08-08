@@ -44,6 +44,12 @@ describe('derived trip destinations',()=>{
     expect(stops.map(stop=>stop.label)).toEqual(['YYZ','DUB','Belfast','Dublin','DUB','YYZ'])
   })
 
+  it('keeps journal items out of the trip route',()=>{
+    const stay=item('stay','2026-08-07T14:00','Keewatin, Ontario, Canada')
+    const journal={...item('journal','2026-08-07T14:00','Winnipeg, Manitoba, Canada'),type:'journal' as const,relatedItemId:stay.id}
+    expect(tripRouteStops([stay,journal]).map(stop=>stop.label)).toEqual(['Keewatin'])
+  })
+
   it('creates an encoded Google Maps search URL',()=>{
     expect(googleMapsSearchUrl('14 Lower William Street, Listowel, Ireland')).toBe('https://www.google.com/maps/search/?api=1&query=14%20Lower%20William%20Street%2C%20Listowel%2C%20Ireland')
   })

@@ -31,4 +31,17 @@ describe('item JSON',()=>{
   it('formats an item as readable JSON',()=>{
     expect(formatTripItemJson({...event,id:'item-1'})).toBe(JSON.stringify({...event,id:'item-1'},null,2))
   })
+
+  it('supports journal relationship and photo metadata through the normal item JSON editor',()=>{
+    const journal={...event,type:'journal' as const,title:'Arrival notes',relatedItemId:'flight-1',notes:'Smooth landing.',photos:[{id:'copied-photo',driveFileId:'drive-photo',name:'arrival.jpg',mimeType:'image/jpeg',size:123,createdAt:'2026-08-04T10:05:00Z'}]}
+    const result=parseTripItemsJson(JSON.stringify(journal),()=> 'fresh-id')
+    expect(result.ok&&result.items[0]).toMatchObject({id:'fresh-id',type:'journal',relatedItemId:'flight-1',notes:'Smooth landing.',photos:[{driveFileId:'drive-photo'}]})
+    expect(result.ok&&result.items[0].photos?.[0].id).not.toBe('copied-photo')
+  })
+
+  it('keeps journal associations intact when related items are pasted together',()=>{
+    let nextId=0
+    const result=parseTripItemsJson(JSON.stringify([{...event,id:'event-copy'},{...event,id:'journal-copy',type:'journal',title:'Visit notes',relatedItemId:'event-copy'}]),()=>`fresh-${++nextId}`)
+    expect(result.ok&&result.items).toMatchObject([{id:'fresh-1'},{id:'fresh-2',relatedItemId:'fresh-1'}])
+  })
 })

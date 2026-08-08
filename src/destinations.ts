@@ -83,7 +83,7 @@ const itemDestinationStops = (item:TripItem) => [item.location,item.endLocation]
 const sameAddress = (left:string,right:string) => left.toLocaleLowerCase().replace(/\s+/g,' ').trim()===right.toLocaleLowerCase().replace(/\s+/g,' ').trim()
 const appendRouteStop = (route:DestinationStop[],stop?:DestinationStop) => {if(stop&&route[route.length-1]?.id!==stop.id)route.push(stop)}
 const appendWaypoint = (route:DestinationStop[],stop?:DestinationStop) => {if(stop&&!sameAddress(route[route.length-1]?.address||'',stop.address))route.push(stop)}
-const routeItem = (item:TripItem) => item.type!=='flight'&&item.type!=='insurance'
+const routeItem = (item:TripItem) => item.type!=='flight'&&item.type!=='insurance'&&item.type!=='journal'
 const airportRouteCode = (address?:string) => {const label=destinationLabel(address);return label&&/^[A-Z]{3}$/.test(label)?label:undefined}
 
 const tripFlightRoutes = (items:TripItem[]) => {
@@ -163,7 +163,7 @@ export function tripGroundRouteSegments(items:TripItem[]):GroundRouteSegment[] {
 
 export function tripRouteStops(items:TripItem[]):DestinationStop[] {
   const route:DestinationStop[]=[]
-  for(const item of sortTripItems(items))for(const stop of itemDestinationStops(item)){
+  for(const item of sortTripItems(items).filter(item=>item.type!=='journal'))for(const stop of itemDestinationStops(item)){
     if(route[route.length-1]?.id!==stop.id)route.push(stop)
   }
   const flights=sortTripItems(items.filter(item=>item.type==='flight'))

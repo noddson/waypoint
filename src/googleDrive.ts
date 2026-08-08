@@ -1,4 +1,5 @@
 import { CalendarSubscriptionMetadata, DrivePermissionSnapshot, JournalPhoto, SCHEMA_VERSION, Trip, TripExport, sortTripItems } from './types'
+import { migrateLegacyJournalEntries } from './journalItems'
 import { mergeTripVersions } from './tripMerge'
 import { compareTripDateSummaries, tripFirstTravelDate, tripLastTravelDate } from './tripOrder'
 import { tripCalendarFilename } from './calendarExport'
@@ -83,7 +84,7 @@ let accessTokenExpiresAt = storedToken.expiresAt||0
 let googleScriptPromise: Promise<void> | null = null
 
 const driveMetadata = (record:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'tripFolderId'|'tripFolderResourceKey'|'journalMediaFolderId'|'journalMediaFolderResourceKey'|'permissions'|'bootstrapRevisionId'>) => ({fileId:record.fileId,resourceKey:record.resourceKey,tripFolderId:record.tripFolderId,tripFolderResourceKey:record.tripFolderResourceKey,journalMediaFolderId:record.journalMediaFolderId,journalMediaFolderResourceKey:record.journalMediaFolderResourceKey,permissions:record.permissions||[],capturedAt:new Date().toISOString(),bootstrapRevisionId:record.bootstrapRevisionId})
-const tripExport = (trip:Trip,revision=crypto.randomUUID(),parentRevision?:string,record?:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'tripFolderId'|'tripFolderResourceKey'|'journalMediaFolderId'|'journalMediaFolderResourceKey'|'permissions'|'bootstrapRevisionId'>,calendarSubscription?:CalendarSubscriptionMetadata):TripExport => ({schemaVersion:SCHEMA_VERSION,exportedAt:new Date().toISOString(),trip:{...trip,items:sortTripItems(trip.items)},calendarSubscription,collaboration:{revision,parentRevision,drive:record?driveMetadata(record):undefined}})
+const tripExport = (source:Trip,revision=crypto.randomUUID(),parentRevision?:string,record?:Pick<DriveSyncRecord,'fileId'|'resourceKey'|'tripFolderId'|'tripFolderResourceKey'|'journalMediaFolderId'|'journalMediaFolderResourceKey'|'permissions'|'bootstrapRevisionId'>,calendarSubscription?:CalendarSubscriptionMetadata):TripExport => {const trip=migrateLegacyJournalEntries(source);return {schemaVersion:SCHEMA_VERSION,exportedAt:new Date().toISOString(),trip:{...trip,items:sortTripItems(trip.items)},calendarSubscription,collaboration:{revision,parentRevision,drive:record?driveMetadata(record):undefined}}}
 const resourceKeyHeaders = (fileId:string,resourceKey?:string):Record<string,string> => resourceKey?{'X-Goog-Drive-Resource-Keys':`${fileId}/${resourceKey}`}:{ }
 type DriveFileCheckpoint = {version?:string;modifiedTime?:string;headRevisionId?:string;capabilities?:{canReadRevisions?:boolean;canDownload?:boolean}}
 type DriveFileDetails = DriveFileCheckpoint&{id:string;name:string;resourceKey?:string;ownedByMe?:boolean;parents?:string[];bootstrapRevisionId?:string}
@@ -538,6 +539,7 @@ function downloadDriveTrip(fileId:string,resourceKey?:string) {
 
 export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
   if(record.tripId!==trip.id)throw new Error('Sync stopped because the selected trip does not match this Google Drive file.')
+  trip=migrateLegacyJournalEntries(trip)
   const cleanupWasPending=!!record.pendingBootstrapRevisionId
   record=await retryDriveBootstrapRevisionCleanup(record)
   const cleanupCompleted=cleanupWasPending&&!record.pendingBootstrapRevisionId
@@ -554,7 +556,7 @@ export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
       if(drive?.tripFolderId)record=saveDriveSyncRecord({...record,tripFolderId:drive.tripFolderId,tripFolderResourceKey:drive.tripFolderResourceKey,journalMediaFolderId:drive.journalMediaFolderId,journalMediaFolderResourceKey:drive.journalMediaFolderResourceKey})
     }catch{/* Legacy shared files remain usable without folder-backed journal photos. */}
   }
-  const base=record.baseTrip
+  const base=record.baseTrip?migrateLegacyJournalEntries(record.baseTrip):undefined
   const localChanged=!base||JSON.stringify(trip)!==JSON.stringify(base)||structureChanged
   if(base&&!hasIncomingDriveUpdates(record,details)){
     if(!localChanged){
@@ -567,8 +569,9 @@ export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
     return {record:nextRecord,trip,conflicts:0,changed:true}
   }
   const data=await downloadDriveTrip(record.fileId,record.resourceKey)
-  const remote=data as TripExport
-  if(!remote?.trip||!Array.isArray(remote.trip.items))throw new Error('The Drive file no longer contains a supported Waypoint trip.')
+  const downloaded=data as TripExport
+  if(!downloaded?.trip||!Array.isArray(downloaded.trip.items))throw new Error('The Drive file no longer contains a supported Waypoint trip.')
+  const remote={...downloaded,trip:migrateLegacyJournalEntries(downloaded.trip)}
   if(remote.trip.id!==trip.id)throw new Error('Sync stopped because this Google Drive file belongs to a different trip.')
   record={...record,bootstrapRevisionId:record.bootstrapRevisionId||remote.collaboration?.drive?.bootstrapRevisionId,tripFolderId:record.tripFolderId||remote.collaboration?.drive?.tripFolderId,tripFolderResourceKey:record.tripFolderResourceKey||remote.collaboration?.drive?.tripFolderResourceKey,journalMediaFolderId:record.journalMediaFolderId||remote.collaboration?.drive?.journalMediaFolderId,journalMediaFolderResourceKey:record.journalMediaFolderResourceKey||remote.collaboration?.drive?.journalMediaFolderResourceKey}
   const mergeBase=base||remote.trip

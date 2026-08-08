@@ -5,6 +5,14 @@ import { addWeatherDays, agendaItemWeatherPlans, agendaWeatherPlans, dedupeWeath
 const item=(id:string,type:TripItem['type'],start:string,location?:string,end?:string,endLocation?:string):TripItem=>({id,type,title:id,start,end,timeZone:'Europe/Dublin',location,endLocation,status:'confirmed'})
 
 describe('itinerary weather planning',()=>{
+  it('does not add journal rows or their dates to weather planning',()=>{
+    const stay=item('stay','stay','2026-08-07T14:00','Keewatin, Ontario, Canada','2026-08-08T11:00')
+    const journal={...item('journal','journal','2026-09-01T12:00','Winnipeg, Manitoba, Canada'),relatedItemId:stay.id}
+    expect(weatherPlansForItem(journal)).toEqual([])
+    const dates=tripWeatherWindow([stay,journal],'2026-08-06').dates
+    expect(dates[dates.length-1]).toBe('2026-08-08')
+  })
+
   it('anchors an upcoming forecast to the trip start without using the device location',()=>{
     const items=[
       item('outbound','flight','2026-07-18T20:50','Toronto Pearson International Airport (YYZ), Toronto, Canada','2026-07-19T08:15','Dublin Airport (DUB), Dublin, Ireland'),

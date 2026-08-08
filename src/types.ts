@@ -1,10 +1,11 @@
 export const SCHEMA_VERSION = 1 as const
-export type ItemType = 'flight' | 'stay' | 'car' | 'transport' | 'insurance' | 'event'
+export type ItemType = 'flight' | 'stay' | 'car' | 'transport' | 'insurance' | 'event' | 'journal'
 export type Status = 'confirmed' | 'pending' | 'planned'
 export interface TripItem {
   id: string; type: ItemType; title: string; provider?: string; confirmation?: string
   start: string; end?: string; timeZone: string; endTimeZone?: string; location?: string; endLocation?: string
   notes?: string; link?: string; emailLink?: string; bookedBy?: string; status: Status; quantity?: string; flightNumber?: string; durationMinutes?: number; allDay?: boolean
+  relatedItemId?: string; photos?: JournalPhoto[]; createdAt?: string; updatedAt?: string
   conflictOf?: string; conflictSource?: 'local'|'drive'
 }
 export interface JournalPhoto {
@@ -59,12 +60,12 @@ export interface TripExport {
     drive?: {fileId:string;resourceKey?:string;tripFolderId?:string;tripFolderResourceKey?:string;journalMediaFolderId?:string;journalMediaFolderResourceKey?:string;permissions:DrivePermissionSnapshot[];capturedAt:string;bootstrapRevisionId?:string}
   }
 }
-export const types: ItemType[] = ['flight','stay','car','event','transport','insurance']
-export const typeLabels: Record<ItemType,string> = { flight:'Flight', stay:'Stay', car:'Car rental', transport:'Transport', insurance:'Insurance', event:'Event' }
+export const types: ItemType[] = ['flight','stay','car','event','transport','insurance','journal']
+export const typeLabels: Record<ItemType,string> = { flight:'Flight', stay:'Stay', car:'Car rental', transport:'Transport', insurance:'Insurance', event:'Event', journal:'Journal' }
 export const uid = () => crypto.randomUUID()
 export function scheduleTime(value:string, allDay=false) { const match=value.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);if(!match)return Number.MAX_SAFE_INTEGER;const [,year,month,day,hour='00',minute='00']=match;return Date.UTC(Number(year),Number(month)-1,Number(day),allDay?12:Number(hour),allDay?0:Number(minute)) }
-const sameTimeTypeOrder:Record<ItemType,number>={flight:0,transport:1,car:2,event:3,stay:4,insurance:5}
-export const sortTripItems = (items:TripItem[]) => [...items].sort((a,b)=>scheduleTime(a.start,a.allDay)-scheduleTime(b.start,b.allDay)||sameTimeTypeOrder[a.type]-sameTimeTypeOrder[b.type]||a.title.localeCompare(b.title))
+const sameTimeTypeOrder:Record<ItemType,number>={flight:0,transport:1,car:2,event:3,stay:4,insurance:5,journal:6}
+export const sortTripItems = (items:TripItem[]) => [...items].sort((a,b)=>{const time=scheduleTime(a.start,a.allDay)-scheduleTime(b.start,b.allDay);if(time)return time;if(a.type==='journal'&&a.relatedItemId===b.id)return 1;if(b.type==='journal'&&b.relatedItemId===a.id)return -1;return sameTimeTypeOrder[a.type]-sameTimeTypeOrder[b.type]||a.title.localeCompare(b.title)})
 export function overlappingEventIds(items:TripItem[]) {
   const events=sortTripItems(items.filter(item=>item.type==='event'))
   const overlaps=new Set<string>()
