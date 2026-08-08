@@ -79,6 +79,32 @@ export interface DriveRevisionSummary {
   keepForever?:boolean
 }
 
+export interface DriveJournalPhotoMetadata {
+  id:string
+  name?:string
+  mimeType?:string
+  size?:string
+  imageMediaMetadata?:{
+    width?:number
+    height?:number
+    rotation?:number
+    time?:string
+    cameraMake?:string
+    cameraModel?:string
+    lens?:string
+    exposureTime?:number
+    aperture?:number
+    focalLength?:number
+    isoSpeed?:number
+    exposureBias?:number
+    location?:{
+      latitude?:number
+      longitude?:number
+      altitude?:number
+    }
+  }
+}
+
 const storedToken=(()=>{try{return JSON.parse(sessionStorage.getItem(TOKEN_STORAGE_KEY)||'{}') as {accessToken?:string;expiresAt?:number}}catch{return {}}})()
 let accessToken = storedToken.accessToken||''
 let accessTokenExpiresAt = storedToken.expiresAt||0
@@ -332,6 +358,12 @@ export async function uploadDriveJournalPhoto(record:DriveSyncRecord,trip:Trip,e
 
 export async function loadDriveJournalPhoto(photo:Pick<JournalPhoto,'driveFileId'|'resourceKey'>) {
   return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(photo.driveFileId)}?alt=media`,{headers:resourceKeyHeaders(photo.driveFileId,photo.resourceKey)}).then(response=>response.blob())
+}
+
+export async function loadDriveJournalPhotoMetadata(photo:Pick<JournalPhoto,'driveFileId'|'resourceKey'>):Promise<DriveJournalPhotoMetadata> {
+  const fields='id,name,mimeType,size,imageMediaMetadata(width,height,rotation,time,cameraMake,cameraModel,lens,exposureTime,aperture,focalLength,isoSpeed,exposureBias,location(latitude,longitude,altitude))'
+  const query=new URLSearchParams({fields})
+  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(photo.driveFileId)}?${query}`,{headers:resourceKeyHeaders(photo.driveFileId,photo.resourceKey)}).then(response=>response.json()) as Promise<DriveJournalPhotoMetadata>
 }
 
 export async function trashDriveJournalPhoto(photo:Pick<JournalPhoto,'driveFileId'|'resourceKey'>) {

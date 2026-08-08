@@ -6,7 +6,7 @@ import { safeHttpsLink, tripNameWithoutImportedSuffix, validTripExport } from '.
 import { googleFlightStatusUrl, isAirlineCheckInOpen, isFlightStatusWindowOpen } from './checkin'
 import { airlineCheckInForItem } from './airlineCheckIn'
 import { formatTravelDateRange, formatTripDateRange, formatTripRange } from './tripRange'
-import { DriveCalendarSubscription, DriveRevisionSummary, DriveSyncRecord, DriveTripSummary, connectGoogleDrive, createDriveTrip, driveShareUrl, driveTripFromLocation, enableDriveTripSharing, findDriveCalendarSubscription, getDriveSyncRecord, getDriveSyncRecordByFileId, isGoogleDriveConnected, linkDriveCalendarSubscription, listDriveTripRevisions, listDriveTrips, loadDriveJournalPhoto, loadDriveTrip, loadDriveTripRevision, prepareGoogleDrive, publishDriveCalendarSubscription, refreshDriveAccess, refreshDriveCalendarSubscription, removeDriveSyncRecord, revokeDrivePermission, saveDriveSyncRecord, trashDriveCalendarSubscription, trashDriveJournalPhoto, trashDriveTrip, updateDriveTrip, uploadDriveJournalPhoto } from './googleDrive'
+import { DriveCalendarSubscription, DriveRevisionSummary, DriveSyncRecord, DriveTripSummary, connectGoogleDrive, createDriveTrip, driveShareUrl, driveTripFromLocation, enableDriveTripSharing, findDriveCalendarSubscription, getDriveSyncRecord, getDriveSyncRecordByFileId, isGoogleDriveConnected, linkDriveCalendarSubscription, listDriveTripRevisions, listDriveTrips, loadDriveTrip, loadDriveTripRevision, prepareGoogleDrive, publishDriveCalendarSubscription, refreshDriveAccess, refreshDriveCalendarSubscription, removeDriveSyncRecord, revokeDrivePermission, saveDriveSyncRecord, trashDriveCalendarSubscription, trashDriveJournalPhoto, trashDriveTrip, updateDriveTrip, uploadDriveJournalPhoto } from './googleDrive'
 import { GroundRouteSegment, itemMatchesDestination, mapDirectionsUrls, mapLocationQuery, mapSearchUrl, tripGroundRouteSegments, tripRouteStops } from './destinations'
 import { tripJsonFilename } from './tripFilename'
 import { formatTripItemJson, parseTripItemsJson } from './itemJson'
@@ -33,6 +33,7 @@ import { loadJournalEnabled, saveJournalEnabled } from './journalSetting'
 import { copyRelatedDetailsToJournal, journalSnapshotForSave, migrateLegacyJournalEntries } from './journalItems'
 import { itemFromEditor, itemTypeForFilter } from './itemEditor'
 import { JournalMarkdown } from './JournalMarkdown'
+import { DriveJournalPhoto, LocalJournalPhoto } from './JournalPhotoViewer'
 
 const zones = ['America/Toronto','Europe/Dublin','Europe/London','Pacific/Honolulu','UTC']
 const blank = (type:ItemType='event'):TripItem => ({id:uid(),type,title:'',start:new Date().toISOString().slice(0,16),timeZone:'Europe/Dublin',status:'planned'})
@@ -325,21 +326,6 @@ export default function App(){
  </main>
 }
 
-function DriveJournalPhoto({photo,connected,language}:{photo:JournalPhoto;connected:boolean;language:LanguageCode}){
- const [url,setUrl]=useState(''),[failed,setFailed]=useState(false)
- const t=(value:string)=>uiText(value,language)
- useEffect(()=>{let disposed=false,objectUrl='';setUrl('');setFailed(false);if(!connected)return;void loadDriveJournalPhoto(photo).then(blob=>{if(disposed)return;objectUrl=URL.createObjectURL(blob);setUrl(objectUrl)}).catch(()=>{if(!disposed)setFailed(true)});return()=>{disposed=true;if(objectUrl)URL.revokeObjectURL(objectUrl)}},[photo.driveFileId,photo.resourceKey,connected])
- if(!connected)return <div className="journal-photo-placeholder"><span>{t('Photo in Google Drive')}</span><small>{t('Reconnect to view')}</small></div>
- if(failed)return <div className="journal-photo-placeholder"><span>{photo.name}</span><small>{t('Photo unavailable')}</small></div>
- return url?<img src={url} alt={photo.name}/>:<div className="journal-photo-placeholder"><span>{photo.name}</span><small>{t('Loading photo…')}</small></div>
-}
-
-function LocalJournalPhoto({file}:{file:File}){
- const [url,setUrl]=useState('')
- useEffect(()=>{const next=URL.createObjectURL(file);setUrl(next);return()=>URL.revokeObjectURL(next)},[file])
- return url?<img src={url} alt={file.name}/>:null
-}
-
 function DriveVersionControl({versions,selected,loaded,loading,error,busy,historical,pinningEnabled,language,onOpen,onSelect,onRestore}:{versions:DriveVersion[];selected?:DriveVersion;loaded:boolean;loading:boolean;error:string;busy:boolean;historical:boolean;pinningEnabled:boolean;language:LanguageCode;onOpen:()=>void;onSelect:(version:DriveVersion)=>void;onRestore:()=>void}){
  const activeVersion=selected||versions.find(version=>version.current)||versions[versions.length-1]
  const t=(value:string)=>uiText(value,language),label=activeVersion?uiMessage('v{number} of {count}',language,{number:activeVersion.number,count:versions.length}):t(loading?'Loading versions…':error?'Versions unavailable':'Versions')
@@ -418,7 +404,7 @@ function ItemModal({item,items,language,canAccessSourceEmails,canAddJournal,driv
     <label>Time zone<input list="waypoint-time-zones" required value={v.timeZone} onChange={field('timeZone')}/></label>
     <label>Location<input value={v.location||''} onChange={field('location')}/></label>
     <label>{t('Notes')}<textarea className="journal-editor" value={v.notes||''} onChange={field('notes')} placeholder={t('What happened?')}/></label>
-    {((v.photos||[]).length>0||files.length>0)&&<div className="journal-photo-grid journal-photo-editor">{(v.photos||[]).map(photo=><figure key={photo.id}><DriveJournalPhoto photo={photo} connected={driveConnected} language={language}/><button type="button" className="danger" onClick={()=>removePhoto(photo)}>{t('Remove')}</button></figure>)}{files.map((file,index)=><figure key={`${file.name}-${file.lastModified}-${index}`}><LocalJournalPhoto file={file}/><button type="button" className="danger" onClick={()=>setFiles(current=>current.filter((_,candidate)=>candidate!==index))}>{t('Remove')}</button></figure>)}</div>}
+    {((v.photos||[]).length>0||files.length>0)&&<div className="journal-photo-grid journal-photo-editor">{(v.photos||[]).map(photo=><figure key={photo.id}><DriveJournalPhoto photo={photo} connected={driveConnected} language={language}/><button type="button" className="danger" onClick={()=>removePhoto(photo)}>{t('Remove')}</button></figure>)}{files.map((file,index)=><figure key={`${file.name}-${file.lastModified}-${index}`}><LocalJournalPhoto file={file} language={language}/><button type="button" className="danger" onClick={()=>setFiles(current=>current.filter((_,candidate)=>candidate!==index))}>{t('Remove')}</button></figure>)}</div>}
     <label className={`secondary journal-photo-picker${driveConnected?'':' disabled'}`}>{t('Add photos')}<input type="file" accept="image/*" multiple disabled={!driveConnected||busy} onChange={event=>{setFiles(current=>[...current,...Array.from(event.target.files||[])]);event.target.value=''}}/></label>
     {!driveConnected&&<p className="journal-drive-note">{t('Connect Google Drive to add or view photos. Notes remain available locally.')}</p>}
    </Fragment>:<Fragment key="itinerary-fields">

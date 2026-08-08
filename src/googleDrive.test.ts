@@ -278,4 +278,16 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
     const uploadBody=fetchMock.mock.calls[2][1]?.body as Blob
     expect(await uploadBody.text()).toContain('"journalEntryId":"entry-1"')
   })
+
+  it('loads available EXIF photo details without downloading the image again',async()=>{
+    replies.push({body:{id:'photo-file',name:'arrival.jpg',mimeType:'image/jpeg',size:'4',imageMediaMetadata:{time:'2026:07:18 14:35:12',width:4032,height:3024,cameraMake:'Canon',cameraModel:'EOS R6',location:{latitude:53.3498,longitude:-6.2603,altitude:17}}}})
+    const {loadDriveJournalPhotoMetadata}=await import('./googleDrive')
+    const result=await loadDriveJournalPhotoMetadata({driveFileId:'photo-file',resourceKey:'photo-key'})
+
+    expect(result.imageMediaMetadata).toMatchObject({time:'2026:07:18 14:35:12',width:4032,height:3024,location:{latitude:53.3498,longitude:-6.2603,altitude:17}})
+    const url=new URL(String(fetchMock.mock.calls[0][0]))
+    expect(url.pathname).toContain('/files/photo-file')
+    expect(url.searchParams.get('fields')).toContain('imageMediaMetadata')
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get('X-Goog-Drive-Resource-Keys')).toBe('photo-file/photo-key')
+  })
 })
