@@ -179,18 +179,34 @@ const airportWeatherCities:Record<string,string>={
   DUB:'Dublin',HNL:'Honolulu',JFK:'New York',LGA:'New York',MSP:'Minneapolis',SFO:'San Francisco',
   YKF:'Waterloo',YOW:'Ottawa',YVR:'Vancouver',YWG:'Winnipeg',YYC:'Calgary',YYZ:'Toronto',
 }
+const trailingWeatherPostalCode=/\s+(?:\d{5}(?:-\d{4})?|[A-Z]\d[A-Z](?:\s?\d[A-Z]\d)?)$/i
+const weatherSubdivisionLabel=(value:string)=>cleanPart(value).replace(trailingWeatherPostalCode,' ').replace(/\s+/g,' ').trim()
+// TODO: Consider teaching the AI itinerary-extraction prompt to emit a canonical
+// metro locality. Keep this fallback for manual entries and older imports.
+const newYorkWeatherPlaces=new Set(['new york','new york city','manhattan','brooklyn','queens','bronx','the bronx','staten island'])
 const weatherPlaceIdentity = (value:string) => value.toLocaleLowerCase().replace(/\s+/g,' ').trim()
+const weatherVenueIdentity = (value:string) => weatherPlaceIdentity(value).replace(/[^a-z0-9]+/g,' ').replace(/^the\s+/,'').trim()
+const placeMatchesVenue = (place:string,venueNames:string[]) => {
+  const identity=weatherVenueIdentity(place)
+  return !!identity&&venueNames.some(name=>{const venue=weatherVenueIdentity(name),leadingName=venue.split(/\s+by\s+/)[0];return venue===identity||leadingName===identity})
+}
+const canonicalWeatherPlace = (place:string,address:string,countryCode?:string) => {
+  const identity=weatherPlaceIdentity(place),newYorkContext=countryCode==='US'&&(/\bNew York\b/i.test(address)||/(?:^|,\s*)NY(?:\s+\d{5}(?:-\d{4})?|\s*,|$)/i.test(address)||/\b(?:JFK|LGA)\b/.test(address))
+  return newYorkWeatherPlaces.has(identity)&&(identity==='new york'||identity==='new york city'||newYorkContext)?'New York':place
+}
 const sameWeatherTarget = (left:WeatherTarget,right:WeatherTarget) => weatherPlaceIdentity(left.label)===weatherPlaceIdentity(right.label)&&(!left.countryCode||!right.countryCode||left.countryCode===right.countryCode)
 
 export function weatherCountryCode(address:string) {
   const parts=address.split(',').map(cleanPart).filter(Boolean)
   for(const part of [...parts].reverse()){
-    const normalized=part.toLocaleLowerCase().replace(/[.]$/,'')
+    const subdivision=weatherSubdivisionLabel(part),normalized=subdivision.toLocaleLowerCase().replace(/[.]$/,'')
     if(countryAliases[normalized])return countryAliases[normalized]
     if(displayedCountries.has(normalized))return displayedCountries.get(normalized)
-    const regionCode=part.match(/(?:^|\s)([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?|\s+[A-Z]\d[A-Z]\s?\d[A-Z]\d|$)/)?.[1]
+    const regionCode=subdivision.match(/(?:^|\s)([A-Z]{2})$/)?.[1]
     if(regionCode&&canadianProvinces.has(regionCode))return 'CA'
     if(regionCode&&unitedStates.has(regionCode))return 'US'
+    if(canadianProvinceNames.has(normalized))return 'CA'
+    if(unitedStateNames.has(normalized))return 'US'
   }
   return undefined
 }
@@ -207,23 +223,23 @@ const airportFallback = (address:string) => {
 }
 
 const weatherRegionPart = (value:string) => {
-  const part=cleanPart(value),normalized=part.toLocaleLowerCase().replace(/[.]$/,'')
+  const part=weatherSubdivisionLabel(value),normalized=part.toLocaleLowerCase().replace(/[.]$/,'')
   if(countryAliases[normalized]||displayedCountries.has(normalized))return 'country'
-  const code=part.match(/^(?:.*\s)?([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?|\s+[A-Z]\d[A-Z]\s?\d[A-Z]\d)?$/)?.[1]
+  const code=part.match(/^(?:.*\s)?([A-Z]{2})$/)?.[1]
   if(code&&(canadianProvinces.has(code)||unitedStates.has(code)))return 'subdivision'
   if(canadianProvinceNames.has(normalized)||unitedStateNames.has(normalized))return 'subdivision'
   return undefined
 }
 
-const weatherLocality = (address:string) => {
+const weatherLocality = (address:string,venueNames:string[]) => {
   const parts=address.split(',').map(part=>part.trim()).filter(Boolean)
   let skippedSubdivision:string|undefined
   for(let index=parts.length-1;index>=0;index--){
     const part=parts[index],region=weatherRegionPart(part)
     if(region==='country')continue
-    if(region==='subdivision'&&!skippedSubdivision){skippedSubdivision=cleanPart(part).replace(/\s+(?:\d{5}(?:-\d{4})?|[A-Z]\d[A-Z]\s?\d[A-Z]\d)$/i,' ');continue}
+    if(region==='subdivision'&&!skippedSubdivision){skippedSubdivision=weatherSubdivisionLabel(part);continue}
     const label=destinationLabel(part)||cleanPart(part)
-    if(!label||iataCode.test(label)||virtualLocation.test(label)||airportDetail.test(label)||weatherVenueOrStreet.test(label)||/^\d+(?:\s|$)/.test(label))continue
+    if(!label||iataCode.test(label)||virtualLocation.test(label)||airportDetail.test(label)||weatherVenueOrStreet.test(label)||/^\d+(?:\s|$)/.test(label)||placeMatchesVenue(label,venueNames))continue
     return label
   }
   const airportCode=destinationLabel(address)
@@ -231,14 +247,15 @@ const weatherLocality = (address:string) => {
   return skippedSubdivision&&parts.length>1?skippedSubdivision:undefined
 }
 
-export function weatherTargetFromAddress(address?:string):WeatherTarget|undefined {
+export function weatherTargetFromAddress(address?:string,venueNames:string[]=[]):WeatherTarget|undefined {
   if(!address?.trim())return undefined
   const fullLabel=destinationLabel(address),isAirport=/\bairport\b/i.test(address),parts=address.split(',').map(part=>destinationLabel(part)).filter((value):value is string=>!!value)
-  const validPlace=(value:string|undefined):value is string=>!!value&&!iataCode.test(value)&&(!isAirport||!airportDetail.test(value))
+  const validPlace=(value:string|undefined):value is string=>!!value&&!iataCode.test(value)&&(!isAirport||!airportDetail.test(value))&&!placeMatchesVenue(value,venueNames)
   const fullLocality=validPlace(fullLabel)&&!virtualLocation.test(fullLabel)&&!weatherVenueOrStreet.test(fullLabel)&&!/^\d+(?:\s|$)/.test(fullLabel)?fullLabel:undefined
-  const place=fullLocality||weatherLocality(address)||(validPlace(fullLabel)?fullLabel:parts.find(validPlace)||airportFallback(address)||fullLabel)
+  const extractedPlace=fullLocality||weatherLocality(address,venueNames)||(validPlace(fullLabel)?fullLabel:parts.find(validPlace)||airportFallback(address)||fullLabel)
+  const countryCode=weatherCountryCode(address),place=extractedPlace&&canonicalWeatherPlace(extractedPlace,address,countryCode)
   if(!place||virtualLocation.test(place)||/^\d+(?:\s|$)/.test(place))return undefined
-  const countryCode=weatherCountryCode(address),queries=[place]
+  const queries=[place]
   const words=place.split(/\s+/)
   if(/\bairport\b/i.test(address)&&words.length>1)for(let length=words.length-1;length>=1;length--)queries.push(words.slice(0,length).join(' '))
   const uniqueQueries=queries.filter((query,index,all)=>query.length>=2&&all.findIndex(value=>value.toLocaleLowerCase()===query.toLocaleLowerCase())===index)
@@ -255,7 +272,7 @@ export function weatherPlansForItem(item:TripItem,weatherDate?:string):ItemWeath
   ]
   const plans:ItemWeatherPlan[]=[]
   for(const candidate of candidates){
-    const target=weatherTargetFromAddress(candidate.address)
+    const target=weatherTargetFromAddress(candidate.address,item.provider?[item.provider]:[])
     if(!target)continue
     const index=plans.findIndex(plan=>sameWeatherTarget(plan.target,target))
     if(index<0)plans.push({itemId:item.id,agendaDate,date:candidate.date,target})
@@ -292,59 +309,61 @@ export function agendaItemWeatherPlans(items:TripItem[],forecastDates:string[],t
   })
 }
 
-type LocatedCandidate = {address:string;time:string;priority:number}
+type LocatedCandidate = {address:string;time:string;priority:number;item:TripItem}
 
 const itemCandidatesForDate = (item:TripItem,date:string):LocatedCandidate[] => {
   const candidates:LocatedCandidate[]=[]
   if(item.type==='journal')return candidates
   const startDate=item.start.slice(0,10),endDate=item.end?.slice(0,10)
-  if(item.type==='stay'&&item.location&&startDate<=date&&(!endDate||date<=endDate))candidates.push({address:item.location,time:startDate===date?item.start.slice(11,16)||'12:00':'00:00',priority:1})
+  if(item.type==='stay'&&item.location&&startDate<=date&&(!endDate||date<=endDate))candidates.push({address:item.location,time:startDate===date?item.start.slice(11,16)||'12:00':'00:00',priority:1,item})
   if(startDate===date&&item.type!=='insurance'){
-    if(item.location)candidates.push({address:item.location,time:item.start.slice(11,16)||'12:00',priority:2})
-    if(item.type!=='flight'&&item.endLocation)candidates.push({address:item.endLocation,time:item.end?.slice(11,16)||item.start.slice(11,16)||'12:00',priority:3})
+    if(item.location)candidates.push({address:item.location,time:item.start.slice(11,16)||'12:00',priority:2,item})
+    if(item.type!=='flight'&&item.endLocation)candidates.push({address:item.endLocation,time:item.end?.slice(11,16)||item.start.slice(11,16)||'12:00',priority:3,item})
   }
-  if(endDate===date&&item.endLocation)candidates.push({address:item.endLocation,time:item.end?.slice(11,16)||'23:59',priority:4})
+  if(endDate===date&&item.endLocation)candidates.push({address:item.endLocation,time:item.end?.slice(11,16)||'23:59',priority:4,item})
   return candidates
 }
 
 const previousLocation = (items:TripItem[],date:string) => {
-  let address:string|undefined
+  let candidate:Pick<LocatedCandidate,'address'|'item'>|undefined
   for(const item of sortTripItems(items)){
     if(item.start.slice(0,10)>date)break
     if(item.type==='insurance'||item.type==='journal')continue
-    if(item.type==='flight'&&item.endLocation&&(item.end||item.start).slice(0,10)<=date)address=item.endLocation
-    else if(item.endLocation)address=item.endLocation
-    else if(item.location)address=item.location
+    if(item.type==='flight'&&item.endLocation&&(item.end||item.start).slice(0,10)<=date)candidate={address:item.endLocation,item}
+    else if(item.endLocation)candidate={address:item.endLocation,item}
+    else if(item.location)candidate={address:item.location,item}
   }
-  return address
+  return candidate
 }
 
 const nextLocation = (items:TripItem[],date:string) => {
   for(const item of sortTripItems(items)){
     if(item.start.slice(0,10)<date||item.type==='insurance'||item.type==='journal')continue
     const address=item.type==='flight'?item.endLocation||item.location:item.location||item.endLocation
-    if(address)return address
+    if(address)return {address,item}
   }
   return undefined
 }
 
+const weatherTargetForCandidate = (candidate:Pick<LocatedCandidate,'address'|'item'>|undefined) => candidate?weatherTargetFromAddress(candidate.address,candidate.item.provider?[candidate.item.provider]:[]):undefined
+
 export function weatherTargetForDate(items:TripItem[],date:string) {
   const candidates=items.flatMap(item=>itemCandidatesForDate(item,date)).sort((left,right)=>left.time.localeCompare(right.time)||left.priority-right.priority)
-  return weatherTargetFromAddress(candidates[candidates.length-1]?.address||previousLocation(items,date)||nextLocation(items,date))
+  return weatherTargetForCandidate(candidates[candidates.length-1]||previousLocation(items,date)||nextLocation(items,date))
 }
 
 export function weatherTargetsForDate(items:TripItem[],date:string) {
   const candidates=items.flatMap(item=>itemCandidatesForDate(item,date)).sort((left,right)=>left.time.localeCompare(right.time)||left.priority-right.priority)
   const targets:WeatherTarget[]=[]
   for(const candidate of candidates){
-    const target=weatherTargetFromAddress(candidate.address)
+    const target=weatherTargetForCandidate(candidate)
     if(!target)continue
     const index=targets.findIndex(existing=>sameWeatherTarget(existing,target))
     if(index<0)targets.push(target)
     else if(!targets[index].countryCode&&target.countryCode)targets[index]=target
   }
   if(targets.length)return targets
-  const fallback=weatherTargetFromAddress(previousLocation(items,date)||nextLocation(items,date))
+  const fallback=weatherTargetForCandidate(previousLocation(items,date)||nextLocation(items,date))
   return fallback?[fallback]:[]
 }
 

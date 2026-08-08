@@ -1,6 +1,7 @@
 import JsBarcode from 'jsbarcode'
 import QRCode from 'qrcode'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ConfirmationCodeFormat, nextConfirmationCodeFormat } from './confirmationCodeFormat'
 import { currentLanguage, LanguageCode, uiMessage, uiText } from './i18n'
 
@@ -50,7 +51,7 @@ export function ConfirmationCode({value,title,language,expanded=false,onToggleEx
   const next=uiText(format==='qr'?'Code 128 barcode':'QR code',activeLanguage)
   const label=uiMessage(expanded?'Confirmation {value}. Return to item view. Double click or double tap to show {format}':'Confirmation {value}. Enlarge code. Double click or double tap to show {format}',activeLanguage,{value,format:next})
   const tooltip=uiMessage(expanded?'Click or tap to return to the item view. Double click or double tap to show {format}.':'Click or tap to enlarge. Double click or double tap to show {format}.',activeLanguage,{format:next})
-  return <button
+  const code=<button
     type="button"
     className={`confirmation-code confirmation-code-${format}${expanded?' confirmation-code-expanded':''}`}
     aria-label={label}
@@ -66,4 +67,9 @@ export function ConfirmationCode({value,title,language,expanded=false,onToggleEx
     {failed&&<span>{uiText('Code unavailable',activeLanguage)}</span>}
     {expanded&&<strong className="confirmation-code-title">{title}</strong>}
   </button>
+
+  // Keep the full-screen code outside item-level opacity and stacking contexts.
+  // Archived trips intentionally fade their items, which would otherwise make
+  // the white overlay translucent and allow the itinerary to show through.
+  return expanded&&typeof document!=='undefined'?createPortal(code,document.body):code
 }

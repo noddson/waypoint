@@ -180,6 +180,29 @@ describe('itinerary weather planning',()=>{
     expect(dedupeWeatherPlans(plans).map(plan=>plan.target.label)).toEqual(['Winnipeg','New York','Honolulu'])
   })
 
+  it('uses event-provider context and collapses New York City borough aliases',()=>{
+    const hotel=item('hotel','stay','2025-01-20T15:00','Hotel Beacon, 2130 Broadway at 75th Street, New York, NY 10023','2025-01-24T07:00')
+    const spyGames={...item('spygames','event','2025-01-23T13:20','SPYGAMES, New York'),provider:'SPYGAMES by SPYSCAPE'}
+    const airportRide=item('airport-ride','transport','2025-01-24T06:00','2130 Broadway, New York City, NY 10023','2025-01-24T06:30','Terminal B, LaGuardia Airport (LGA), Queens, NY 11371')
+    const flight=item('flight','flight','2025-01-24T08:45','LaGuardia Airport (LGA), Terminal B, Queens, NY 11371','2025-01-24T10:29','Toronto Pearson International Airport (YYZ), Toronto, Canada')
+
+    expect(weatherPlansForItem(spyGames).map(plan=>plan.target.label)).toEqual(['New York'])
+    expect(weatherTargetsForDate([hotel,spyGames],'2025-01-23').map(target=>target.label)).toEqual(['New York'])
+    expect(weatherTargetsForDate([hotel,airportRide,flight],'2025-01-24').map(target=>target.label)).toEqual(['New York','Toronto'])
+  })
+
+  it('treats Canadian province names with full or partial postal codes as region metadata',()=>{
+    const keewatin=item('keewatin','stay','2025-07-04T14:00','320 McLean Ave, Keewatin, ON P0X 1C0','2025-07-12T14:00')
+    const hotel=item('hotel','stay','2025-07-12T15:00','Courtyard by Marriott, 780 Powerhouse Road, Winnipeg, Manitoba R3H 1C7, Canada','2025-07-13T06:00')
+    const airportRide=item('airport-ride','transport','2025-07-12T20:02','174 Market Ave, Winnipeg, Manitoba R3B, Canada',undefined,'Main Terminal, Winnipeg Richardson International Airport (YWG), Winnipeg, Manitoba R3H 1C2, Canada')
+    const carReturn=item('car-return','car','2025-07-12T21:00','Station 021 – Lily & James, Winnipeg, Manitoba')
+
+    expect(weatherCountryCode('Winnipeg, Manitoba R3B')).toBe('CA')
+    expect(weatherTargetFromAddress(hotel.location)?.label).toBe('Winnipeg')
+    expect(weatherTargetFromAddress(airportRide.location)?.label).toBe('Winnipeg')
+    expect(weatherTargetsForDate([keewatin,hotel,airportRide,carReturn],'2025-07-12').map(target=>target.label)).toEqual(['Keewatin','Winnipeg'])
+  })
+
   it('keeps itinerary chronology when item-scoped plans supplement desktop day plans',()=>{
     const date='2026-01-09',items=[
       item('stay','stay','2026-01-03T16:00','Banff Centre for Arts and Creativity, 107 Tunnel Mountain Drive, Banff, AB T1L 1H5','2026-01-09T11:00'),
