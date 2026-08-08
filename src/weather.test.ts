@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { TripItem } from './types'
-import { addWeatherDays, agendaItemWeatherPlans, agendaWeatherPlans, dedupeWeatherPlans, formatWeatherTemperature, formatWeatherTemperaturePair, HISTORICAL_WEATHER_START_DATE, isHistoricalWeatherDate, isWeatherForecastDate, parseDailyWeatherResponse, resolveWeatherDisplay, tripWeatherWindow, weatherApiUrl, weatherCountryCode, weatherDescription, weatherPlansForDates, weatherPlansForItem, weatherRequestsForPlans, weatherSearchUrl, weatherTargetForDate, weatherTargetFromAddress, weatherTargetsForDate } from './weather'
+import { addWeatherDays, agendaItemWeatherPlans, agendaWeatherPlans, dedupeWeatherPlans, formatWeatherTemperature, formatWeatherTemperaturePair, groupAgendaWeatherPlans, HISTORICAL_WEATHER_START_DATE, isHistoricalWeatherDate, isWeatherForecastDate, parseDailyWeatherResponse, resolveWeatherDisplay, tripWeatherWindow, weatherApiUrl, weatherCountryCode, weatherDescription, weatherPlansForDates, weatherPlansForItem, weatherRequestsForPlans, weatherSearchUrl, weatherTargetForDate, weatherTargetFromAddress, weatherTargetsForDate } from './weather'
 
 const item=(id:string,type:TripItem['type'],start:string,location?:string,end?:string,endLocation?:string):TripItem=>({id,type,title:id,start,end,timeZone:'Europe/Dublin',location,endLocation,status:'confirmed'})
 
@@ -160,6 +160,44 @@ describe('itinerary weather planning',()=>{
     ])
   })
 
+  it('normalizes airport, street, and venue addresses before desktop weather deduplication',()=>{
+    expect(weatherTargetFromAddress('Calgary International Airport (YYC), 2000 Airport Road NE, Calgary, AB T2E 6W5')?.label).toBe('Calgary')
+    expect(weatherTargetFromAddress('Online')).toBeUndefined()
+
+    const addresses=[
+      'Winnipeg James Armstrong Richardson International Airport (YWG)',
+      'Winnipeg, Manitoba, Canada',
+      'LaGuardia Airport (LGA), New York',
+      'Hotel Beacon, 2130 Broadway at 75th Street, New York, NY 10023',
+      'Beacon Theatre, 2124 Broadway, New York, NY 10023',
+      'Daniel K. Inouye International Airport (HNL)',
+      'Honolulu, HI 96815',
+    ]
+    expect(addresses.map(address=>weatherTargetFromAddress(address)?.label)).toEqual([
+      'Winnipeg','Winnipeg','New York','New York','New York','Honolulu','Honolulu',
+    ])
+    const plans=addresses.map((address,index)=>weatherPlansForItem(item(String(index),'event','2026-08-01T09:00',address))[0]).filter(Boolean)
+    expect(dedupeWeatherPlans(plans).map(plan=>plan.target.label)).toEqual(['Winnipeg','New York','Honolulu'])
+  })
+
+  it('keeps itinerary chronology when item-scoped plans supplement desktop day plans',()=>{
+    const date='2026-01-09',items=[
+      item('stay','stay','2026-01-03T16:00','Banff Centre for Arts and Creativity, 107 Tunnel Mountain Drive, Banff, AB T1L 1H5','2026-01-09T11:00'),
+      item('return','car',`${date}T09:54`,'Calgary International Airport, 2000 Airport Road Northeast, Calgary, Alberta'),
+      item('flight','flight',`${date}T15:05`,'Calgary International Airport (YYC)',`${date}T20:49`,'Toronto Pearson International Airport (YYZ), Terminal 1'),
+    ]
+    const dayPlans=agendaWeatherPlans(items,[date],[date],'2026-08-06')
+    const itemPlans=agendaItemWeatherPlans(items,[date],'2026-08-06')
+    expect(groupAgendaWeatherPlans(dayPlans,itemPlans).get(date)?.map(plan=>plan.target.label)).toEqual(['Banff','Calgary','Toronto'])
+
+    const westCoastItems=[
+      item('whistler','stay','2022-05-31T16:00','Pan Pacific Whistler Village Centre, Whistler, BC','2022-06-03T11:00'),
+      item('vancouver','stay','2022-06-03T18:00','1601 Bayshore Drive, Vancouver, BC V6G 2V4','2022-06-05T11:00'),
+    ]
+    const westCoastDate='2022-06-03',westCoastDays=agendaWeatherPlans(westCoastItems,[westCoastDate],[westCoastDate],'2026-08-06'),westCoastItemsPlans=agendaItemWeatherPlans(westCoastItems,[westCoastDate],'2026-08-06')
+    expect(groupAgendaWeatherPlans(westCoastDays,westCoastItemsPlans).get(westCoastDate)?.map(plan=>plan.target.label)).toEqual(['Whistler','Vancouver'])
+  })
+
   it('rolls an active ongoing stay item forward to today',()=>{
     const items=[
       item('stay','stay','2026-08-07T14:00','Keewatin, ON, Canada','2026-08-14T11:00'),
@@ -220,6 +258,11 @@ describe('weather locations and links',()=>{
     expect(weatherTargetFromAddress('Toronto Pearson International Airport (YYZ), Toronto, Ontario, Canada')).toMatchObject({label:'Toronto',countryCode:'CA'})
     expect(weatherTargetFromAddress('Dublin Airport (DUB), Terminal 1')).toMatchObject({label:'Dublin'})
     expect(weatherTargetFromAddress('Toronto Pearson International Airport (YYZ), Terminal 1, pre-arranged taxi and limo kiosk near Door A')).toMatchObject({label:'Toronto'})
+  })
+
+  it('keeps the city ahead of a county or similarly named region',()=>{
+    expect(weatherTargetFromAddress('Rock of Cashel, Cashel, County Tipperary, Ireland')?.label).toBe('Cashel')
+    expect(weatherTargetFromAddress('Butcher Street, Derry, Londonderry, Northern Ireland, BT48 6HL')?.label).toBe('Derry')
   })
 
   it('creates a dated weather-search link for the displayed itinerary location',()=>{

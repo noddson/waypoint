@@ -171,6 +171,14 @@ const displayedCountries = (()=>{
 const cleanPart = (value:string) => value.replace(/\([^)]*\)|\[[^\]]*\]/g,' ').replace(/\bIATA(?:\s+code)?\s*[:\-]?\s*[A-Z]{3}\b/gi,' ').replace(/\s+/g,' ').trim()
 const iataCode = /^[A-Z]{3}$/
 const airportDetail = /^(?:terminal|gate|door|arrivals?|departures?|pre-arranged|taxi|limo|kiosk|parking|shuttle)\b/i
+const virtualLocation = /^(?:(?:online|virtual|remote)(?:\s+(?:meeting|event|session|call))?|webinar|zoom|microsoft teams|teams|google meet|telephone|phone|n\/?a|none|tbd|to be determined)$/i
+const weatherVenueOrStreet = /(?:\b(?:airport|terminal|hotel|resort|lodge|inn|house|theatre|theater|museum|centre|center|restaurant|campus|road|street|avenue|boulevard|drive|highway|hwy|place|way|lane|bridge|quay|court|circle|terrace|trail)\b|^\d)/i
+const canadianProvinceNames=new Set(['alberta','british columbia','manitoba','new brunswick','newfoundland and labrador','nova scotia','northwest territories','nunavut','ontario','prince edward island','quebec','saskatchewan','yukon'])
+const unitedStateNames=new Set(['alabama','alaska','arizona','arkansas','california','colorado','connecticut','delaware','florida','georgia','hawaii','idaho','illinois','indiana','iowa','kansas','kentucky','louisiana','maine','maryland','massachusetts','michigan','minnesota','mississippi','missouri','montana','nebraska','nevada','new hampshire','new jersey','new mexico','new york','north carolina','north dakota','ohio','oklahoma','oregon','pennsylvania','rhode island','south carolina','south dakota','tennessee','texas','utah','vermont','virginia','washington','west virginia','wisconsin','wyoming','district of columbia'])
+const airportWeatherCities:Record<string,string>={
+  DUB:'Dublin',HNL:'Honolulu',JFK:'New York',LGA:'New York',MSP:'Minneapolis',SFO:'San Francisco',
+  YKF:'Waterloo',YOW:'Ottawa',YVR:'Vancouver',YWG:'Winnipeg',YYC:'Calgary',YYZ:'Toronto',
+}
 const weatherPlaceIdentity = (value:string) => value.toLocaleLowerCase().replace(/\s+/g,' ').trim()
 const sameWeatherTarget = (left:WeatherTarget,right:WeatherTarget) => weatherPlaceIdentity(left.label)===weatherPlaceIdentity(right.label)&&(!left.countryCode||!right.countryCode||left.countryCode===right.countryCode)
 
@@ -198,12 +206,38 @@ const airportFallback = (address:string) => {
   return simplified||undefined
 }
 
+const weatherRegionPart = (value:string) => {
+  const part=cleanPart(value),normalized=part.toLocaleLowerCase().replace(/[.]$/,'')
+  if(countryAliases[normalized]||displayedCountries.has(normalized))return 'country'
+  const code=part.match(/^(?:.*\s)?([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?|\s+[A-Z]\d[A-Z]\s?\d[A-Z]\d)?$/)?.[1]
+  if(code&&(canadianProvinces.has(code)||unitedStates.has(code)))return 'subdivision'
+  if(canadianProvinceNames.has(normalized)||unitedStateNames.has(normalized))return 'subdivision'
+  return undefined
+}
+
+const weatherLocality = (address:string) => {
+  const parts=address.split(',').map(part=>part.trim()).filter(Boolean)
+  let skippedSubdivision:string|undefined
+  for(let index=parts.length-1;index>=0;index--){
+    const part=parts[index],region=weatherRegionPart(part)
+    if(region==='country')continue
+    if(region==='subdivision'&&!skippedSubdivision){skippedSubdivision=cleanPart(part).replace(/\s+(?:\d{5}(?:-\d{4})?|[A-Z]\d[A-Z]\s?\d[A-Z]\d)$/i,' ');continue}
+    const label=destinationLabel(part)||cleanPart(part)
+    if(!label||iataCode.test(label)||virtualLocation.test(label)||airportDetail.test(label)||weatherVenueOrStreet.test(label)||/^\d+(?:\s|$)/.test(label))continue
+    return label
+  }
+  const airportCode=destinationLabel(address)
+  if(airportCode&&iataCode.test(airportCode)&&airportWeatherCities[airportCode])return airportWeatherCities[airportCode]
+  return skippedSubdivision&&parts.length>1?skippedSubdivision:undefined
+}
+
 export function weatherTargetFromAddress(address?:string):WeatherTarget|undefined {
   if(!address?.trim())return undefined
   const fullLabel=destinationLabel(address),isAirport=/\bairport\b/i.test(address),parts=address.split(',').map(part=>destinationLabel(part)).filter((value):value is string=>!!value)
   const validPlace=(value:string|undefined):value is string=>!!value&&!iataCode.test(value)&&(!isAirport||!airportDetail.test(value))
-  const place=validPlace(fullLabel)?fullLabel:parts.find(validPlace)||airportFallback(address)||fullLabel
-  if(!place)return undefined
+  const fullLocality=validPlace(fullLabel)&&!virtualLocation.test(fullLabel)&&!weatherVenueOrStreet.test(fullLabel)&&!/^\d+(?:\s|$)/.test(fullLabel)?fullLabel:undefined
+  const place=fullLocality||weatherLocality(address)||(validPlace(fullLabel)?fullLabel:parts.find(validPlace)||airportFallback(address)||fullLabel)
+  if(!place||virtualLocation.test(place)||/^\d+(?:\s|$)/.test(place))return undefined
   const countryCode=weatherCountryCode(address),queries=[place]
   const words=place.split(/\s+/)
   if(/\bairport\b/i.test(address)&&words.length>1)for(let length=words.length-1;length>=1;length--)queries.push(words.slice(0,length).join(' '))
@@ -240,6 +274,12 @@ export function dedupeWeatherPlans<Plan extends WeatherDayPlan>(plans:Plan[]) {
     else if(!unique[index].target.countryCode&&plan.target.countryCode)unique[index]={...unique[index],target:plan.target}
   }
   return unique
+}
+
+export function groupAgendaWeatherPlans(dayPlans:WeatherDayPlan[],itemPlans:WeatherDayPlan[]) {
+  const grouped=new Map<string,WeatherDayPlan[]>()
+  for(const plan of [...dayPlans,...itemPlans])grouped.set(plan.agendaDate,dedupeWeatherPlans([...(grouped.get(plan.agendaDate)||[]),plan]))
+  return grouped
 }
 
 export function agendaItemWeatherPlans(items:TripItem[],forecastDates:string[],today:string) {

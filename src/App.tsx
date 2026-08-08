@@ -27,7 +27,7 @@ import { BuildVersion, loadBuildVersion } from './buildVersion'
 import { loadVersionHistoryEnabled, numberDriveRevisions, NumberedDriveRevision, restoredTripFromVersion, saveVersionHistoryEnabled } from './versionHistory'
 import { isRecentDriveSyncCheckpoint } from './driveSync'
 import { AgendaDayWeather } from './WeatherForecast'
-import { agendaItemWeatherPlans, agendaWeatherPlans, dedupeWeatherPlans, isWeatherAvailableDate, loadWeatherDisplay, localWeatherDate, saveWeatherDisplay, tripWeatherWindow, useWeatherForecasts, WeatherDayPlan, WeatherDisplay, WeatherTemperatureUnit } from './weather'
+import { agendaItemWeatherPlans, agendaWeatherPlans, groupAgendaWeatherPlans, isWeatherAvailableDate, loadWeatherDisplay, localWeatherDate, saveWeatherDisplay, tripWeatherWindow, useWeatherForecasts, WeatherDayPlan, WeatherDisplay, WeatherTemperatureUnit } from './weather'
 import { currentLanguage, currentLocale, languageCodes, languageMetadata, LanguageCode, loadLanguage, localizedItemJsonExample, observeUiLanguage, saveLanguage, uiMessage, uiText } from './i18n'
 import { loadJournalEnabled, saveJournalEnabled } from './journalSetting'
 import { copyRelatedDetailsToJournal, journalSnapshotForSave, migrateLegacyJournalEntries } from './journalItems'
@@ -125,7 +125,7 @@ export default function App(){
  const groups=useMemo(()=>{const days=new Map<string,TripItem[]>();for(const item of sorted){const key=item.start.slice(0,10);days.set(key,[...(days.get(key)||[]),item])}return [...days.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([day,items])=>[day,sortTripItems(items)] as const)},[sorted])
  const itineraryWeatherPlans=useMemo(()=>agendaWeatherPlans(sorted,groups.map(([day])=>day),routeWeatherWindow.dates,today),[sorted,groups,routeWeatherWindow.dates.join('|'),today])
  const itineraryItemWeatherPlans=useMemo(()=>agendaItemWeatherPlans(sorted,routeWeatherWindow.dates,today),[sorted,routeWeatherWindow.dates.join('|'),today])
- const agendaWeatherByDate=useMemo(()=>{const plans=new Map<string,WeatherDayPlan[]>();for(const plan of [...itineraryItemWeatherPlans,...itineraryWeatherPlans])plans.set(plan.agendaDate,dedupeWeatherPlans([...(plans.get(plan.agendaDate)||[]),plan]));return plans},[itineraryWeatherPlans,itineraryItemWeatherPlans])
+ const agendaWeatherByDate=useMemo(()=>groupAgendaWeatherPlans(itineraryWeatherPlans,itineraryItemWeatherPlans),[itineraryWeatherPlans,itineraryItemWeatherPlans])
  const itemWeatherById=useMemo(()=>{const plans=new Map<string,WeatherDayPlan[]>();for(const plan of itineraryItemWeatherPlans)plans.set(plan.itemId,[...(plans.get(plan.itemId)||[]),plan]);return plans},[itineraryItemWeatherPlans])
  const weatherRequestPlans=useMemo(()=>[...itineraryWeatherPlans,...itineraryItemWeatherPlans].filter(plan=>isWeatherAvailableDate(plan.date,today)),[itineraryWeatherPlans,itineraryItemWeatherPlans,today])
  const weatherForecasts=useWeatherForecasts(weatherRequestPlans,today,weatherEnabled,routeWeatherWindow.state==='completed'?0:Math.floor(now/(30*60*1000)))
