@@ -272,7 +272,7 @@ When the final trip is deleted, Waypoint creates a new empty local trip so the a
 
 Enable **Settings → Trip journal** to add **Journal** beside the itinerary filters. The capability is off by default; turning it off again hides journal controls without deleting existing entries. Journal entries are separate from scheduled itinerary items: they do not affect trip dates, routes, weather, conflicts, or calendar exports.
 
-- Every entry has a date and can contain text, photos, or both.
+- Every entry has a date and can contain Markdown text, photos, or both. Markdown is rendered in both the daily timeline and the Journal filter.
 - Several entries can be recorded for the same day.
 - An entry can optionally reference an itinerary item that occurs or spans that date.
 - Day headings in the itinerary show journal counts and provide a **+ Note** shortcut.

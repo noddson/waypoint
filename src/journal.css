@@ -17,9 +17,150 @@
 .journal-text {
   margin: 12px 0 0;
   color: #2f3d38;
+  font-size: 14px;
   line-height: 1.55;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
+}
+
+.journal-text > :first-child {
+  margin-top: 0;
+}
+
+.item .journal-text p {
+  margin: 0 0 10px;
+  color: inherit;
+  font-size: inherit;
+}
+
+.item .journal-text p:last-child,
+.journal-text > :last-child {
+  margin-bottom: 0;
+}
+
+.journal-heading {
+  margin: 16px 0 7px;
+  color: #29483e;
+  font-family: inherit;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.journal-heading-1 { font-size: 1.45em; }
+.journal-heading-2 { font-size: 1.3em; }
+.journal-heading-3 { font-size: 1.15em; }
+.journal-heading-4,
+.journal-heading-5,
+.journal-heading-6 { font-size: 1em; }
+
+.journal-text ul,
+.journal-text ol {
+  margin: 8px 0 12px;
+  padding-left: 24px;
+}
+
+.journal-text li + li {
+  margin-top: 3px;
+}
+
+.journal-text .task-list-item {
+  list-style: none;
+}
+
+.journal-text blockquote {
+  margin: 10px 0;
+  border-left: 3px solid #9bb9ae;
+  padding: 3px 0 3px 12px;
+  color: #587068;
+}
+
+.journal-text a {
+  color: #26694d;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.journal-text code {
+  border-radius: 4px;
+  padding: 1px 4px;
+  background: #e8eee9;
+  font: .9em/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.journal-text pre {
+  max-width: 100%;
+  margin: 10px 0;
+  border-radius: 7px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  background: #e8eee9;
+}
+
+.journal-text pre code {
+  padding: 0;
+  background: transparent;
+  white-space: pre;
+}
+
+.journal-text table {
+  display: block;
+  max-width: 100%;
+  margin: 10px 0;
+  border-collapse: collapse;
+  overflow-x: auto;
+}
+
+.journal-text th,
+.journal-text td {
+  border: 1px solid #cdd8d1;
+  padding: 5px 8px;
+  text-align: left;
+}
+
+.journal-text th {
+  background: #e8eee9;
+}
+
+.journal-image-alt {
+  color: #68746f;
+  font-style: italic;
+}
+
+.journal-text input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  margin: 0 6px 0 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  accent-color: #315f50;
+  vertical-align: -2px;
+}
+
+@media print {
+  .item.journal {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .journal-text pre,
+  .journal-text pre code {
+    overflow: visible;
+    white-space: pre-wrap;
+  }
+
+  .journal-text table {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+    overflow: visible;
+  }
+
+  .journal-text th,
+  .journal-text td {
+    overflow-wrap: anywhere;
+  }
 }
 
 .journal-photo-grid {
