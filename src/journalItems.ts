@@ -48,22 +48,9 @@ export function copyRelatedDetailsToJournal(item:TripItem,related?:TripItem):Tri
   }
 }
 
-export function journalSnapshotForSave(item:TripItem,related:TripItem|undefined,updatedAt:string):TripItem {
-  const snapshot:TripItem={
-    id:item.id,
-    type:'journal',
-    title:item.title.trim(),
-    start:item.start,
-    end:item.end,
-    timeZone:item.timeZone,
-    location:item.location,
-    notes:item.notes?.trim()||undefined,
-    status:'planned',
-    relatedItemId:related?.type==='journal'?undefined:related?.id,
-    photos:[...(item.photos||[])],
-    createdAt:item.createdAt||updatedAt,
-    updatedAt,
-  }
-  if(item.allDay)snapshot.allDay=true
+export function journalSnapshotForSave(item:TripItem):TripItem {
+  const snapshot:TripItem={...item,title:item.title.trim()}
+  if(item.notes!==undefined)snapshot.notes=item.notes.trim()||undefined
+  if(item.photos!==undefined)snapshot.photos=[...item.photos]
   return snapshot
 }

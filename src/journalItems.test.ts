@@ -18,8 +18,13 @@ describe('journal itinerary items',()=>{
     const linked=copyRelatedDetailsToJournal(journal,{...itineraryItem,allDay:true})
     expect(linked).toMatchObject({relatedItemId:itineraryItem.id,start:itineraryItem.start,end:itineraryItem.end,timeZone:itineraryItem.timeZone,location:itineraryItem.location,allDay:true})
     const edited={...linked,start:'2026-08-07T12:30',end:'2026-08-07T13:45',timeZone:'America/Winnipeg',location:'The Forks',allDay:false}
-    const changedItinerary={...itineraryItem,start:'2026-08-07T10:05',location:'Toronto Pearson'}
-    expect(journalSnapshotForSave(edited,changedItinerary,'2026-08-08T01:00:00Z')).toMatchObject({relatedItemId:changedItinerary.id,start:'2026-08-07T12:30',end:'2026-08-07T13:45',timeZone:'America/Winnipeg',location:'The Forks',updatedAt:'2026-08-08T01:00:00Z'})
+    const withHiddenFields={...edited,endTimeZone:'America/Winnipeg',endLocation:'Hidden destination',provider:'Hidden provider'}
+    expect(journalSnapshotForSave(withHiddenFields)).toEqual(withHiddenFields)
+  })
+
+  it('does not synthesize optional journal fields that were absent',()=>{
+    const journal:TripItem={id:'journal-1',type:'journal',title:'Arrival',start:'2026-08-07T12:00',timeZone:'UTC',status:'planned'}
+    expect(journalSnapshotForSave(journal)).toEqual(journal)
   })
 
   it('removes only the relationship when a journal item is unlinked',()=>{

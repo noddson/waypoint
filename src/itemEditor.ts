@@ -1,6 +1,9 @@
-import { TripItem } from './types'
+import { ItemType, TripItem } from './types'
 
 export function itemFromEditor(item:TripItem):TripItem {
-  if(item.type!=='stay')return item
-  return {...item,endLocation:item.location||undefined}
+  return item
+}
+
+export function itemTypeForFilter(filter:ItemType|'all'):ItemType {
+  return filter==='all'?'event':filter
 }

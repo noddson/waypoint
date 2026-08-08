@@ -53,6 +53,8 @@ function normalizedItem(value:Record<string,unknown>,createId:()=>string):TripIt
   if(value.allDay!==undefined)item.allDay=value.allDay as boolean
   if(value.durationMinutes!==undefined)item.durationMinutes=value.durationMinutes as number
   if(Array.isArray(value.photos))item.photos=value.photos.map(photo=>({...photo as NonNullable<TripItem['photos']>[number],id:uid()}))
+  if(value.conflictOf!==undefined)item.conflictOf=value.conflictOf as string
+  if(value.conflictSource!==undefined)item.conflictSource=value.conflictSource as NonNullable<TripItem['conflictSource']>
   return item
 }
 

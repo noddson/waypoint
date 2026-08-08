@@ -44,4 +44,10 @@ describe('item JSON',()=>{
     const result=parseTripItemsJson(JSON.stringify([{...event,id:'event-copy'},{...event,id:'journal-copy',type:'journal',title:'Visit notes',relatedItemId:'event-copy'}]),()=>`fresh-${++nextId}`)
     expect(result.ok&&result.items).toMatchObject([{id:'fresh-1'},{id:'fresh-2',relatedItemId:'fresh-1'}])
   })
+
+  it('preserves optional schema fields regardless of whether the type exposes them in the form',()=>{
+    const source={...event,type:'insurance' as const,end:'2026-08-04T11:00',endTimeZone:'Europe/London',location:'Hidden start',endLocation:'Hidden end',provider:'Provider',relatedItemId:'related-1',conflictOf:'original-1',conflictSource:'drive' as const}
+    const result=parseTripItemsJson(JSON.stringify(source),()=> 'fresh-id')
+    expect(result.ok&&result.items[0]).toEqual({...source,id:'fresh-id'})
+  })
 })
