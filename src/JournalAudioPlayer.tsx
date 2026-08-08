@@ -4,6 +4,7 @@ import { loadDriveJournalAudio } from './googleDrive'
 import { languageMetadata, LanguageCode, uiText } from './i18n'
 import { formatPhotoSize } from './JournalPhotoViewer'
 import { JournalAudio } from './types'
+import circleArrowIcon from './assets/circle-arrow-6756677.svg'
 
 type AudioDescriptor = Pick<JournalAudio,'name'|'mimeType'|'size'>
 
@@ -19,6 +20,10 @@ export function audioTimeAfterSkip(current:number,duration:number,seconds:number
 }
 
 const stopPlayerEvent = (event:MouseEvent) => event.stopPropagation()
+
+function AudioSkipIcon({direction}:{direction:'back'|'forward'}) {
+  return <span className={`audio-skip-icon ${direction}`} aria-hidden="true"><img src={circleArrowIcon} alt=""/><small>15</small></span>
+}
 
 function AudioPlayer({audio,url,loading,failed,language,onClose}:{audio:AudioDescriptor;url:string;loading:boolean;failed:boolean;language:LanguageCode;onClose:()=>void}) {
   const titleId=useId(),audioRef=useRef<HTMLAudioElement>(null),closeRef=useRef<HTMLButtonElement>(null)
@@ -62,9 +67,9 @@ function AudioPlayer({audio,url,loading,failed,language,onClose}:{audio:AudioDes
       {url&&<audio ref={audioRef} src={url} preload="metadata" onLoadedMetadata={event=>{const length=event.currentTarget.duration;setDuration(Number.isFinite(length)?length:0)}} onDurationChange={event=>{const length=event.currentTarget.duration;setDuration(Number.isFinite(length)?length:0)}} onTimeUpdate={event=>setCurrentTime(event.currentTarget.currentTime)} onPlay={()=>setPlaying(true)} onPause={()=>setPlaying(false)} onEnded={()=>setPlaying(false)} onError={()=>setPlaybackFailed(true)}/>}
       <div className="audio-player-timeline"><input type="range" min="0" max={duration||0} step="0.1" value={Math.min(currentTime,duration||0)} disabled={!url||unavailable||!duration} aria-label={t('Audio position')} onChange={event=>seek(Number(event.target.value))}/><div><span>{formatAudioTime(currentTime)}</span><span>{formatAudioTime(duration)}</span></div></div>
       <div className="audio-player-controls">
-        <button type="button" aria-label={t('Rewind 15 seconds')} title={t('Rewind 15 seconds')} disabled={!url||unavailable} onClick={()=>skip(-15)}><span aria-hidden="true">↶</span><small>15</small></button>
+        <button type="button" aria-label={t('Rewind 15 seconds')} title={t('Rewind 15 seconds')} disabled={!url||unavailable} onClick={()=>skip(-15)}><AudioSkipIcon direction="back"/></button>
         <button type="button" className="audio-play-pause" aria-label={t(playing?'Pause':'Play')} title={t(playing?'Pause':'Play')} disabled={!url||unavailable} onClick={togglePlayback}><span aria-hidden="true">{playing?'Ⅱ':'▶'}</span></button>
-        <button type="button" aria-label={t('Skip 15 seconds')} title={t('Skip 15 seconds')} disabled={!url||unavailable} onClick={()=>skip(15)}><span aria-hidden="true">↷</span><small>15</small></button>
+        <button type="button" aria-label={t('Skip 15 seconds')} title={t('Skip 15 seconds')} disabled={!url||unavailable} onClick={()=>skip(15)}><AudioSkipIcon direction="forward"/></button>
       </div>
       <p className={`audio-player-status${unavailable?' error':''}`} role="status">{loading?t('Loading audio…'):unavailable?t('Audio unavailable'):playing?t('Playing'):t('Paused')}</p>
     </section>
@@ -72,8 +77,8 @@ function AudioPlayer({audio,url,loading,failed,language,onClose}:{audio:AudioDes
 }
 
 function AudioTrigger({audio,language,onOpen}:{audio:AudioDescriptor;language:LanguageCode;onOpen:()=>void}) {
-  const t=(value:string)=>uiText(value,language),locale=languageMetadata[language].locale
-  return <button type="button" className="journal-audio-trigger" aria-label={`${t('Play audio')}: ${audio.name}`} onClick={event=>{event.stopPropagation();onOpen()}} onDoubleClick={stopPlayerEvent}><span className="journal-audio-icon" aria-hidden="true">♪</span><span><strong>{audio.name}</strong><small>{formatPhotoSize(audio.size,locale)}</small></span><span className="journal-audio-action" aria-hidden="true">▶</span></button>
+  const locale=languageMetadata[language].locale
+  return <button type="button" className="journal-audio-trigger" onClick={event=>{event.stopPropagation();onOpen()}} onDoubleClick={stopPlayerEvent}><span className="journal-audio-icon" aria-hidden="true">♪</span><span><strong>{audio.name}</strong><small>{formatPhotoSize(audio.size,locale)}</small></span></button>
 }
 
 export function DriveJournalAudio({audio,connected,language}:{audio:JournalAudio;connected:boolean;language:LanguageCode}) {

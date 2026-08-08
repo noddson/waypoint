@@ -4,6 +4,7 @@ import { mergeTripVersions } from './tripMerge'
 import { compareTripDateSummaries, tripFirstTravelDate, tripLastTravelDate } from './tripOrder'
 import { tripCalendarFilename } from './calendarExport'
 import { hasIncomingDriveUpdates } from './driveSync'
+import { audioMimeType } from './audioFiles'
 
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 const DRIVE_API = 'https://www.googleapis.com/drive/v3'
@@ -338,25 +339,25 @@ async function ensureJournalMediaFolder(record:DriveSyncRecord,trip:Trip) {
 
 type JournalMediaKind='photo'|'audio'
 type UploadedJournalMedia={id:string;resourceKey?:string;name?:string;mimeType?:string;size?:string|number}
-const journalMediaMetadata = (kind:JournalMediaKind,trip:Trip,entryId:string,attachmentId:string,file:File,parentId:string) => ({name:driveSafeName(file.name,kind),mimeType:file.type||'application/octet-stream',parents:[parentId],appProperties:{waypoint:`journal-${kind}`,tripId:trip.id,journalEntryId:entryId,attachmentId}})
-const journalMediaFromDrive = (attachmentId:string,file:File,createdAt:string,uploaded:UploadedJournalMedia):JournalPhoto|JournalAudio => ({id:attachmentId,driveFileId:uploaded.id,resourceKey:uploaded.resourceKey,name:uploaded.name||file.name,mimeType:uploaded.mimeType||file.type||'application/octet-stream',size:Number(uploaded.size??file.size),createdAt})
+const journalMediaMetadata = (kind:JournalMediaKind,trip:Trip,entryId:string,attachmentId:string,file:File,mimeType:string,parentId:string) => ({name:driveSafeName(file.name,kind),mimeType,parents:[parentId],appProperties:{waypoint:`journal-${kind}`,tripId:trip.id,journalEntryId:entryId,attachmentId}})
+const journalMediaFromDrive = (attachmentId:string,file:File,mimeType:string,createdAt:string,uploaded:UploadedJournalMedia):JournalPhoto|JournalAudio => ({id:attachmentId,driveFileId:uploaded.id,resourceKey:uploaded.resourceKey,name:uploaded.name||file.name,mimeType:uploaded.mimeType||mimeType,size:Number(uploaded.size??file.size),createdAt})
 
 async function uploadDriveJournalMedia(record:DriveSyncRecord,trip:Trip,entryId:string,file:File,kind:JournalMediaKind):Promise<{record:DriveSyncRecord;media:JournalPhoto|JournalAudio}> {
-  const expectedType=kind==='photo'?'image/':'audio/'
-  if(!file.type.startsWith(expectedType))throw new Error(kind==='photo'?'Choose an image file to add to the journal.':'Choose an audio file to add to the journal.')
-  const {record:structured,folder}=await ensureJournalMediaFolder(record,trip),attachmentId=crypto.randomUUID(),createdAt=new Date().toISOString(),metadata=journalMediaMetadata(kind,trip,entryId,attachmentId,file,folder.id)
+  const mimeType=kind==='photo'&&file.type.startsWith('image/')?file.type:kind==='audio'?audioMimeType(file):undefined
+  if(!mimeType)throw new Error(kind==='photo'?'Choose an image file to add to the journal.':'Choose an audio file to add to the journal.')
+  const {record:structured,folder}=await ensureJournalMediaFolder(record,trip),attachmentId=crypto.randomUUID(),createdAt=new Date().toISOString(),metadata=journalMediaMetadata(kind,trip,entryId,attachmentId,file,mimeType,folder.id)
   let uploaded:{id:string;resourceKey?:string;name?:string;mimeType?:string;size?:string|number}
   if(file.size<=5*1024*1024){
     const boundary=`waypoint-${kind}-${crypto.randomUUID()}`
-    const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${file.type||'application/octet-stream'}\r\n\r\n`,file,`\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
+    const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`,file,`\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
     uploaded=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey,name,mimeType,size`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as typeof uploaded
   }else{
-    const session=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=resumable&fields=id,resourceKey,name,mimeType,size`,{method:'POST',headers:{'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':file.type||'application/octet-stream','X-Upload-Content-Length':String(file.size)},body:JSON.stringify(metadata)})
+    const session=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=resumable&fields=id,resourceKey,name,mimeType,size`,{method:'POST',headers:{'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':mimeType,'X-Upload-Content-Length':String(file.size)},body:JSON.stringify(metadata)})
     const location=session.headers.get('Location')
     if(!location)throw new Error(`Google Drive did not provide a resumable ${kind}-upload URL.`)
-    uploaded=await driveFetch(location,{method:'PUT',headers:{'Content-Type':file.type||'application/octet-stream'},body:file}).then(response=>response.json()) as typeof uploaded
+    uploaded=await driveFetch(location,{method:'PUT',headers:{'Content-Type':mimeType},body:file}).then(response=>response.json()) as typeof uploaded
   }
-  return {record:structured,media:journalMediaFromDrive(attachmentId,file,createdAt,uploaded)}
+  return {record:structured,media:journalMediaFromDrive(attachmentId,file,mimeType,createdAt,uploaded)}
 }
 
 export async function uploadDriveJournalPhoto(record:DriveSyncRecord,trip:Trip,entryId:string,file:File):Promise<{record:DriveSyncRecord;photo:JournalPhoto}> {

@@ -295,6 +295,22 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
     expect(await uploadBody.text()).toContain('"waypoint":"journal-audio"')
   })
 
+  it('uploads an iOS m4a file when its MIME type is missing',async()=>{
+    replies.push(
+      {body:{files:[]}},
+      {body:{id:'media-folder',resourceKey:'media-key'}},
+      {body:{id:'audio-file',resourceKey:'audio-key',name:'Voice Memo.m4a',mimeType:'audio/x-m4a',size:'5'}},
+    )
+    const {uploadDriveJournalAudio}=await import('./googleDrive')
+    const record={tripId:trip.id,fileId:'file-1',tripFolderId:'trip-folder-1',tripFolderName:trip.name,calendarStorageMigrated:true,ownedByMe:true,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:trip.updatedAt}
+    const file=new File(['audio'],'Voice Memo.m4a')
+    const result=await uploadDriveJournalAudio(record,trip,'entry-1',file)
+
+    expect(result.audio).toMatchObject({driveFileId:'audio-file',mimeType:'audio/x-m4a'})
+    const uploadBody=fetchMock.mock.calls[2][1]?.body as Blob
+    expect(await uploadBody.text()).toContain('Content-Type: audio/x-m4a')
+  })
+
   it('loads available EXIF photo details without downloading the image again',async()=>{
     replies.push({body:{id:'photo-file',name:'arrival.jpg',mimeType:'image/jpeg',size:'4',imageMediaMetadata:{time:'2026:07:18 14:35:12',width:4032,height:3024,cameraMake:'Canon',cameraModel:'EOS R6',location:{latitude:53.3498,longitude:-6.2603,altitude:17}}}})
     const {loadDriveJournalPhotoMetadata}=await import('./googleDrive')

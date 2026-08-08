@@ -280,7 +280,7 @@ Enable **Settings → Trip journal** to add **Journal** beside the itinerary fil
 - Photos and audio require Google Drive and remain external files referenced by the itinerary manifest. Audio opens in a focused player with play/pause, 15-second rewind and skip controls, and a timeline scrubber.
 - Archived trips are fully read-only; unarchive a trip before changing its journal.
 
-Media data is not embedded in JSON exports or snapshot links. Those formats retain only attachment descriptors, so a viewer must independently have access to the original Drive files. Disconnecting Drive leaves journal text readable but requires reconnection to display photos or play audio.
+Media data is not embedded in JSON exports. Exports retain attachment descriptors, so a viewer must independently have access to the original Drive files. Static snapshot links omit photo and audio references entirely because they cannot load Drive media. Disconnecting Drive leaves journal text readable but requires reconnection to display photos or play audio.
 
 ## Trip item types and fields
 
@@ -538,6 +538,7 @@ Choose **Share snapshot** to generate a read-only URL containing a compressed or
 - The snapshot does not update when the original trip changes.
 - It does not require Google Drive.
 - The recipient can view and export the contained trip.
+- Photo and audio references are omitted because static snapshots cannot load Drive media.
 - The URL itself contains the itinerary data and should be treated as sensitive.
 - Browser history, clipboard history, browser synchronization, extensions, screenshots, and anyone receiving the URL can retain the snapshot.
 
