@@ -2,6 +2,12 @@
 
 This history summarizes the repository's product changes, newest first. Timestamps are the recorded Git committer timestamps and retain their original UTC offset.
 
+# August 8, 2026
+
+## Centralize public calendar storage
+
+Kept each authoritative itinerary JSON and its collected journal photos within the trip's Google Drive folder, while moving every published `.ics` feed into a public read-only **Published Calendars** folder directly under **Waypoint travel planner**. Owner synchronization now migrates existing feeds without changing their file IDs or subscription URLs and moves obsolete per-trip published-calendar folders to Drive trash.
+
 # August 7, 2026
 
 ## Unify journal entries with itinerary items

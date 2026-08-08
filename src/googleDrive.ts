@@ -9,7 +9,7 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
 const DRIVE_API = 'https://www.googleapis.com/drive/v3'
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3'
 const FOLDER_NAME = 'Waypoint travel planner'
-const PUBLISHED_CALENDARS_FOLDER_NAME = 'Published calendars'
+const PUBLISHED_CALENDARS_FOLDER_NAME = 'Published Calendars'
 const JOURNAL_MEDIA_FOLDER_NAME = 'journal-media'
 const SYNC_STORAGE_KEY = 'waypoint-drive-sync'
 const TOKEN_STORAGE_KEY = 'waypoint-drive-session'
@@ -32,6 +32,7 @@ export interface DriveSyncRecord {
   tripFolderId?: string
   tripFolderResourceKey?: string
   tripFolderName?: string
+  calendarStorageMigrated?: boolean
   journalMediaFolderId?: string
   journalMediaFolderResourceKey?: string
   version?: string
@@ -173,22 +174,26 @@ async function findOrCreateFolder() {
   return created.id
 }
 
-type DriveFolder = {id:string;resourceKey?:string;inheritedPermissionsDisabled?:boolean;capabilities?:{canDisableInheritedPermissions?:boolean}}
+type DriveFolder = {id:string;name?:string;resourceKey?:string}
 const driveSafeName = (value:string,fallback:string) => value.replace(/[\\/:*?"<>|]+/g,'-').trim()||fallback
 const appPropertyQuery = (key:string,value:string) => `appProperties has { key='${key.replace(/'/g,"\\'")}' and value='${value.replace(/'/g,"\\'")}' }`
 
-async function findAppFolder(parentId:string,waypoint:string,tripId?:string):Promise<DriveFolder|undefined> {
+async function findAppFolders(parentId:string,waypoint:string,tripId?:string):Promise<DriveFolder[]> {
   const clauses=[`'${parentId.replace(/'/g,"\\'")}' in parents`,`mimeType='application/vnd.google-apps.folder'`,appPropertyQuery('waypoint',waypoint),'trashed=false']
   if(tripId)clauses.push(appPropertyQuery('tripId',tripId))
-  const query=new URLSearchParams({q:clauses.join(' and '),spaces:'drive',pageSize:'10',fields:'files(id,resourceKey,inheritedPermissionsDisabled,capabilities(canDisableInheritedPermissions))'})
+  const query=new URLSearchParams({q:clauses.join(' and '),spaces:'drive',pageSize:'10',fields:'files(id,name,resourceKey)'})
   const result=await driveFetch(`${DRIVE_API}/files?${query}`).then(response=>response.json()) as {files?:DriveFolder[]}
-  return result.files?.[0]
+  return result.files||[]
+}
+
+async function findAppFolder(parentId:string,waypoint:string,tripId?:string):Promise<DriveFolder|undefined> {
+  return (await findAppFolders(parentId,waypoint,tripId))[0]
 }
 
 async function createAppFolder(parentId:string,name:string,waypoint:string,tripId?:string):Promise<DriveFolder> {
   const appProperties:Record<string,string>={waypoint}
   if(tripId)appProperties.tripId=tripId
-  return driveFetch(`${DRIVE_API}/files?fields=id,resourceKey,inheritedPermissionsDisabled,capabilities(canDisableInheritedPermissions)`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,mimeType:'application/vnd.google-apps.folder',parents:[parentId],appProperties})}).then(response=>response.json()) as Promise<DriveFolder>
+  return driveFetch(`${DRIVE_API}/files?fields=id,name,resourceKey`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,mimeType:'application/vnd.google-apps.folder',parents:[parentId],appProperties})}).then(response=>response.json()) as Promise<DriveFolder>
 }
 
 async function findOrCreateTripFolder(trip:Trip):Promise<DriveFolder> {
@@ -198,22 +203,24 @@ async function findOrCreateTripFolder(trip:Trip):Promise<DriveFolder> {
 
 async function findOrCreatePublishedCalendarsFolder():Promise<DriveFolder> {
   const rootId=await findOrCreateFolder()
-  return await findAppFolder(rootId,'published-calendars')||await createAppFolder(rootId,PUBLISHED_CALENDARS_FOLDER_NAME,'published-calendars')
+  let folder=await findAppFolder(rootId,'published-calendars')
+  if(!folder)folder=await createAppFolder(rootId,PUBLISHED_CALENDARS_FOLDER_NAME,'published-calendars')
+  else if(folder.name!==PUBLISHED_CALENDARS_FOLDER_NAME){
+    folder=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(folder.id)}?fields=id,name,resourceKey`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(folder.id,folder.resourceKey)},body:JSON.stringify({name:PUBLISHED_CALENDARS_FOLDER_NAME})}).then(response=>response.json()) as DriveFolder
+  }
+  await ensureFolderPublicReadOnly(folder)
+  return folder
 }
 
-async function ensureLimitedCalendarFolder(trip:Trip,record?:Pick<DriveSyncRecord,'tripFolderId'>):Promise<DriveFolder> {
-  if(record?.tripFolderId){
-    const existing=await findAppFolder(record.tripFolderId,'published-calendar',trip.id)
-    if(existing?.inheritedPermissionsDisabled)return existing
-    const candidate=existing||await createAppFolder(record.tripFolderId,'published-calendar','published-calendar',trip.id)
-    if(candidate.capabilities?.canDisableInheritedPermissions){
-      try{
-        return await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(candidate.id)}?fields=id,resourceKey,inheritedPermissionsDisabled,capabilities(canDisableInheritedPermissions)`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({inheritedPermissionsDisabled:true})}).then(response=>response.json()) as DriveFolder
-      }catch{/* Fall through to the separately permissioned published-calendar area. */}
-    }
-    try{await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(candidate.id)}?fields=id,trashed`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({trashed:true})})}catch{/* An unused folder is harmless if Drive refuses cleanup. */}
+async function ensureFolderPublicReadOnly(folder:DriveFolder) {
+  const query=new URLSearchParams({fields:'permissions(id,type,role)'})
+  const result=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(folder.id)}/permissions?${query}`,{headers:resourceKeyHeaders(folder.id,folder.resourceKey)}).then(response=>response.json()) as {permissions?:Array<{id:string;type:string;role:string}>}
+  const publicPermission=result.permissions?.find(permission=>permission.type==='anyone')
+  if(!publicPermission){
+    await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(folder.id)}/permissions?sendNotificationEmail=false`,{method:'POST',headers:{'Content-Type':'application/json',...resourceKeyHeaders(folder.id,folder.resourceKey)},body:JSON.stringify({type:'anyone',role:'reader',allowFileDiscovery:false})})
+  }else if(publicPermission.role!=='reader'){
+    await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(folder.id)}/permissions/${encodeURIComponent(publicPermission.id)}?fields=id,role`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(folder.id,folder.resourceKey)},body:JSON.stringify({role:'reader'})})
   }
-  return findOrCreatePublishedCalendarsFolder()
 }
 
 async function moveDriveFile(fileId:string,parentId:string,resourceKey?:string) {
@@ -243,11 +250,20 @@ async function calendarFileDetails(fileId:string,resourceKey?:string):Promise<Dr
   return {fileId:file.id,resourceKey:file.resourceKey||resourceKey,webContentLink:file.webContentLink,modifiedTime:file.modifiedTime}
 }
 
-async function ensureCalendarReadOnlySharing(fileId:string,resourceKey?:string) {
-  const query=new URLSearchParams({fields:'permissions(id,type,role)'})
-  const result=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}/permissions?${query}`,{headers:resourceKeyHeaders(fileId,resourceKey)}).then(response=>response.json()) as {permissions?:Array<{type:string;role:string}>}
-  if(result.permissions?.some(permission=>permission.type==='anyone'&&permission.role==='reader'))return
-  await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}/permissions?sendNotificationEmail=false`,{method:'POST',headers:{'Content-Type':'application/json',...resourceKeyHeaders(fileId,resourceKey)},body:JSON.stringify({type:'anyone',role:'reader',allowFileDiscovery:false})})
+async function removeTripPublishedCalendarFolders(tripFolderId:string,tripId:string) {
+  const folders=await findAppFolders(tripFolderId,'published-calendar',tripId)
+  for(const folder of folders){
+    await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(folder.id)}?fields=id,trashed`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(folder.id,folder.resourceKey)},body:JSON.stringify({trashed:true})})
+  }
+}
+
+async function migratePublishedCalendarStorage(trip:Trip,tripFolderId:string) {
+  const subscription=await findDriveCalendarSubscription(trip.id)
+  if(subscription){
+    const folder=await findOrCreatePublishedCalendarsFolder()
+    await moveDriveFile(subscription.fileId,folder.id,subscription.resourceKey)
+  }
+  await removeTripPublishedCalendarFolders(tripFolderId,trip.id)
 }
 
 async function uploadCalendarFile(subscription:Pick<DriveCalendarSubscription,'fileId'|'resourceKey'>,trip:Trip,calendar:string) {
@@ -259,21 +275,30 @@ async function uploadCalendarFile(subscription:Pick<DriveCalendarSubscription,'f
 }
 
 export async function publishDriveCalendarSubscription(trip:Trip,calendar:string,record?:Pick<DriveSyncRecord,'tripFolderId'>):Promise<DriveCalendarSubscription> {
+  const structured=record||getDriveSyncRecord(trip.id),folder=await findOrCreatePublishedCalendarsFolder()
   let subscription=await findDriveCalendarSubscription(trip.id)
   if(!subscription){
-    const folder=await ensureLimitedCalendarFolder(trip,record||getDriveSyncRecord(trip.id)),boundary=`waypoint-calendar-${crypto.randomUUID()}`
+    const boundary=`waypoint-calendar-${crypto.randomUUID()}`
     const metadata={name:tripCalendarFilename(trip),mimeType:'text/calendar',parents:[folder.id],appProperties:{waypoint:'calendar',tripId:trip.id}}
     const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: text/calendar; charset=UTF-8\r\n\r\n${calendar}\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
     const file=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as {id:string;resourceKey?:string}
     subscription=await calendarFileDetails(file.id,file.resourceKey)
-  }else subscription=await uploadCalendarFile(subscription,trip,calendar)
-  await ensureCalendarReadOnlySharing(subscription.fileId,subscription.resourceKey)
+  }else{
+    await moveDriveFile(subscription.fileId,folder.id,subscription.resourceKey)
+    subscription=await uploadCalendarFile(subscription,trip,calendar)
+  }
+  if(structured?.tripFolderId)await removeTripPublishedCalendarFolders(structured.tripFolderId,trip.id)
   return calendarFileDetails(subscription.fileId,subscription.resourceKey)
 }
 
 export async function refreshDriveCalendarSubscription(trip:Trip,calendar:string,knownSubscription?:DriveCalendarSubscription) {
   const subscription=knownSubscription||await findDriveCalendarSubscription(trip.id)
-  return subscription?uploadCalendarFile(subscription,trip,calendar):undefined
+  if(!subscription)return undefined
+  const folder=await findOrCreatePublishedCalendarsFolder()
+  await moveDriveFile(subscription.fileId,folder.id,subscription.resourceKey)
+  const refreshed=await uploadCalendarFile(subscription,trip,calendar),record=getDriveSyncRecord(trip.id)
+  if(record?.tripFolderId)await removeTripPublishedCalendarFolders(record.tripFolderId,trip.id)
+  return refreshed
 }
 
 async function ensureJournalMediaFolder(record:DriveSyncRecord,trip:Trip) {
@@ -337,7 +362,7 @@ export async function createDriveTrip(trip:Trip) {
   const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(tripExport(trip,revision))}\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
   const file=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey,headRevisionId`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as {id:string;resourceKey?:string;headRevisionId?:string}
   const details=await getDriveFileDetails(file.id,file.resourceKey)
-  let record:DriveSyncRecord={tripId:trip.id,fileId:file.id,ownedByMe:details.ownedByMe??true,resourceKey:details.resourceKey||file.resourceKey,tripFolderId:folder.id,tripFolderResourceKey:folder.resourceKey,tripFolderName:driveSafeName(trip.name,'Trip'),version:details.version,headRevisionId:details.headRevisionId,canReadRevisions:details.capabilities?.canReadRevisions,canDownload:details.capabilities?.canDownload,bootstrapRevisionId:file.headRevisionId||details.headRevisionId,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:new Date().toISOString(),driveModifiedTime:details.modifiedTime,revision,baseTrip:trip}
+  let record:DriveSyncRecord={tripId:trip.id,fileId:file.id,ownedByMe:details.ownedByMe??true,resourceKey:details.resourceKey||file.resourceKey,tripFolderId:folder.id,tripFolderResourceKey:folder.resourceKey,tripFolderName:driveSafeName(trip.name,'Trip'),calendarStorageMigrated:true,version:details.version,headRevisionId:details.headRevisionId,canReadRevisions:details.capabilities?.canReadRevisions,canDownload:details.capabilities?.canDownload,bootstrapRevisionId:file.headRevisionId||details.headRevisionId,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:new Date().toISOString(),driveModifiedTime:details.modifiedTime,revision,baseTrip:trip}
   record.permissions=await listDrivePermissions(record)
   const updated=await uploadDriveExport(record,tripExport(trip,revision,undefined,record),record.bootstrapRevisionId)
   record=synchronizedRecord(record,updated)
@@ -377,25 +402,26 @@ async function copyDrivePermissionsToFolder(record:DriveSyncRecord,folder:DriveF
 export async function ensureDriveTripStructure(record:DriveSyncRecord,trip:Trip):Promise<DriveSyncRecord> {
   const folderName=driveSafeName(trip.name,'Trip')
   if(record.tripFolderId){
+    let structured=record
     if(record.ownedByMe===true&&record.tripFolderName!==folderName){
-      try{await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.tripFolderId)}?fields=id,name`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.tripFolderId,record.tripFolderResourceKey)},body:JSON.stringify({name:folderName})});return saveDriveSyncRecord({...record,tripFolderName:folderName})}catch{/* Renaming organization must not block itinerary synchronization. */}
+      try{await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.tripFolderId)}?fields=id,name`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.tripFolderId,record.tripFolderResourceKey)},body:JSON.stringify({name:folderName})});structured={...structured,tripFolderName:folderName}}catch{/* Renaming organization must not block itinerary synchronization. */}
     }
-    return record
+    if(structured.ownedByMe===true&&structured.calendarStorageMigrated!==true){
+      await migratePublishedCalendarStorage(trip,record.tripFolderId)
+      structured={...structured,calendarStorageMigrated:true}
+    }
+    return structured===record?record:saveDriveSyncRecord(structured)
   }
   if(record.ownedByMe!==true)return record
   const folder=await findOrCreateTripFolder(trip)
   const {source,permissions}=await copyDrivePermissionsToFolder(record,folder)
   await moveDriveFile(record.fileId,folder.id,record.resourceKey)
-  const subscription=await findDriveCalendarSubscription(trip.id)
-  if(subscription){
-    const calendarFolder=await ensureLimitedCalendarFolder(trip,{tripFolderId:folder.id})
-    await moveDriveFile(subscription.fileId,calendarFolder.id,subscription.resourceKey)
-  }
+  await migratePublishedCalendarStorage(trip,folder.id)
   for(const permission of source){
     if(permission.role==='owner')continue
     try{await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}/permissions/${encodeURIComponent(permission.id)}`,{method:'DELETE',headers:resourceKeyHeaders(record.fileId,record.resourceKey)})}catch{/* Folder access is authoritative; a redundant direct permission can be cleaned up on a later migration pass. */}
   }
-  return saveDriveSyncRecord({...record,tripFolderId:folder.id,tripFolderResourceKey:folder.resourceKey,tripFolderName:folderName,permissions,shared:permissions.some(permission=>permission.role!=='owner')})
+  return saveDriveSyncRecord({...record,tripFolderId:folder.id,tripFolderResourceKey:folder.resourceKey,tripFolderName:folderName,calendarStorageMigrated:true,permissions,shared:permissions.some(permission=>permission.role!=='owner')})
 }
 
 export async function enableDriveTripSharing(record:DriveSyncRecord) {
