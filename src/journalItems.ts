@@ -35,11 +35,35 @@ export function migrateLegacyJournalEntries(trip:Trip):Trip {
   return {...current,items:[...trip.items,...migrated]}
 }
 
-export function resolveJournalItemRelations(items:TripItem[]):TripItem[] {
-  const itinerary=new Map(items.filter(item=>item.type!=='journal').map(item=>[item.id,item]))
-  return items.map(item=>{
-    if(item.type!=='journal'||!item.relatedItemId)return item
-    const related=itinerary.get(item.relatedItemId)
-    return related?{...item,start:related.start,end:related.end,timeZone:related.timeZone,location:related.location}:item
-  })
+export function copyRelatedDetailsToJournal(item:TripItem,related?:TripItem):TripItem {
+  if(!related||related.type==='journal')return {...item,relatedItemId:undefined}
+  return {
+    ...item,
+    relatedItemId:related.id,
+    start:related.start,
+    end:related.end,
+    timeZone:related.timeZone,
+    location:related.location,
+    allDay:related.allDay,
+  }
+}
+
+export function journalSnapshotForSave(item:TripItem,related:TripItem|undefined,updatedAt:string):TripItem {
+  const snapshot:TripItem={
+    id:item.id,
+    type:'journal',
+    title:item.title.trim(),
+    start:item.start,
+    end:item.end,
+    timeZone:item.timeZone,
+    location:item.location,
+    notes:item.notes?.trim()||undefined,
+    status:'planned',
+    relatedItemId:related?.type==='journal'?undefined:related?.id,
+    photos:[...(item.photos||[])],
+    createdAt:item.createdAt||updatedAt,
+    updatedAt,
+  }
+  if(item.allDay)snapshot.allDay=true
+  return snapshot
 }

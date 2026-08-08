@@ -45,6 +45,7 @@ describe('UI language selection',()=>{
 
   it('translates core interface copy and can switch from an existing translation',()=>{
     expect(uiText('Settings','de')).toBe('Einstellungen')
+    expect(uiText('End time zone','de')).toBe('Endzeitzone')
     expect(uiText('Settings','jp')).toBe('設定')
     expect(uiText('Einstellungen','fr')).toBe('Réglages')
   })

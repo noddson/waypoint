@@ -56,14 +56,13 @@
 }
 
 .item-modal-journal {
-  max-width: 720px;
+  max-width: 610px;
 }
 
-.journal-editor {
-  min-height: 210px;
+.item-modal-journal .journal-editor {
+  min-height: 360px;
 }
 
-.journal-inheritance-note,
 .journal-drive-note {
   margin: 0;
   color: #68746f;
