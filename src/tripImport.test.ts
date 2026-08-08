@@ -15,11 +15,11 @@ describe('Waypoint JSON validation', () => {
     expect(validTripExport(exportData())).toBe(true)
   })
 
-  it('accepts text and Drive-photo journal entries',()=>{
+  it('accepts text and Drive-media journal entries',()=>{
     const value=exportData()
     ;(value.trip as typeof value.trip&{journalEntries:unknown[]}).journalEntries=[
       {id:'entry-1',date:'2026-07-18',text:'Arrived in Dublin.',relatedItemId:'item-1',photos:[],createdAt:'2026-07-18T12:00:00.000Z',updatedAt:'2026-07-18T12:00:00.000Z'},
-      {id:'entry-2',date:'2026-07-19',photos:[{id:'photo-1',driveFileId:'drive-photo-1',resourceKey:'photo-key',name:'castle.jpg',mimeType:'image/jpeg',size:1234,createdAt:'2026-07-19T12:00:00.000Z'}],createdAt:'2026-07-19T12:00:00.000Z',updatedAt:'2026-07-19T12:00:00.000Z'},
+      {id:'entry-2',date:'2026-07-19',photos:[{id:'photo-1',driveFileId:'drive-photo-1',resourceKey:'photo-key',name:'castle.jpg',mimeType:'image/jpeg',size:1234,createdAt:'2026-07-19T12:00:00.000Z'}],audio:[{id:'audio-1',driveFileId:'drive-audio-1',resourceKey:'audio-key',name:'music.m4a',mimeType:'audio/mp4',size:4321,createdAt:'2026-07-19T12:01:00.000Z'}],createdAt:'2026-07-19T12:00:00.000Z',updatedAt:'2026-07-19T12:00:00.000Z'},
     ]
     expect(validTripExport(value)).toBe(true)
   })
@@ -31,6 +31,8 @@ describe('Waypoint JSON validation', () => {
     expect(validTripExport(malformed)).toBe(false)
     const duplicate=exportData();(duplicate.trip as typeof duplicate.trip&{journalEntries:unknown[]}).journalEntries=[{id:'entry-1',date:'2026-07-18',text:'Note',photos:[{id:'photo-1',driveFileId:'file-1',name:'a.jpg',mimeType:'image/jpeg',size:1,createdAt:'2026-07-18T12:00:00.000Z'},{id:'photo-1',driveFileId:'file-2',name:'b.jpg',mimeType:'image/jpeg',size:1,createdAt:'2026-07-18T12:00:00.000Z'}],createdAt:'2026-07-18T12:00:00.000Z',updatedAt:'2026-07-18T12:00:00.000Z'}]
     expect(validTripExport(duplicate)).toBe(false)
+    const wrongMime=exportData();(wrongMime.trip.items[0] as unknown as Record<string,unknown>)={...wrongMime.trip.items[0],type:'journal',audio:[{id:'audio-1',driveFileId:'drive-audio',name:'notes.txt',mimeType:'text/plain',size:20,createdAt:'2026-07-18T12:00:00.000Z'}]}
+    expect(validTripExport(wrongMime)).toBe(false)
   })
 
   it('accepts a linked public calendar subscription and rejects an unsafe URL',()=>{

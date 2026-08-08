@@ -4,6 +4,11 @@ const statuses:Status[] = ['confirmed','pending','planned']
 const object = (value:unknown): value is Record<string,unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const string = (value:unknown,max=12_000): value is string => typeof value === 'string' && value.length <= max
 const optionalString = (value:unknown,max?:number) => value === undefined || string(value,max)
+const validJournalAttachment = (value:unknown,ids:Set<string>,mimePrefix:'image/'|'audio/') => {
+  if(!object(value)||!string(value.id,200)||ids.has(value.id)||!string(value.driveFileId,500)||!optionalString(value.resourceKey,500)||!string(value.name,1_000)||!string(value.mimeType,200)||!value.mimeType.startsWith(mimePrefix)||!Number.isInteger(value.size)||Number(value.size)<0||!string(value.createdAt,100))return false
+  ids.add(value.id)
+  return true
+}
 
 export const safeHttpsLink = (value?:string) => {
   if(!value)return undefined
@@ -20,7 +25,7 @@ export function validTripExport(value:unknown): value is TripExport {
   }
   const trip=value.trip
   if(!string(trip.id,200)||!string(trip.name,300)||!string(trip.destination,500)||!string(trip.createdAt,100)||!string(trip.updatedAt,100)||!optionalString(trip.archivedAt,100)||!Array.isArray(trip.items)||trip.items.length>5000)return false
-  const ids=new Set<string>(),photoIds=new Set<string>()
+  const ids=new Set<string>(),attachmentIds=new Set<string>()
   const validItems=trip.items.every(raw=>{
     if(!object(raw)||!string(raw.id,200)||ids.has(raw.id)||!types.includes(raw.type as ItemType)||!string(raw.title,500)||!string(raw.start,50)||!string(raw.timeZone,100)||!statuses.includes(raw.status as Status))return false
     ids.add(raw.id)
@@ -31,11 +36,10 @@ export function validTripExport(value:unknown): value is TripExport {
     if(raw.allDay!==undefined&&typeof raw.allDay!=='boolean')return false
     if(raw.durationMinutes!==undefined&&(!Number.isInteger(raw.durationMinutes)||Number(raw.durationMinutes)<0))return false
     if(raw.conflictSource!==undefined&&raw.conflictSource!=='local'&&raw.conflictSource!=='drive')return false
-    if(raw.photos!==undefined){
-      if(raw.type!=='journal'||!Array.isArray(raw.photos)||raw.photos.length>500)return false
-      for(const photo of raw.photos){
-        if(!object(photo)||!string(photo.id,200)||photoIds.has(photo.id)||!string(photo.driveFileId,500)||!optionalString(photo.resourceKey,500)||!string(photo.name,1_000)||!string(photo.mimeType,200)||!Number.isInteger(photo.size)||Number(photo.size)<0||!string(photo.createdAt,100))return false
-        photoIds.add(photo.id)
+    for(const field of ['photos','audio'] as const){
+      if(raw[field]!==undefined){
+        if(raw.type!=='journal'||!Array.isArray(raw[field])||raw[field].length>500)return false
+        for(const attachment of raw[field])if(!validJournalAttachment(attachment,attachmentIds,field==='photos'?'image/':'audio/'))return false
       }
     }
     return true
@@ -45,14 +49,10 @@ export function validTripExport(value:unknown): value is TripExport {
   if(!Array.isArray(trip.journalEntries)||trip.journalEntries.length>5000)return false
   const entryIds=new Set<string>()
   return trip.journalEntries.every(raw=>{
-    if(!object(raw)||!string(raw.id,200)||entryIds.has(raw.id)||!string(raw.date,10)||!/^\d{4}-\d{2}-\d{2}$/.test(raw.date)||!optionalString(raw.text,50_000)||!optionalString(raw.relatedItemId,200)||!string(raw.createdAt,100)||!string(raw.updatedAt,100)||!Array.isArray(raw.photos)||raw.photos.length>500)return false
+    if(!object(raw)||!string(raw.id,200)||entryIds.has(raw.id)||!string(raw.date,10)||!/^\d{4}-\d{2}-\d{2}$/.test(raw.date)||!optionalString(raw.text,50_000)||!optionalString(raw.relatedItemId,200)||!string(raw.createdAt,100)||!string(raw.updatedAt,100)||!Array.isArray(raw.photos)||raw.photos.length>500||raw.audio!==undefined&&(!Array.isArray(raw.audio)||raw.audio.length>500))return false
     entryIds.add(raw.id)
-    if((!raw.text||!raw.text.trim())&&raw.photos.length===0)return false
+    if((!raw.text||!raw.text.trim())&&raw.photos.length===0&&(!Array.isArray(raw.audio)||raw.audio.length===0))return false
     if(!optionalString(raw.conflictOf,2_000)||raw.conflictSource!==undefined&&raw.conflictSource!=='local'&&raw.conflictSource!=='drive')return false
-    return raw.photos.every(photo=>{
-      if(!object(photo)||!string(photo.id,200)||photoIds.has(photo.id)||!string(photo.driveFileId,500)||!optionalString(photo.resourceKey,500)||!string(photo.name,1_000)||!string(photo.mimeType,200)||!Number.isInteger(photo.size)||Number(photo.size)<0||!string(photo.createdAt,100))return false
-      photoIds.add(photo.id)
-      return true
-    })
+    return raw.photos.every(attachment=>validJournalAttachment(attachment,attachmentIds,'image/'))&&(!Array.isArray(raw.audio)||raw.audio.every(attachment=>validJournalAttachment(attachment,attachmentIds,'audio/')))
   })
 }

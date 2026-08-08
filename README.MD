@@ -94,7 +94,7 @@ A trip can be downloaded once as an `.ics` file or published as a one-way Google
 | **Mobile** | Touch-oriented layout, day and entry swiping, landscape itinerary mode, mobile trip picker, fullscreen confirmation codes |
 | **Local-first behavior** | IndexedDB trip library, browser-stored settings, no Waypoint application backend |
 | **Updates** | Detects a newer deployed bundle and asks before reloading, avoiding interruption during an edit |
-| **Journal** | Dated text entries, optional itinerary-item links, and Google Drive-backed photos |
+| **Journal** | Dated text entries, optional itinerary-item links, and Google Drive-backed photos and audio |
 
 ## How the application works
 
@@ -272,15 +272,15 @@ When the final trip is deleted, Waypoint creates a new empty local trip so the a
 
 Enable **Settings → Trip journal** to add **Journal** beside the itinerary filters. The capability is off by default; turning it off again hides journal controls without deleting existing entries. Journal entries are separate from scheduled itinerary items: they do not affect trip dates, routes, weather, conflicts, or calendar exports.
 
-- Every entry has a date and can contain Markdown text, photos, or both. Markdown is rendered in both the daily timeline and the Journal filter.
+- Every entry has a date and can contain Markdown text, photos, audio, or any combination of them. Markdown is rendered in both the daily timeline and the Journal filter.
 - Several entries can be recorded for the same day.
 - An entry can optionally reference an itinerary item that occurs or spans that date.
 - Day headings in the itinerary show journal counts and provide a **+ Note** shortcut.
 - Text entries work locally without a cloud connection.
-- Photos require Google Drive and remain external files referenced by the itinerary manifest.
+- Photos and audio require Google Drive and remain external files referenced by the itinerary manifest. Audio opens in a focused player with play/pause, 15-second rewind and skip controls, and a timeline scrubber.
 - Archived trips are fully read-only; unarchive a trip before changing its journal.
 
-Photo data is not embedded in JSON exports or snapshot links. Those formats retain only photo descriptors, so a viewer must independently have access to the original Drive file. Disconnecting Drive leaves journal text readable but requires reconnection to display photos.
+Media data is not embedded in JSON exports or snapshot links. Those formats retain only attachment descriptors, so a viewer must independently have access to the original Drive files. Disconnecting Drive leaves journal text readable but requires reconnection to display photos or play audio.
 
 ## Trip item types and fields
 
@@ -472,13 +472,13 @@ Google Drive is optional. Without a configured Google OAuth client ID, all local
 
 ### Private synchronization
 
-Choose **Sync to Google Drive** to create a private folder for the trip under **Waypoint travel planner** in the current Google account. The folder contains the authoritative `.waypoint.json` itinerary and an on-demand `journal-media` folder for collected photos.
+Choose **Sync to Google Drive** to create a private folder for the trip under **Waypoint travel planner** in the current Google account. The folder contains the authoritative `.waypoint.json` itinerary and an on-demand `journal-media` folder for collected photos and audio.
 
-The trip folder is the collaboration boundary: the itinerary and journal-photo files inherit its permissions. Published `.ics` feeds are kept outside trip folders in the public read-only **Published Calendars** folder directly under **Waypoint travel planner**.
+The trip folder is the collaboration boundary: the itinerary and journal-media files inherit its permissions. Published `.ics` feeds are kept outside trip folders in the public read-only **Published Calendars** folder directly under **Waypoint travel planner**.
 
 Waypoint requests the narrow `https://www.googleapis.com/auth/drive.file` scope. This scope is intended for files created or opened by the application rather than unrestricted access to every Drive file.
 
-Owners of trips created with an earlier Drive layout are migrated lazily on their next synchronization. Waypoint creates or retains the trip folder, transfers its sharing permissions, keeps the itinerary and media there, moves existing calendar files into **Published Calendars** without changing their file IDs, removes obsolete published-calendar folders from the trip, and removes redundant itinerary file permissions. Existing live links and subscription URLs therefore remain valid. Collaborators can continue opening an unmigrated trip, but its owner must synchronize once before journal-photo uploads become available.
+Owners of trips created with an earlier Drive layout are migrated lazily on their next synchronization. Waypoint creates or retains the trip folder, transfers its sharing permissions, keeps the itinerary and media there, moves existing calendar files into **Published Calendars** without changing their file IDs, removes obsolete published-calendar folders from the trip, and removes redundant itinerary file permissions. Existing live links and subscription URLs therefore remain valid. Collaborators can continue opening an unmigrated trip, but its owner must synchronize once before journal-media uploads become available.
 
 After synchronization:
 
@@ -555,7 +555,7 @@ Only use live sharing with people you trust, and revoke link access when collabo
 
 ### Delete synchronized data
 
-Deleting a synchronized trip attempts to move its trip folder and associated published `.ics` file to Google Drive trash. This includes journal photos stored under the trip folder. It does not permanently empty Drive trash.
+Deleting a synchronized trip attempts to move its trip folder and associated published `.ics` file to Google Drive trash. This includes journal photos and audio stored under the trip folder. It does not permanently empty Drive trash.
 
 ## Mobile experience
 

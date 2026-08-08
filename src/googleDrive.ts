@@ -1,4 +1,4 @@
-import { CalendarSubscriptionMetadata, DrivePermissionSnapshot, JournalPhoto, SCHEMA_VERSION, Trip, TripExport, sortTripItems } from './types'
+import { CalendarSubscriptionMetadata, DrivePermissionSnapshot, JournalAudio, JournalPhoto, SCHEMA_VERSION, Trip, TripExport, sortTripItems } from './types'
 import { migrateLegacyJournalEntries } from './journalItems'
 import { mergeTripVersions } from './tripMerge'
 import { compareTripDateSummaries, tripFirstTravelDate, tripLastTravelDate } from './tripOrder'
@@ -329,36 +329,52 @@ export async function refreshDriveCalendarSubscription(trip:Trip,calendar:string
 
 async function ensureJournalMediaFolder(record:DriveSyncRecord,trip:Trip) {
   let structured=await ensureDriveTripStructure(record,trip)
-  if(!structured.tripFolderId)throw new Error('The Drive owner must open and synchronize this trip before collaborators can add photos.')
+  if(!structured.tripFolderId)throw new Error('The Drive owner must open and synchronize this trip before collaborators can add media.')
   if(structured.journalMediaFolderId)return {record:structured,folder:{id:structured.journalMediaFolderId,resourceKey:structured.journalMediaFolderResourceKey} as DriveFolder}
   const folder=await findAppFolder(structured.tripFolderId,'journal-media',trip.id)||await createAppFolder(structured.tripFolderId,JOURNAL_MEDIA_FOLDER_NAME,'journal-media',trip.id)
   structured=saveDriveSyncRecord({...structured,journalMediaFolderId:folder.id,journalMediaFolderResourceKey:folder.resourceKey})
   return {record:structured,folder}
 }
 
-const journalPhotoMetadata = (trip:Trip,entryId:string,attachmentId:string,file:File,parentId:string) => ({name:driveSafeName(file.name,'photo'),mimeType:file.type||'application/octet-stream',parents:[parentId],appProperties:{waypoint:'journal-photo',tripId:trip.id,journalEntryId:entryId,attachmentId}})
-const journalPhotoFromDrive = (attachmentId:string,file:File,createdAt:string,uploaded:{id:string;resourceKey?:string;name?:string;mimeType?:string;size?:string|number}):JournalPhoto => ({id:attachmentId,driveFileId:uploaded.id,resourceKey:uploaded.resourceKey,name:uploaded.name||file.name,mimeType:uploaded.mimeType||file.type||'application/octet-stream',size:Number(uploaded.size??file.size),createdAt})
+type JournalMediaKind='photo'|'audio'
+type UploadedJournalMedia={id:string;resourceKey?:string;name?:string;mimeType?:string;size?:string|number}
+const journalMediaMetadata = (kind:JournalMediaKind,trip:Trip,entryId:string,attachmentId:string,file:File,parentId:string) => ({name:driveSafeName(file.name,kind),mimeType:file.type||'application/octet-stream',parents:[parentId],appProperties:{waypoint:`journal-${kind}`,tripId:trip.id,journalEntryId:entryId,attachmentId}})
+const journalMediaFromDrive = (attachmentId:string,file:File,createdAt:string,uploaded:UploadedJournalMedia):JournalPhoto|JournalAudio => ({id:attachmentId,driveFileId:uploaded.id,resourceKey:uploaded.resourceKey,name:uploaded.name||file.name,mimeType:uploaded.mimeType||file.type||'application/octet-stream',size:Number(uploaded.size??file.size),createdAt})
 
-export async function uploadDriveJournalPhoto(record:DriveSyncRecord,trip:Trip,entryId:string,file:File):Promise<{record:DriveSyncRecord;photo:JournalPhoto}> {
-  if(!file.type.startsWith('image/'))throw new Error('Choose an image file to add to the journal.')
-  const {record:structured,folder}=await ensureJournalMediaFolder(record,trip),attachmentId=crypto.randomUUID(),createdAt=new Date().toISOString(),metadata=journalPhotoMetadata(trip,entryId,attachmentId,file,folder.id)
+async function uploadDriveJournalMedia(record:DriveSyncRecord,trip:Trip,entryId:string,file:File,kind:JournalMediaKind):Promise<{record:DriveSyncRecord;media:JournalPhoto|JournalAudio}> {
+  const expectedType=kind==='photo'?'image/':'audio/'
+  if(!file.type.startsWith(expectedType))throw new Error(kind==='photo'?'Choose an image file to add to the journal.':'Choose an audio file to add to the journal.')
+  const {record:structured,folder}=await ensureJournalMediaFolder(record,trip),attachmentId=crypto.randomUUID(),createdAt=new Date().toISOString(),metadata=journalMediaMetadata(kind,trip,entryId,attachmentId,file,folder.id)
   let uploaded:{id:string;resourceKey?:string;name?:string;mimeType?:string;size?:string|number}
   if(file.size<=5*1024*1024){
-    const boundary=`waypoint-photo-${crypto.randomUUID()}`
+    const boundary=`waypoint-${kind}-${crypto.randomUUID()}`
     const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${file.type||'application/octet-stream'}\r\n\r\n`,file,`\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
     uploaded=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey,name,mimeType,size`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as typeof uploaded
   }else{
     const session=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=resumable&fields=id,resourceKey,name,mimeType,size`,{method:'POST',headers:{'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':file.type||'application/octet-stream','X-Upload-Content-Length':String(file.size)},body:JSON.stringify(metadata)})
     const location=session.headers.get('Location')
-    if(!location)throw new Error('Google Drive did not provide a resumable photo-upload URL.')
+    if(!location)throw new Error(`Google Drive did not provide a resumable ${kind}-upload URL.`)
     uploaded=await driveFetch(location,{method:'PUT',headers:{'Content-Type':file.type||'application/octet-stream'},body:file}).then(response=>response.json()) as typeof uploaded
   }
-  return {record:structured,photo:journalPhotoFromDrive(attachmentId,file,createdAt,uploaded)}
+  return {record:structured,media:journalMediaFromDrive(attachmentId,file,createdAt,uploaded)}
 }
 
-export async function loadDriveJournalPhoto(photo:Pick<JournalPhoto,'driveFileId'|'resourceKey'>) {
-  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(photo.driveFileId)}?alt=media`,{headers:resourceKeyHeaders(photo.driveFileId,photo.resourceKey)}).then(response=>response.blob())
+export async function uploadDriveJournalPhoto(record:DriveSyncRecord,trip:Trip,entryId:string,file:File):Promise<{record:DriveSyncRecord;photo:JournalPhoto}> {
+  const result=await uploadDriveJournalMedia(record,trip,entryId,file,'photo')
+  return {record:result.record,photo:result.media}
 }
+
+export async function uploadDriveJournalAudio(record:DriveSyncRecord,trip:Trip,entryId:string,file:File):Promise<{record:DriveSyncRecord;audio:JournalAudio}> {
+  const result=await uploadDriveJournalMedia(record,trip,entryId,file,'audio')
+  return {record:result.record,audio:result.media}
+}
+
+async function loadDriveJournalMedia(media:Pick<JournalPhoto|JournalAudio,'driveFileId'|'resourceKey'>) {
+  return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(media.driveFileId)}?alt=media`,{headers:resourceKeyHeaders(media.driveFileId,media.resourceKey)}).then(response=>response.blob())
+}
+
+export const loadDriveJournalPhoto = loadDriveJournalMedia
+export const loadDriveJournalAudio = loadDriveJournalMedia
 
 export async function loadDriveJournalPhotoMetadata(photo:Pick<JournalPhoto,'driveFileId'|'resourceKey'>):Promise<DriveJournalPhotoMetadata> {
   const fields='id,name,mimeType,size,imageMediaMetadata(width,height,rotation,time,cameraMake,cameraModel,lens,exposureTime,aperture,focalLength,isoSpeed,exposureBias,location(latitude,longitude,altitude))'
@@ -366,9 +382,12 @@ export async function loadDriveJournalPhotoMetadata(photo:Pick<JournalPhoto,'dri
   return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(photo.driveFileId)}?${query}`,{headers:resourceKeyHeaders(photo.driveFileId,photo.resourceKey)}).then(response=>response.json()) as Promise<DriveJournalPhotoMetadata>
 }
 
-export async function trashDriveJournalPhoto(photo:Pick<JournalPhoto,'driveFileId'|'resourceKey'>) {
-  await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(photo.driveFileId)}?fields=id,trashed`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(photo.driveFileId,photo.resourceKey)},body:JSON.stringify({trashed:true})})
+async function trashDriveJournalMedia(media:Pick<JournalPhoto|JournalAudio,'driveFileId'|'resourceKey'>) {
+  await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(media.driveFileId)}?fields=id,trashed`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(media.driveFileId,media.resourceKey)},body:JSON.stringify({trashed:true})})
 }
+
+export const trashDriveJournalPhoto = trashDriveJournalMedia
+export const trashDriveJournalAudio = trashDriveJournalMedia
 
 const calendarSubscriptionMetadata = (subscription:DriveCalendarSubscription,linkedAt=new Date().toISOString()):CalendarSubscriptionMetadata => ({provider:'google-drive',format:'ics',mimeType:'text/calendar',access:'public-read-only',fileId:subscription.fileId,resourceKey:subscription.resourceKey,publicUrl:subscription.webContentLink,linkedAt})
 

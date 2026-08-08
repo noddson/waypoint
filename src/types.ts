@@ -5,10 +5,19 @@ export interface TripItem {
   id: string; type: ItemType; title: string; provider?: string; confirmation?: string
   start: string; end?: string; timeZone: string; endTimeZone?: string; location?: string; endLocation?: string
   notes?: string; link?: string; emailLink?: string; bookedBy?: string; status: Status; quantity?: string; flightNumber?: string; durationMinutes?: number; allDay?: boolean
-  relatedItemId?: string; photos?: JournalPhoto[]; createdAt?: string; updatedAt?: string
+  relatedItemId?: string; photos?: JournalPhoto[]; audio?: JournalAudio[]; createdAt?: string; updatedAt?: string
   conflictOf?: string; conflictSource?: 'local'|'drive'
 }
 export interface JournalPhoto {
+  id: string
+  driveFileId: string
+  resourceKey?: string
+  name: string
+  mimeType: string
+  size: number
+  createdAt: string
+}
+export interface JournalAudio {
   id: string
   driveFileId: string
   resourceKey?: string
@@ -23,6 +32,7 @@ export interface JournalEntry {
   text?: string
   relatedItemId?: string
   photos: JournalPhoto[]
+  audio?: JournalAudio[]
   createdAt: string
   updatedAt: string
   conflictOf?: string

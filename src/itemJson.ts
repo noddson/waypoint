@@ -25,12 +25,15 @@ function itemError(value:unknown,index:number) {
   if(value.emailLink!==undefined&&(!string(value.emailLink,4_000)||!safeHttpsLink(value.emailLink)))return `${prefix} emailLink must be a secure https:// URL.`
   if(value.allDay!==undefined&&typeof value.allDay!=='boolean')return `${prefix} allDay must be true or false.`
   if(value.durationMinutes!==undefined&&(!Number.isInteger(value.durationMinutes)||Number(value.durationMinutes)<0))return `${prefix} durationMinutes must be a non-negative whole number.`
-  if(value.photos!==undefined){
-    if(value.type!=='journal'||!Array.isArray(value.photos)||value.photos.length>500)return `${prefix} photos must be an array of up to 500 journal photo objects.`
-    const photoIds=new Set<string>()
-    for(const photo of value.photos){
-      if(!object(photo)||!string(photo.id,200)||photoIds.has(photo.id)||!string(photo.driveFileId,500)||!optionalString(photo.resourceKey,500)||!string(photo.name,1_000)||!string(photo.mimeType,200)||!Number.isInteger(photo.size)||Number(photo.size)<0||!string(photo.createdAt,100))return `${prefix} has invalid journal photo metadata.`
-      photoIds.add(photo.id)
+  for(const [field,label] of [['photos','photo'],['audio','audio']] as const){
+    const attachments=value[field]
+    if(attachments!==undefined){
+      if(value.type!=='journal'||!Array.isArray(attachments)||attachments.length>500)return `${prefix} ${field} must be an array of up to 500 journal ${label} objects.`
+      const attachmentIds=new Set<string>()
+      for(const attachment of attachments){
+        if(!object(attachment)||!string(attachment.id,200)||attachmentIds.has(attachment.id)||!string(attachment.driveFileId,500)||!optionalString(attachment.resourceKey,500)||!string(attachment.name,1_000)||!string(attachment.mimeType,200)||!attachment.mimeType.startsWith(field==='photos'?'image/':'audio/')||!Number.isInteger(attachment.size)||Number(attachment.size)<0||!string(attachment.createdAt,100))return `${prefix} has invalid journal ${label} metadata.`
+        attachmentIds.add(attachment.id)
+      }
     }
   }
   if(value.conflictOf!==undefined&&!string(value.conflictOf,2_000))return `${prefix} has an invalid conflictOf value.`
@@ -53,6 +56,7 @@ function normalizedItem(value:Record<string,unknown>,createId:()=>string):TripIt
   if(value.allDay!==undefined)item.allDay=value.allDay as boolean
   if(value.durationMinutes!==undefined)item.durationMinutes=value.durationMinutes as number
   if(Array.isArray(value.photos))item.photos=value.photos.map(photo=>({...photo as NonNullable<TripItem['photos']>[number],id:uid()}))
+  if(Array.isArray(value.audio))item.audio=value.audio.map(clip=>({...clip as NonNullable<TripItem['audio']>[number],id:uid()}))
   if(value.conflictOf!==undefined)item.conflictOf=value.conflictOf as string
   if(value.conflictSource!==undefined)item.conflictSource=value.conflictSource as NonNullable<TripItem['conflictSource']>
   return item

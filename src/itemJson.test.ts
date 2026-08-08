@@ -32,11 +32,13 @@ describe('item JSON',()=>{
     expect(formatTripItemJson({...event,id:'item-1'})).toBe(JSON.stringify({...event,id:'item-1'},null,2))
   })
 
-  it('supports journal relationship and photo metadata through the normal item JSON editor',()=>{
-    const journal={...event,type:'journal' as const,title:'Arrival notes',relatedItemId:'flight-1',notes:'Smooth landing.',photos:[{id:'copied-photo',driveFileId:'drive-photo',name:'arrival.jpg',mimeType:'image/jpeg',size:123,createdAt:'2026-08-04T10:05:00Z'}]}
+  it('supports journal relationship, photo, and audio metadata through the normal item JSON editor',()=>{
+    const journal={...event,type:'journal' as const,title:'Arrival notes',relatedItemId:'flight-1',notes:'Smooth landing.',photos:[{id:'copied-photo',driveFileId:'drive-photo',name:'arrival.jpg',mimeType:'image/jpeg',size:123,createdAt:'2026-08-04T10:05:00Z'}],audio:[{id:'copied-audio',driveFileId:'drive-audio',name:'arrival.m4a',mimeType:'audio/mp4',size:456,createdAt:'2026-08-04T10:06:00Z'}]}
     const result=parseTripItemsJson(JSON.stringify(journal),()=> 'fresh-id')
     expect(result.ok&&result.items[0]).toMatchObject({id:'fresh-id',type:'journal',relatedItemId:'flight-1',notes:'Smooth landing.',photos:[{driveFileId:'drive-photo'}]})
     expect(result.ok&&result.items[0].photos?.[0].id).not.toBe('copied-photo')
+    expect(result.ok&&result.items[0].audio?.[0]).toMatchObject({driveFileId:'drive-audio'})
+    expect(result.ok&&result.items[0].audio?.[0].id).not.toBe('copied-audio')
   })
 
   it('keeps journal associations intact when related items are pasted together',()=>{

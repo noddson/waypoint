@@ -6,11 +6,11 @@ const itineraryItem:TripItem={id:'flight-1',type:'flight',title:'Toronto to Winn
 const trip=(items:TripItem[]=[itineraryItem]):Trip=>({id:'trip-1',name:'Trip',destination:'Canada',createdAt:'2026-08-01T12:00:00Z',updatedAt:'2026-08-01T12:00:00Z',items})
 
 describe('journal itinerary items',()=>{
-  it('migrates legacy journal entries without losing notes, photos, or relationships',()=>{
-    const legacy={...trip(),journalEntries:[{id:'entry-1',date:'2026-08-07',text:'Arrived safely.',relatedItemId:'flight-1',photos:[{id:'photo-1',driveFileId:'drive-1',name:'arrival.jpg',mimeType:'image/jpeg',size:10,createdAt:'2026-08-07T12:00:00Z'}],createdAt:'2026-08-07T12:00:00Z',updatedAt:'2026-08-07T12:00:00Z'}]}
+  it('migrates legacy journal entries without losing notes, media, or relationships',()=>{
+    const legacy={...trip(),journalEntries:[{id:'entry-1',date:'2026-08-07',text:'Arrived safely.',relatedItemId:'flight-1',photos:[{id:'photo-1',driveFileId:'drive-1',name:'arrival.jpg',mimeType:'image/jpeg',size:10,createdAt:'2026-08-07T12:00:00Z'}],audio:[{id:'audio-1',driveFileId:'audio-drive-1',name:'arrival.m4a',mimeType:'audio/mp4',size:20,createdAt:'2026-08-07T12:01:00Z'}],createdAt:'2026-08-07T12:00:00Z',updatedAt:'2026-08-07T12:00:00Z'}]}
     const migrated=migrateLegacyJournalEntries(legacy)
     expect(migrated.journalEntries).toBeUndefined()
-    expect(migrated.items[1]).toMatchObject({id:'entry-1',type:'journal',title:'Arrived safely.',start:itineraryItem.start,end:itineraryItem.end,timeZone:itineraryItem.timeZone,location:itineraryItem.location,notes:'Arrived safely.',relatedItemId:'flight-1',photos:[{driveFileId:'drive-1'}]})
+    expect(migrated.items[1]).toMatchObject({id:'entry-1',type:'journal',title:'Arrived safely.',start:itineraryItem.start,end:itineraryItem.end,timeZone:itineraryItem.timeZone,location:itineraryItem.location,notes:'Arrived safely.',relatedItemId:'flight-1',photos:[{driveFileId:'drive-1'}],audio:[{driveFileId:'audio-drive-1'}]})
   })
 
   it('copies related item details once and leaves the journal snapshot independently editable',()=>{

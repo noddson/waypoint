@@ -3,7 +3,7 @@ import { JournalEntry, Trip, TripItem } from './types'
 const legacyTitle = (entry:JournalEntry) => {
   const firstLine=entry.text?.split(/\r?\n/).map(line=>line.trim()).find(Boolean)
   if(firstLine)return firstLine.length>80?`${firstLine.slice(0,77)}…`:firstLine
-  return entry.photos[0]?.name||'Journal entry'
+  return entry.photos[0]?.name||entry.audio?.[0]?.name||'Journal entry'
 }
 
 const legacyJournalItem = (entry:JournalEntry,items:TripItem[]):TripItem => {
@@ -19,6 +19,7 @@ const legacyJournalItem = (entry:JournalEntry,items:TripItem[]):TripItem => {
     notes:entry.text,
     relatedItemId:related?.id,
     photos:entry.photos,
+    audio:entry.audio,
     status:'planned',
     createdAt:entry.createdAt,
     updatedAt:entry.updatedAt,
@@ -52,5 +53,6 @@ export function journalSnapshotForSave(item:TripItem):TripItem {
   const snapshot:TripItem={...item,title:item.title.trim()}
   if(item.notes!==undefined)snapshot.notes=item.notes.trim()||undefined
   if(item.photos!==undefined)snapshot.photos=[...item.photos]
+  if(item.audio!==undefined)snapshot.audio=[...item.audio]
   return snapshot
 }

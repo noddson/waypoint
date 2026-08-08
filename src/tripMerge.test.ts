@@ -56,13 +56,16 @@ describe('collaborative trip merging',()=>{
     expect(journals.filter(value=>value.conflictOf==='shared').map(value=>value.conflictSource).sort()).toEqual(['drive','local'])
   })
 
-  it('gives duplicated photo descriptors fresh IDs when a journal entry conflicts',()=>{
-    const shared={...entry('shared','Original'),photos:[{id:'photo',driveFileId:'drive-photo',name:'lake.jpg',mimeType:'image/jpeg',size:1200,createdAt:'2026-07-18T12:00:00Z'}]}
+  it('gives duplicated media descriptors fresh IDs when a journal entry conflicts',()=>{
+    const shared={...entry('shared','Original'),photos:[{id:'photo',driveFileId:'drive-photo',name:'lake.jpg',mimeType:'image/jpeg',size:1200,createdAt:'2026-07-18T12:00:00Z'}],audio:[{id:'audio',driveFileId:'drive-audio',name:'lake.m4a',mimeType:'audio/mp4',size:2400,createdAt:'2026-07-18T12:01:00Z'}]}
     const base={...trip([]),journalEntries:[shared]}
     const merged=mergeTripVersions(base,{...base,journalEntries:[{...shared,text:'Local edit'}]},{...base,journalEntries:[{...shared,text:'Drive edit'}]})
     const photos=merged.trip.items.filter(value=>value.type==='journal').flatMap(value=>value.photos||[])
     expect(new Set(photos.map(photo=>photo.id)).size).toBe(2)
     expect(new Set(photos.map(photo=>photo.driveFileId))).toEqual(new Set(['drive-photo']))
+    const audio=merged.trip.items.filter(value=>value.type==='journal').flatMap(value=>value.audio||[])
+    expect(new Set(audio.map(clip=>clip.id)).size).toBe(2)
+    expect(new Set(audio.map(clip=>clip.driveFileId))).toEqual(new Set(['drive-audio']))
     expect(validTripExport({schemaVersion:SCHEMA_VERSION,exportedAt:new Date().toISOString(),trip:merged.trip})).toBe(true)
   })
 

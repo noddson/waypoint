@@ -4,7 +4,7 @@ import { migrateLegacyJournalEntries } from './journalItems'
 
 const same = (a:unknown,b:unknown) => JSON.stringify(a)===JSON.stringify(b)
 const byId = <T extends {id:string}>(items:T[]) => new Map(items.map(item=>[item.id,item]))
-const itemConflictCopy = (item:TripItem,id:string,source:'local'|'drive'):TripItem => ({...item,id,title:`${item.title} (${source==='local'?'local':'Drive'} conflict)`,conflictOf:item.id,conflictSource:source,...(item.photos?{photos:item.photos.map(photo=>({...photo,id:crypto.randomUUID()}))}: {})})
+const itemConflictCopy = (item:TripItem,id:string,source:'local'|'drive'):TripItem => ({...item,id,title:`${item.title} (${source==='local'?'local':'Drive'} conflict)`,conflictOf:item.id,conflictSource:source,...(item.photos?{photos:item.photos.map(photo=>({...photo,id:crypto.randomUUID()}))}: {}),...(item.audio?{audio:item.audio.map(clip=>({...clip,id:crypto.randomUUID()}))}: {})})
 
 const chooseField = <T,>(base:T,local:T,remote:T) => {
   if(local===remote)return local
