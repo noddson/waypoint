@@ -89,7 +89,7 @@ A trip can be downloaded once as an `.ics` file or published as a one-way Google
 | **Travel actions** | Itinerary-location weather, Google or Apple Maps searches, multi-stop Google routes, airline check-in links, Google flight-status searches, booking links |
 | **Confirmation display** | QR code and Code 128 barcode modes with an enlarged mobile view |
 | **Import/export** | Full trip JSON, single-item JSON editing, multi-item JSON paste, `.ics` export |
-| **Sharing** | Fixed snapshot URLs, optional live Google Drive files, permission inspection and revocation |
+| **Sharing** | Policy-filtered snapshots, independent public and named read-only live trips, named collaborators, permission inspection and revocation |
 | **Calendar** | One-time download, public read-only subscription, event reminders, all-day or check-in/out stay presentation |
 | **Mobile** | Touch-oriented layout, day and entry swiping, landscape itinerary mode, mobile trip picker, fullscreen confirmation codes |
 | **Local-first behavior** | IndexedDB trip library, browser-stored settings, no Waypoint application backend |
@@ -128,7 +128,7 @@ Editing a subscribed calendar does not modify the Waypoint itinerary.
 5. Add times in the local wall-clock time shown by the provider and choose the relevant IANA time zone.
 6. Add provider, confirmation, locations, booking links, notes, and other details as needed.
 7. Use the route and type filters to focus the agenda.
-8. Open **Trip Actions** to export, share, synchronize, archive, or delete the trip.
+8. Open the hamburger menu for **Your Trips**, **Trip Actions**, **Sync & Share**, **Permission Policies**, and **Settings**. Profile and Language are the first two sections under Settings.
 
 Everything remains local to that browser until you deliberately export it, create a share link, publish a calendar, or connect Google Drive.
 
@@ -140,14 +140,15 @@ Open **Your trips** to see:
 
 - **Favourites** for starred, non-archived trips.
 - **Synced** for trips linked to Google Drive, including Drive trips available after authorization.
+- **Shared with Me** for read-only and collaborative trips explicitly saved in this browser.
 - **Local-only** for independent trips saved only on the current device.
 - **Archived** for read-only past trips.
 
-The last selected trip-list tab is restored whenever the list is reopened. Choose **New trip** from Trip Actions to create another independent itinerary. Synced Drive caches appear only in Synced rather than being duplicated in Local-only.
+The last selected trip-list tab is restored whenever the list is reopened. Choose **New trip** from **Your Trips** to create another independent itinerary. Synced Drive caches appear only in Synced rather than being duplicated in Local-only.
 
 By default, Waypoint opens the non-archived trip whose travel dates are closest to today. A trip already in progress takes priority over a later trip. Simply browsing between trips does not change this startup choice.
 
-Select the star beside a trip, or choose **Trip Actions → Favourite trip**, to add it to Favourites. If several trips are favourited, Waypoint starts with the non-archived favourite whose travel period is closest to today; an in-progress favourite takes priority. Archived favourites are skipped until restored. Explicit trip, Drive, or item links always take precedence, and opening a temporary snapshot does not change favourites.
+Select the star beside a trip to add it to Favourites. If several trips are favourited, Waypoint starts with the non-archived favourite whose travel period is closest to today; an in-progress favourite takes priority. Archived favourites are skipped until restored. Explicit trip, Drive, or item links always take precedence, and opening a temporary snapshot does not change favourites.
 
 ### Rename a trip
 
@@ -246,7 +247,7 @@ See [Flight status documentation](docs/flight-status.md) for exact behavior, lim
 
 ### Display confirmation codes
 
-Confirmation-code display is enabled by default and can be changed under **Settings → QR codes**.
+Confirmation-code display is enabled by default and can be changed under **Trip Actions → QR codes**.
 
 - Select or tap a code to enlarge it.
 - Double-click or double-tap to switch between QR and Code 128 formats.
@@ -270,7 +271,7 @@ When the final trip is deleted, Waypoint creates a new empty local trip so the a
 
 ## Trip journal
 
-Enable **Settings → Trip journal** to add **Journal** beside the itinerary filters. The capability is off by default; turning it off again hides journal controls without deleting existing entries. Journal entries are separate from scheduled itinerary items: they do not affect trip dates, routes, weather, conflicts, or calendar exports.
+Enable **Trip Actions → Trip journal** to add **Journal** beside the itinerary filters. The capability is off by default; turning it off again hides journal controls without deleting existing entries. Journal entries are separate from scheduled itinerary items: they do not affect trip dates, routes, weather, conflicts, or calendar exports.
 
 - Every entry has a date and can contain Markdown text, photos, audio, or any combination of them. Markdown is rendered in both the daily timeline and the Journal filter.
 - Several entries can be recorded for the same day.
@@ -332,7 +333,7 @@ The top-level form is:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "exportedAt": "2026-08-05T12:00:00.000Z",
   "trip": {
     "id": "globally-unique-trip-id",
@@ -344,6 +345,8 @@ The top-level form is:
   }
 }
 ```
+
+Schema v2 adds advisory `createdBy` and `updatedBy` item attribution containing only a stable profile ID and display name. Email and home base remain in private profile storage. Waypoint continues to accept schema v1 imports and migrates them to v2.
 
 Exports can include all stored itinerary details. Treat them as sensitive documents when they contain addresses, confirmation references, source-email links, insurance information, or booking URLs.
 
@@ -411,7 +414,7 @@ Development and regression notes for this workflow are available in:
 
 ## Calendar export and subscription
 
-Calendar behavior is configured under **Settings → Calendar delivery**.
+Stay presentation is configured under **Trip Actions → Stay calendar entries**. Calendar downloads and publication are managed under **Sync & Share**.
 
 ### One-time `.ics` export
 
@@ -423,15 +426,17 @@ When the owner exports a calendar directly, source-email links may be included i
 
 ### Public calendar subscription
 
-Choose **Subscription** and then **Publish calendar subscription**. Waypoint:
+Choose **Sync & Share → Live calendar** and publish the subscription. Waypoint:
 
 1. Connects to Google Drive.
 2. Creates or refreshes an `.ics` file in **Waypoint travel planner → Published Calendars**.
 3. Keeps the folder private and shares only that `.ics` file through an anonymous, read-only URL.
-4. Stores the subscription URL with the synchronized trip.
+4. Stores the subscription state and URL in the owner-private `LINKS.JSON` manifest.
 5. Pushes later itinerary changes to the calendar feed while Drive is connected.
 
 Paste the resulting URL into the calendar application's **From URL** or subscription feature. Calendar providers decide how often they refresh remote feeds, so changes may not appear immediately.
+
+Calendar snapshot and subscription content both follow the trip's saved public-calendar policy. The default is deliberately limited; review every enabled sensitive field before publishing.
 
 ### Calendar content
 
@@ -459,7 +464,7 @@ Virtual-event links from supported Zoom, Google Meet, Microsoft Teams, Webex, an
 
 ### Stay presentation
 
-Under **Settings → Stay calendar entries**, choose:
+Under **Trip Actions → Stay calendar entries**, choose:
 
 - **All day** to display stays as date spans through checkout while retaining timed check-in and checkout alerts.
 - **Check-in/out** to display the stay from its stored check-in time through checkout time.
@@ -470,15 +475,17 @@ The subscription URL is public and read-only. Anyone who obtains it can read the
 
 ## Google Drive synchronization and sharing
 
-Google Drive is optional. Without a configured Google OAuth client ID, all local planning, JSON import/export, snapshot sharing, and one-time calendar export remain available.
+Google Drive is optional. Without Google browser configuration, local planning, JSON import/export, snapshot sharing, and one-time calendar export remain available. The user interface talks to a provider-neutral sync layer; Google My Drive is the only provider implemented in this release.
 
 ### Private synchronization
 
-Choose **Sync to Google Drive** to create a private folder for the trip under **Waypoint travel planner** in the current Google account. The folder contains the authoritative `.waypoint.json` itinerary and an on-demand `journal-media` folder for collected photos and audio.
+Open **Sync & Share** and choose **Sync and Update**. If the browser session has expired or is disconnected, that action reconnects Google Drive before synchronizing the active linked trip. Starting synchronization for a local-only trip creates its private folder under **Waypoint travel planner**. The folder contains the authoritative `.waypoint.json` itinerary and `journal-media/photos` and `journal-media/audio` folders created as needed.
 
-The trip folder is the collaboration boundary: the itinerary and journal-media files inherit its permissions. Published `.ics` feeds are kept outside trip folders in the private **Published Calendars** folder directly under **Waypoint travel planner**. Each published feed has its own anonymous read-only file permission; the folder itself is not shared.
+The canonical trip folder is the collaboration boundary. Only the owner and named collaborators receive write access. Public and named read-only viewers receive separate policy-filtered projections under **Published Trips**, never the canonical JSON. Published `.ics` feeds live under the private **Published Calendars** folder. Public permissions apply only to an individual projection or calendar file, not its parent folder.
 
-Waypoint requests the narrow `https://www.googleapis.com/auth/drive.file` scope. This scope is intended for files created or opened by the application rather than unrestricted access to every Drive file.
+Waypoint requests only `https://www.googleapis.com/auth/drive.file`. No broader Drive OAuth scope is required for synchronization, named sharing, collaboration, media access, public projections, or the documented Picker recovery path. The scope covers files Waypoint creates or that a user explicitly opens with Waypoint; it does not grant blanket access to the account's Drive.
+
+Owner-private `PROFILE.JSON` and `LINKS.JSON` files live at the Waypoint root. `LINKS.JSON` records publication state, policies, artifact identities, revisions, and stale/error state, while Drive's live ACL remains authoritative. Share URLs and permission snapshots are not stored in canonical trip JSON.
 
 Owners of trips created with an earlier Drive layout are migrated lazily on their next synchronization. Waypoint creates or retains the trip folder, transfers its sharing permissions, keeps the itinerary and media there, moves existing calendar files into **Published Calendars** without changing their file IDs, removes obsolete published-calendar folders from the trip, and removes redundant itinerary file permissions. Existing live links and subscription URLs therefore remain valid. Collaborators can continue opening an unmigrated trip, but its owner must synchronize once before journal-media uploads become available.
 
@@ -487,14 +494,16 @@ If a published `.ics` file has been removed from Drive, the next connected refre
 After synchronization:
 
 - Local edits are saved to IndexedDB first and then uploaded after a short delay.
-- The active trip is refreshed from Drive when opened and once per minute while the page is visible.
+- Owner and collaborator trips use validated three-way reconciliation and may upload canonical changes.
+- Public and named viewer trips are strictly pull-only. A valid Drive projection atomically replaces the local cache; local hand-edits are never merged or uploaded.
+- The active trip is refreshed from Drive when opened and while the page is visible.
 - Each successful browser sync keeps one checkpoint with the trip's synchronized `updatedAt`, the browser completion time, the authoritative Google Drive file modification time, and the Drive content head revision. A changed head revision marks the file for download and three-way merge.
-- The app keeps a local cache so the itinerary remains visible when Drive is disconnected.
-- Reconnection is required after the short-lived Google access token expires.
+- Saved received trips keep a last-known-good read-only cache for offline use.
+- The Google Drive status shows Connected or Disconnected. **Sync and Update** requests a new browser session when needed.
 - Simultaneous itinerary-item or journal-entry conflicts are retained as separate local and Drive conflict copies for manual resolution.
-- The access panel lists current Drive permissions and can revoke non-owner permissions.
+- The access panel reads current Drive principals and can add or revoke named viewers and collaborators when the current user can share.
 
-Choose **Disconnect from Google Drive** to keep the current cached itinerary as an independent local trip without deleting the Drive file.
+There is no separate reconnect/disconnect control in the panel. **Sync and Update** reconnects when needed, reloads private profile/link metadata, revalidates access, and synchronizes the active linked trip. Owners can use **Stop syncing this trip** without touching the Drive copy; recipients use **Remove from My Trips** to remove only their saved descriptor and cache.
 
 ### Refresh and merge outcomes
 
@@ -511,11 +520,11 @@ The item and journal merge combines independent additions and one-sided edits. I
 
 ### Open a saved Drive trip
 
-Open **Your trips**, connect Google Drive, and refresh the Drive list. Waypoint lists files it previously marked as trip files. Opening one downloads a fresh copy and preserves potentially unsynchronized local work as a separate local backup when necessary.
+Open a shared URL to view it ephemerally. Choose **Save to My Trips** to persist its descriptor and last-known-good cache under **Shared with Me**. Each later online open fetches the current Drive projection or canonical collaborator file. Reader and collaborator capabilities are derived from Drive, not cached ownership. A received trip never gains an editable local copy implicitly; use explicit visible-JSON export and import when a separate trip is actually intended.
 
 ### On-demand Drive version history
 
-Google Drive continues creating revisions when Waypoint synchronizes the current trip regardless of this setting. **Settings → Show version history** controls whether Waypoint lists, displays, and permanently retains those revisions; it does not turn Drive's underlying revision creation on or off.
+Google Drive continues creating revisions when Waypoint synchronizes the current trip regardless of this setting. **Trip Actions → Show version history** controls whether Waypoint lists, displays, and permanently retains those revisions; it does not turn Drive's underlying revision creation on or off.
 
 With **Show version history** disabled, normal synchronization continues, the version picker is hidden, and Waypoint makes no revision-list or revision-pinning calls. Revisions retained earlier remain retained. Enabling the setting makes the picker available but still does not load history immediately.
 
@@ -537,26 +546,31 @@ Google can automatically purge unretained non-head revisions, generally after ab
 
 ### Fixed snapshot sharing
 
-Choose **Share snapshot** to generate a read-only URL containing a compressed or raw copy of the trip in the URL fragment.
+Choose **Sync & Share → Trip snapshot** to generate a fixed read-only URL using the trip's saved public-trip policy. Public Live does not need to be enabled.
 
 - The snapshot does not update when the original trip changes.
 - It does not require Google Drive.
-- The recipient can view and export the contained trip.
+- The recipient can view and export only the policy-visible trip data.
 - Photo and audio references are omitted because static snapshots cannot load Drive media.
 - The URL itself contains the itinerary data and should be treated as sensitive.
 - Browser history, clipboard history, browser synchronization, extensions, screenshots, and anyone receiving the URL can retain the snapshot.
 
-### Live Drive sharing
+### Live trip sharing and collaboration
 
-Choose **Share live trip** to generate a Google Drive-backed collaboration link. In the current implementation this enables an `anyone with the link` writer permission for the trip folder, inherited by its itinerary and journal media.
+**Sync & Share** keeps four audiences independent:
 
-- Recipients connect their Google account to open the shared file.
-- Recipients with the link can edit the authoritative trip.
-- Updates are merged and synchronized across connected browsers.
-- Anyone who obtains the link should be considered an editor.
-- Use **Manage Drive access** to inspect and revoke permissions.
+- **Public Live Trip** may be On or Off. When enabled, only `public.waypoint.json` receives `anyone/reader`; the canonical trip and media remain private. The link always loads the latest successfully published projection.
+- **Named Trip Viewers** are normalized email addresses with `user/reader` access to one shared `named.waypoint.json` projection. All named viewers use the same saved policy.
+- **Collaborators** are named users with `user/writer` access to the canonical trip folder. They can update the authoritative itinerary only when Drive reports edit capability.
+- **Live calendar** independently grants `anyone/reader` to one policy-filtered `.ics` file. It never shares the trip projection or folder.
 
-Only use live sharing with people you trust, and revoke link access when collaboration is finished. Named collaborators and read-only defaults are recommended future security improvements; see [SECURITY.MD](docs/SECURITY.MD).
+Public and named projections are constructed from explicit field whitelists. The default public policy includes only flights and stays with basic scheduling and provider fields. Public projections never contain photos, audio, Drive identifiers, ACLs, OAuth data, private manifests, profile email/home base, or conflict-control metadata. "Full" means all supported user-entered fields after a sensitive-data review; it does not bypass those hard exclusions.
+
+Named viewers may be granted read-only access to the complete photo or audio subfolder when the policy enables that media kind. Files are not duplicated, but the grant includes every current and future original in that folder. Recipients can download originals and may see filenames, EXIF location/time/camera data, audio tags, and private recorded content. Public sharing never includes media.
+
+Collaborators inherit media access and are trusted co-authors. A file they upload through their own OAuth session can remain owned by them even inside the owner's My Drive folder, so the owner cannot guarantee exclusive sharing control or durability for that upload. Waypoint never creates an anonymous writer permission and attempts to keep `writersCanShare` disabled on owner-controlled content.
+
+Use the policy review before publishing confirmations, booking details, notes, journal text, links, precise locations, photos, or audio. Revocation prevents future Drive access and updates, but cannot claw back content already downloaded or cached.
 
 ### Delete synchronized data
 
@@ -597,10 +611,12 @@ Recognized enabled values are `1`, `true`, `yes`, and `on`. Recognized disabled 
 | Local trips | Browser IndexedDB database `waypoint-trips` | Until deleted or browser site data is cleared |
 | Map, weather, calendar, stay, confirmation-code, route, and version-history preferences | Browser `localStorage` | Until changed or site data is cleared |
 | Favourite trip IDs and last trip-list tab | Browser `localStorage` | Until changed, the trip is deleted, or site data is cleared |
-| Drive sync metadata, last browser sync and Drive modification times, cached base trip, file IDs, resource keys, and permission snapshots | Browser `localStorage` | Until disconnected, deleted, or site data is cleared |
+| Drive sync metadata, saved-share descriptors, last-known-good viewer caches, file IDs, and resource keys | Browser storage | Until the trip is removed, unlinked, deleted, or site data is cleared |
+| Name, email, home base, stable profile ID, and update time | Browser storage and owner-private Drive `PROFILE.JSON` while connected | Until cleared locally and/or deleted from Drive |
 | Google Drive access token | Browser `sessionStorage` | Until expiry, removal, or the browser session ends |
 | Snapshot trip | URL fragment | As long as the URL is retained |
 | Synchronized trip | User's Google Drive | Until moved to trash or deleted in Drive |
+| Public/named trip projection | User's Google Drive with its configured reader permission | Until unpublished, permission is revoked, or the file is removed |
 | Published calendar | User's Google Drive with public reader permission | Until permission is revoked or the file is removed |
 
 ### External services
@@ -620,7 +636,8 @@ Waypoint has no application backend that receives or stores the itinerary.
 - Treat exported JSON, snapshot URLs, live links, and calendar URLs as sensitive.
 - Avoid storing payment-card numbers, passport numbers, authentication secrets, or unnecessary medical information in notes.
 - Confirmation references and surnames can sometimes be sufficient to manage a booking on a provider site.
-- A hidden source-email link is still present in some shared JSON paths in the current implementation; UI hiding is not a complete data boundary.
+- Treat profile attribution as advisory and self-asserted; it is not cryptographically verified.
+- Named media access exposes original files without sanitizing filenames or embedded metadata.
 - Clear browser site data before disposing of or transferring a device.
 - Revoke Drive sharing when the trip no longer needs collaboration.
 - Review the complete [security assessment and remediation recommendations](docs/SECURITY.MD).
@@ -629,7 +646,7 @@ Waypoint has no application backend that receives or stores the itinerary.
 
 ### Requirements
 
-- [Node.js](https://nodejs.org/) 22 is recommended and is the version used by the deployment workflow.
+- [Node.js](https://nodejs.org/) 24 is recommended and is the version used by the deployment workflow.
 - npm, included with Node.js.
 - A modern browser with IndexedDB, Web Crypto, and ES module support.
 - Google Chrome, Safari, Firefox, or Edge from a reasonably current release.
@@ -668,54 +685,79 @@ The suite uses Vitest and covers itinerary ordering, imports, calendar generatio
 
 ## Configure Google Drive
 
-Google Drive features use the browser token model from [Google Identity Services](https://developers.google.com/identity/oauth2/web/guides/use-token-model) and the non-sensitive [`drive.file` scope](https://developers.google.com/workspace/drive/api/guides/api-specific-auth).
+Google Drive features use the browser token model from [Google Identity Services](https://developers.google.com/identity/oauth2/web/guides/use-token-model), the non-sensitive [`drive.file` scope](https://developers.google.com/workspace/drive/api/guides/api-specific-auth), and three pieces of public browser configuration:
+
+| Variable | Purpose |
+|---|---|
+| `VITE_GOOGLE_CLIENT_ID` | Requests a short-lived OAuth token for private sync and named access. |
+| `VITE_GOOGLE_API_KEY` | Fetches an anonymous public trip projection through Drive `files.get?alt=media` and initializes Picker when its narrow recovery path is needed. |
+| `VITE_GOOGLE_APP_ID` | Identifies the Google Cloud project to Google Picker; use the project's numeric project number. |
+
+These values are compiled into the SPA and are not secrets. Never configure or ship an OAuth client secret. The API key must still be restricted so another site cannot reuse it.
 
 Google Cloud Console labels and verification requirements can change, so consult the linked Google documentation while configuring a production deployment.
 
 ### Google Cloud setup
 
 1. Create or select a Google Cloud project.
-2. Enable the Google Drive API.
+2. Enable the **Google Drive API** and **Google Picker API**.
 3. Configure the OAuth consent screen for the intended audience.
-4. Declare the `https://www.googleapis.com/auth/drive.file` scope.
+4. Declare only `https://www.googleapis.com/auth/drive.file`. This plan does not require `drive`, `drive.readonly`, or another broader Drive OAuth scope.
 5. Create an OAuth 2.0 client ID for a **Web application**.
 6. Add the development and production origins under authorized JavaScript origins.
 7. Add test users while the consent screen remains in testing mode, when applicable.
-8. Copy the web client ID. A client ID is public configuration, not a client secret.
+8. Copy the web client ID into `VITE_GOOGLE_CLIENT_ID`.
+9. Create a browser API key. Under **Application restrictions**, choose **Websites (HTTP referrers)** and allow only the exact development and production origins/path patterns that serve Waypoint. Include every intentional hostname variant; do not use an unrestricted wildcard.
+10. Under **API restrictions**, allow only **Google Drive API** and **Google Picker API**. Copy the key into `VITE_GOOGLE_API_KEY`.
+11. Copy the Cloud project's numeric **project number** (not its display name) into `VITE_GOOGLE_APP_ID`.
 
-Do not put a Google client secret in this project. The application is a static browser client and has nowhere to keep one confidential.
+The API key is public client configuration but is never embedded in a trip share URL. A public trip URL carries only its projection file ID and optional Drive resource key in the URL fragment. The running Waypoint origin supplies its configured key to Drive and sends the resource-key header during the media request.
+
+Anonymous public trip loading and calendar subscription use different delivery paths:
+
+- A public live trip must return JSON to the running SPA, so the browser uses the restricted API key with Drive `files.get?alt=media`. It does not request OAuth.
+- A public calendar continues using Drive's `webContentLink` as a subscription URL. It does not use the API key or Picker.
+- Named viewers and collaborators open with OAuth. Picker is invoked only when Drive returns the exact `appNotAuthorizedToFile` error, and Waypoint accepts only the file ID already encoded in the incoming share link. Wrong-account and ACL denials remain errors; Picker is not a general file browser fallback.
 
 ### Local environment
 
-Create an uncommitted `.env.local` file:
+Copy the committed example and replace its placeholders:
+
+```bash
+cp .env.example .env.local
+```
 
 ```dotenv
 VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+VITE_GOOGLE_API_KEY=your-http-referrer-restricted-browser-key
+VITE_GOOGLE_APP_ID=your-google-cloud-project-number
 ```
 
 Restart the Vite development server after changing environment variables.
 
 ### Production environment
 
-The GitHub Pages workflow reads `VITE_GOOGLE_CLIENT_ID` from a GitHub Actions repository variable:
+The GitHub Pages workflow reads all three values from GitHub Actions repository variables:
 
 1. Open the repository settings.
 2. Go to **Secrets and variables → Actions → Variables**.
-3. Create `VITE_GOOGLE_CLIENT_ID` with the web client ID.
+3. Create `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY`, and `VITE_GOOGLE_APP_ID` with the corresponding public configuration values.
 4. Re-run the deployment workflow or push to `main`.
 
-Because Vite embeds `VITE_` variables in the client bundle, never place a secret in a `VITE_` variable.
+Because Vite embeds every `VITE_` variable in the client bundle, never place a secret in one. Key restrictions—not concealment—limit API-key abuse.
 
 ### OAuth troubleshooting
 
 If authorization fails:
 
 - Confirm the Drive API is enabled in the same Cloud project as the client ID.
+- Confirm Picker API is enabled and `VITE_GOOGLE_APP_ID` is the numeric project number from that same project.
 - Confirm the exact browser origin is listed as an authorized JavaScript origin.
+- Confirm the API key's HTTP-referrer restriction includes the exact running origin and its API restriction includes Drive and Picker only.
 - Confirm the consent screen includes the requested scope.
 - Confirm the Google account is an allowed test user when the application is in testing mode.
 - Allow pop-ups for the site because Google authorization uses a browser dialog.
-- Reconnect after token expiry; this client-only application does not use a refresh token.
+- Reconnect after token expiry; this client-only application does not use a refresh token. Reconnect preserves trip links and reconciles the active linked trip.
 
 ## Build, test, and deploy
 
@@ -736,9 +778,10 @@ It:
 1. Checks out the repository.
 2. Installs Node.js 24.
 3. Runs `npm ci`.
-4. Runs the production build with the configured Google client ID.
-5. Uploads `dist/` as the Pages artifact.
-6. Deploys the artifact to the `github-pages` environment.
+4. Runs the complete Vitest unit/security suite.
+5. Runs the production build with the configured Google client ID, restricted browser API key, and Google app ID.
+6. Uploads `dist/` as the Pages artifact only after both validation steps succeed.
+7. Runs the deployment job only when the validation/build job completed successfully.
 
 Enable GitHub Pages with **GitHub Actions** as the source before relying on the workflow.
 
@@ -798,7 +841,7 @@ The browser token model uses short-lived access tokens and no refresh token. Rec
 
 ### A Drive trip looks stale
 
-Reconnect and use **Refresh from Google Drive**. If two browsers edited the same item, review the retained local and Drive conflict copies. Permission state can also be stale until **Manage Drive access** refreshes it.
+Reconnect and use **Sync and Update**. Owner/collaborator conflicts are retained for review. A saved viewer copy is replaced by the valid Drive projection and never uploads local changes. Access management always re-fetches current Drive principals.
 
 ### The calendar did not update immediately
 
@@ -830,7 +873,7 @@ Append `?mobile=1` to force it or `?mobile=0` to disable it. If another query st
 
 Confirm that:
 
-- `schemaVersion` is `1`.
+- `schemaVersion` is `1` (migrated on import) or `2`.
 - Required trip and item fields are present.
 - Every item type and status is supported.
 - IDs are unique.
@@ -847,9 +890,10 @@ Confirm that:
 - Weather is a model forecast for an approximate itinerary place, is limited to the provider's live horizon, and can be unavailable or inaccurate. It is not a safety alert service.
 - Airline check-in coverage depends on a maintained list of official provider pages.
 - Apple Maps does not receive multi-stop route URLs from Waypoint.
-- Public calendar subscriptions are capability URLs rather than authenticated private feeds.
-- Live Drive sharing currently grants anyone with the link writer access.
-- Shared JSON can contain sensitive itinerary and source-email fields; read the security review before broad sharing.
+- Public calendar subscriptions and public live trips are revocable capability URLs rather than authenticated private feeds.
+- Named viewers can download any policy-visible data, including original media when explicitly enabled; revocation cannot remove prior downloads.
+- Collaborator uploads in My Drive can remain owned by the collaborator, limiting the folder owner's control and durability guarantees for those files.
+- A broad share policy can contain sensitive itinerary fields; review confirmations, notes, journal content, links, and precise locations before publication.
 - Calendar clients may interpret reminders, time zones, and refresh intervals differently.
 - Email extraction quality depends on the connected assistant, mailbox connector, search implementation, readable attachments, and human review.
 - Browser storage is tied to the site origin and can be erased by the user, browser, device-management policy, or private-browsing lifecycle.
@@ -870,7 +914,7 @@ Please avoid publishing real confirmation codes, private email links, or persona
 
 ## Languages
 
-Waypoint's interface supports English, German, Greek, Spanish, French, Icelandic, Italian, Japanese, and Pirate. On a first visit it uses the first supported browser language, falling back to English; the selection can be changed in **Trip Actions → Settings → Language** and is saved in the current browser.
+Waypoint's interface supports English, German, Greek, Spanish, French, Icelandic, Italian, Japanese, and Pirate. On a first visit it uses the first supported browser language, falling back to English; the selection can be changed in **Settings → Language** and is saved in the current browser.
 
 Localization applies to Waypoint's interface only. It does not translate itinerary data, external links and integrations, JSON or calendar exports, or the generated email-extraction prompt.
 

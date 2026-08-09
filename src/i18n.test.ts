@@ -50,6 +50,12 @@ describe('UI language selection',()=>{
     expect(uiText('Einstellungen','fr')).toBe('Réglages')
   })
 
+  it('does not reinterpret the English profile Name label as an itinerary Title',()=>{
+    expect(uiText('Name','en')).toBe('Name')
+    expect(uiText('Title','xx')).toBe('Booty name')
+    expect(uiText('Booty name','fr')).toBe('Titre')
+  })
+
   it('translates variable-bearing summaries, statuses, and routes',()=>{
     expect(uiMessage('Last updated {date}','de',{date:'06.08.2026, 19:00'})).toBe('Zuletzt aktualisiert: 06.08.2026, 19:00')
     expect(uiText('Open Winnipeg in Google Maps ↗','de')).toBe('Route Winnipeg in Google Maps öffnen ↗')

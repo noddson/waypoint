@@ -4,4 +4,12 @@ public/version.json
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+vitest.config.js
+vitest.config.d.ts
+playwright.config.js
+playwright.config.d.ts
 .DS_Store
+.env.local
+.env.*.local
+playwright-report/
+test-results/

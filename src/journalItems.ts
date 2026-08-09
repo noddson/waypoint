@@ -23,6 +23,8 @@ const legacyJournalItem = (entry:JournalEntry,items:TripItem[]):TripItem => {
     status:'planned',
     createdAt:entry.createdAt,
     updatedAt:entry.updatedAt,
+    createdBy:entry.createdBy,
+    updatedBy:entry.updatedBy,
     conflictOf:entry.conflictOf,
     conflictSource:entry.conflictSource,
   }

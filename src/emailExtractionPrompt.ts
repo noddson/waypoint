@@ -172,9 +172,9 @@ DETAIL AND LINK RULES
 OUTPUT
 Create a file named ${outputFilename} containing only one valid JSON object. The filename must be derived from the trip's primary destination plus its travel-start month and year, using filesystem-safe words separated by hyphens; do not use a fixed generic filename. If this environment cannot create a file, reply with the raw JSON object only. Do not use Markdown fences and do not add commentary before or after the JSON.
 
-Use exactly this Waypoint schema (schemaVersion must remain 1):
+Use exactly this Waypoint schema (schemaVersion must remain 2):
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "exportedAt": "ISO-8601 timestamp",
   "trip": {
     "id": "globally unique UUID",

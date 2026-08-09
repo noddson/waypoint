@@ -52,4 +52,12 @@ describe('item JSON',()=>{
     const result=parseTripItemsJson(JSON.stringify(source),()=> 'fresh-id')
     expect(result.ok&&result.items[0]).toEqual({...source,id:'fresh-id'})
   })
+
+  it('preserves public advisory attribution but rejects embedded profile details',()=>{
+    const attributed={...event,createdBy:{profileId:'profile-1',displayName:'Alex'},updatedBy:{profileId:'profile-2',displayName:'Sam'}}
+    const result=parseTripItemsJson(JSON.stringify(attributed),()=> 'fresh-id')
+    expect(result.ok&&result.items[0]).toMatchObject({createdBy:{profileId:'profile-1',displayName:'Alex'},updatedBy:{profileId:'profile-2',displayName:'Sam'}})
+    const privateProfile=parseTripItemsJson(JSON.stringify({...attributed,createdBy:{...attributed.createdBy,email:'alex@example.com'}}))
+    expect(privateProfile.ok).toBe(false)
+  })
 })

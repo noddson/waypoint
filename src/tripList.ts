@@ -1,7 +1,7 @@
-export type TripListTab = 'favourites'|'synced'|'local-only'|'archived'
+export type TripListTab = 'favourites'|'synced'|'local-only'|'shared-with-me'|'archived'
 
 const tripListTabStorageKey = 'waypoint-trip-list-tab'
-const tripListTabs:TripListTab[] = ['favourites','synced','local-only','archived']
+const tripListTabs:TripListTab[] = ['favourites','synced','local-only','shared-with-me','archived']
 
 export function loadTripListTab():TripListTab {
   try{

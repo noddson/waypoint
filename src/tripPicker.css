@@ -7,6 +7,21 @@
   font-size: 13px;
 }
 
+.trip-picker-intro-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trip-picker-intro-actions p {
+  margin: 0;
+}
+
+.trip-picker-intro-actions button {
+  flex: none;
+}
+
 .trip-picker-sheet {
   display: flex;
   flex-direction: column;
@@ -22,7 +37,7 @@
 
 .trip-list-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
   margin-bottom: 14px;
   padding: 4px;
@@ -35,8 +50,10 @@
   padding: 8px 6px;
   background: transparent;
   color: #5e6c66;
-  font-size: 12px;
-  white-space: nowrap;
+  min-height: 42px;
+  font-size: 11px;
+  line-height: 1.15;
+  white-space: normal;
 }
 
 .trip-list-tabs button.selected {

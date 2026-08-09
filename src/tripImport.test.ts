@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { safeHttpsLink, tripNameWithoutImportedSuffix, validTripExport } from './tripImport'
+import { createTripExportV2, migrateTripExportToV2, safeHttpsLink, tripNameWithoutImportedSuffix, validTripExport } from './tripImport'
+import { SCHEMA_VERSION, type Trip } from './types'
 
 const exportData = () => ({
   schemaVersion:1,
@@ -11,6 +12,12 @@ const exportData = () => ({
 })
 
 describe('Waypoint JSON validation', () => {
+  it('emits schema v2 while continuing to accept schema v1 imports',()=>{
+    expect(SCHEMA_VERSION).toBe(2)
+    expect(validTripExport(exportData())).toBe(true)
+    expect(validTripExport({...exportData(),schemaVersion:2})).toBe(true)
+  })
+
   it('accepts a detailed item with booker attribution and an HTTPS link', () => {
     expect(validTripExport(exportData())).toBe(true)
   })
@@ -56,6 +63,32 @@ describe('Waypoint JSON validation', () => {
     expect(validTripExport(duplicate)).toBe(false)
   })
 
+  it('strictly validates dates, time zones, identifiers, and aggregate size',()=>{
+    const invalidExportTime=exportData();invalidExportTime.exportedAt='2026-02-31T12:00:00.000Z'
+    expect(validTripExport(invalidExportTime)).toBe(false)
+    const invalidStart=exportData();invalidStart.trip.items[0].start='2026-02-30T20:50'
+    expect(validTripExport(invalidStart)).toBe(false)
+    const invalidZone=exportData();invalidZone.trip.items[0].timeZone='Mars/Olympus_Mons'
+    expect(validTripExport(invalidZone)).toBe(false)
+    const emptyId=exportData();emptyId.trip.items[0].id=''
+    expect(validTripExport(emptyId)).toBe(false)
+    const oversized=exportData()
+    oversized.trip.items=Array.from({length:450},(_,index)=>({...oversized.trip.items[0],id:`item-${index}`,notes:'x'.repeat(12_000)}))
+    expect(validTripExport(oversized)).toBe(false)
+  })
+
+  it('rejects unknown or legacy envelope data in canonical v2 while v1 remains migratable',()=>{
+    const v1=exportData() as ReturnType<typeof exportData>&Record<string,unknown>
+    v1.futureMigrationField='ignored during migration'
+    expect(validTripExport(v1)).toBe(true)
+    const v2={...exportData(),schemaVersion:2,futureCanonicalField:'reject me'}
+    expect(validTripExport(v2)).toBe(false)
+    const nested={...exportData(),schemaVersion:2}
+    ;(nested.trip.items[0] as unknown as Record<string,unknown>).futureCanonicalField='reject me too'
+    expect(validTripExport(nested)).toBe(false)
+    expect(validTripExport({...exportData(),schemaVersion:2,calendarSubscription:{}})).toBe(false)
+  })
+
   it('rejects removed plan and reference item types', () => {
     for(const type of ['plan','reference']){
       const removed=exportData()
@@ -72,5 +105,38 @@ describe('Waypoint JSON validation', () => {
   it('removes only the app-generated imported title suffix',()=>{
     expect(tripNameWithoutImportedSuffix('Kenora 2025 (imported)')).toBe('Kenora 2025')
     expect(tripNameWithoutImportedSuffix('Imported memories')).toBe('Imported memories')
+  })
+
+  it('validates advisory author references without accepting private profile fields',()=>{
+    const value={...exportData(),schemaVersion:2}
+    ;(value.trip.items[0] as unknown as Record<string,unknown>).createdBy={profileId:'profile-1',displayName:'Alex'}
+    ;(value.trip.items[0] as unknown as Record<string,unknown>).updatedBy={profileId:'profile-2',displayName:'Sam'}
+    expect(validTripExport(value)).toBe(true)
+    ;((value.trip.items[0] as unknown as Record<string,unknown>).createdBy as Record<string,unknown>).email='alex@example.com'
+    expect(validTripExport(value)).toBe(false)
+  })
+
+  it('migrates legacy envelopes to a private-data-only v2 canonical export',()=>{
+    const legacy=exportData() as ReturnType<typeof exportData>&Record<string,unknown>
+    legacy.calendarSubscription={provider:'google-drive',format:'ics',mimeType:'text/calendar',access:'public-read-only',fileId:'calendar-file',publicUrl:'https://drive.example/calendar',linkedAt:'2026-08-09T00:00:00.000Z'}
+    legacy.collaboration={revision:'revision-1',drive:{fileId:'private-drive-id'}}
+    ;(legacy.trip as unknown as Record<string,unknown>).futureTripSecret='drop me'
+    ;(legacy.trip.items[0] as unknown as Record<string,unknown>).futureItemSecret='drop me too'
+    const migrated=migrateTripExportToV2(legacy)
+    expect(migrated).toMatchObject({schemaVersion:2,exportedAt:legacy.exportedAt,trip:{id:'trip-1',items:[{id:'item-1'}]}})
+    expect(migrated).not.toHaveProperty('calendarSubscription')
+    expect(migrated).not.toHaveProperty('collaboration')
+    expect(migrated?.trip).not.toHaveProperty('futureTripSecret')
+    expect(migrated?.trip.items[0]).not.toHaveProperty('futureItemSecret')
+  })
+
+  it('creates sanitized v2 exports from current trip data',()=>{
+    const source=exportData().trip as Trip
+    ;(source.items[0] as unknown as Record<string,unknown>).runtimeOnly='secret'
+    const created=createTripExportV2(source,'2026-08-09T15:00:00.000Z')
+    expect(created.schemaVersion).toBe(2)
+    expect(created).not.toHaveProperty('calendarSubscription')
+    expect(created.trip.items[0]).not.toHaveProperty('runtimeOnly')
+    expect(source.items[0]).toHaveProperty('runtimeOnly','secret')
   })
 })

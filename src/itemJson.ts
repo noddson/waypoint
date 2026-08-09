@@ -1,4 +1,4 @@
-import { ItemType, Status, TripItem, types, uid } from './types'
+import { AuthorRef, ItemType, Status, TripItem, types, uid } from './types'
 import { safeHttpsLink } from './tripImport'
 
 const statuses:Status[] = ['confirmed','pending','planned']
@@ -6,6 +6,7 @@ const object = (value:unknown): value is Record<string,unknown> => typeof value 
 const string = (value:unknown,max:number): value is string => typeof value === 'string' && value.length <= max
 const optionalString = (value:unknown,max:number) => value === undefined || string(value,max)
 const optionalStringFields = ['provider','confirmation','end','endTimeZone','location','endLocation','notes','bookedBy','quantity','flightNumber','relatedItemId','createdAt','updatedAt'] as const
+const validAuthorRef = (value:unknown):value is AuthorRef => object(value)&&Object.keys(value).every(key=>key==='profileId'||key==='displayName')&&string(value.profileId,200)&&!!value.profileId.trim()&&string(value.displayName,300)&&!!value.displayName.trim()
 
 export type ParsedItemJson = {ok:true;items:TripItem[]}|{ok:false;error:string}
 
@@ -38,6 +39,7 @@ function itemError(value:unknown,index:number) {
   }
   if(value.conflictOf!==undefined&&!string(value.conflictOf,2_000))return `${prefix} has an invalid conflictOf value.`
   if(value.conflictSource!==undefined&&value.conflictSource!=='local'&&value.conflictSource!=='drive')return `${prefix} has an invalid conflictSource value.`
+  if(value.createdBy!==undefined&&!validAuthorRef(value.createdBy)||value.updatedBy!==undefined&&!validAuthorRef(value.updatedBy))return `${prefix} has invalid author attribution.`
   return ''
 }
 
@@ -59,6 +61,8 @@ function normalizedItem(value:Record<string,unknown>,createId:()=>string):TripIt
   if(Array.isArray(value.audio))item.audio=value.audio.map(clip=>({...clip as NonNullable<TripItem['audio']>[number],id:uid()}))
   if(value.conflictOf!==undefined)item.conflictOf=value.conflictOf as string
   if(value.conflictSource!==undefined)item.conflictSource=value.conflictSource as NonNullable<TripItem['conflictSource']>
+  if(validAuthorRef(value.createdBy))item.createdBy={profileId:value.createdBy.profileId,displayName:value.createdBy.displayName}
+  if(validAuthorRef(value.updatedBy))item.updatedBy={profileId:value.updatedBy.profileId,displayName:value.updatedBy.displayName}
   return item
 }
 

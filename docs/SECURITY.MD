@@ -7,6 +7,8 @@ Assessment basis: OWASP Top 10:2025, static source review, dependency advisory a
 
 ## Executive summary
 
+> **Implementation update — August 9, 2026:** This review records the legacy sharing implementation assessed on August 5. The unified Sync & Share work replaces anonymous writers with policy-filtered public/named reader projections, reserves canonical writes for named collaborators, validates pull-only viewer updates, and applies a sanitized public-calendar policy. Treat the findings and source line references below as the remediation baseline; deployment remains gated on the unit/security suite and production build.
+
 No direct DOM cross-site scripting, SQL injection, command injection, hard-coded secrets, or currently known vulnerable npm packages were found. The principal risks are broken access boundaries around shared trip data, anonymous Google Drive collaboration, unvalidated remote updates, and calendar-data injection.
 
 No High-likelihood/High-impact issue was confirmed. Three Medium-likelihood/High-impact findings should be addressed first:

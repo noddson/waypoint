@@ -1,11 +1,17 @@
-export const SCHEMA_VERSION = 1 as const
+export const LEGACY_SCHEMA_VERSION = 1 as const
+export const SCHEMA_VERSION = 2 as const
+export type SupportedSchemaVersion = typeof LEGACY_SCHEMA_VERSION | typeof SCHEMA_VERSION
 export type ItemType = 'flight' | 'stay' | 'car' | 'transport' | 'insurance' | 'event' | 'journal'
 export type Status = 'confirmed' | 'pending' | 'planned'
+export interface AuthorRef {
+  profileId: string
+  displayName: string
+}
 export interface TripItem {
   id: string; type: ItemType; title: string; provider?: string; confirmation?: string
   start: string; end?: string; timeZone: string; endTimeZone?: string; location?: string; endLocation?: string
   notes?: string; link?: string; emailLink?: string; bookedBy?: string; status: Status; quantity?: string; flightNumber?: string; durationMinutes?: number; allDay?: boolean
-  relatedItemId?: string; photos?: JournalPhoto[]; audio?: JournalAudio[]; createdAt?: string; updatedAt?: string
+  relatedItemId?: string; photos?: JournalPhoto[]; audio?: JournalAudio[]; createdAt?: string; updatedAt?: string; createdBy?: AuthorRef; updatedBy?: AuthorRef
   conflictOf?: string; conflictSource?: 'local'|'drive'
 }
 export interface JournalPhoto {
@@ -35,10 +41,94 @@ export interface JournalEntry {
   audio?: JournalAudio[]
   createdAt: string
   updatedAt: string
+  createdBy?: AuthorRef
+  updatedBy?: AuthorRef
   conflictOf?: string
   conflictSource?: 'local'|'drive'
 }
-export interface Trip { id: string; name: string; destination: string; createdAt: string; updatedAt: string; archivedAt?: string; items: TripItem[]; journalEntries?: JournalEntry[] }
+export interface Trip { id: string; name: string; destination: string; createdAt: string; updatedAt: string; archivedAt?: string; createdBy?: AuthorRef; updatedBy?: AuthorRef; items: TripItem[]; journalEntries?: JournalEntry[] }
+
+export interface ProfileV1 {
+  schemaVersion: 1
+  profileId: string
+  name: string
+  email?: string
+  homeBase?: string
+  updatedAt: string
+}
+
+export type TripAccessMode = 'owner' | 'collaborator' | 'named-viewer' | 'public-viewer' | 'snapshot'
+export type ShareProjectionAccessMode = Extract<TripAccessMode,'named-viewer'|'public-viewer'|'snapshot'>
+export type ShareAudience = 'public-trip' | 'named-trip' | 'public-calendar'
+export type SharePolicyPreset = 'simplified' | 'full' | 'custom'
+export type ShareField =
+  | 'type' | 'title' | 'provider' | 'confirmation' | 'start' | 'end' | 'timeZone' | 'endTimeZone'
+  | 'location' | 'endLocation' | 'notes' | 'link' | 'emailLink' | 'bookedBy' | 'status' | 'quantity'
+  | 'flightNumber' | 'durationMinutes' | 'allDay' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy'
+
+export interface SharePolicyV1 {
+  version: 1
+  audience: ShareAudience
+  preset: SharePolicyPreset
+  itemTypes: ItemType[]
+  fields: ShareField[]
+  includePhotos: boolean
+  includeAudio: boolean
+}
+
+export type ShareSensitiveCategory = 'confirmations' | 'booking-details' | 'notes-and-journal' | 'links' | 'locations' | 'photos' | 'audio'
+
+export interface ShareProjectionMedia {
+  driveFileId: string
+  resourceKey?: string
+  name: string
+  mimeType: string
+  size: number
+  createdAt: string
+}
+
+export interface ShareProjectionItem {
+  type?: ItemType
+  title?: string
+  provider?: string
+  confirmation?: string
+  start?: string
+  end?: string
+  timeZone?: string
+  endTimeZone?: string
+  location?: string
+  endLocation?: string
+  notes?: string
+  link?: string
+  emailLink?: string
+  bookedBy?: string
+  status?: Status
+  quantity?: string
+  flightNumber?: string
+  durationMinutes?: number
+  allDay?: boolean
+  createdAt?: string
+  updatedAt?: string
+  createdBy?: AuthorRef
+  updatedBy?: AuthorRef
+  photos?: ShareProjectionMedia[]
+  audio?: ShareProjectionMedia[]
+}
+
+export interface ShareProjectionTrip {
+  name: string
+  destination?: string
+  archivedAt?: string
+  items: ShareProjectionItem[]
+}
+
+export interface ShareProjectionV1 {
+  kind: 'waypoint-share-projection'
+  schemaVersion: 1
+  accessMode: ShareProjectionAccessMode
+  publishedAt: string
+  trip: ShareProjectionTrip
+}
 export interface DrivePermissionSnapshot {
   id: string
   type: 'user'|'group'|'domain'|'anyone'|string
@@ -60,7 +150,7 @@ export interface CalendarSubscriptionMetadata {
   linkedAt: string
 }
 export interface TripExport {
-  schemaVersion: typeof SCHEMA_VERSION
+  schemaVersion: SupportedSchemaVersion
   exportedAt: string
   trip: Trip
   calendarSubscription?: CalendarSubscriptionMetadata
@@ -69,6 +159,11 @@ export interface TripExport {
     parentRevision?: string
     drive?: {fileId:string;resourceKey?:string;tripFolderId?:string;tripFolderResourceKey?:string;journalMediaFolderId?:string;journalMediaFolderResourceKey?:string;permissions:DrivePermissionSnapshot[];capturedAt:string;bootstrapRevisionId?:string}
   }
+}
+export interface CanonicalTripExportV2 {
+  schemaVersion: typeof SCHEMA_VERSION
+  exportedAt: string
+  trip: Trip
 }
 export const types: ItemType[] = ['flight','stay','car','event','transport','insurance','journal']
 export const typeLabels: Record<ItemType,string> = { flight:'Flight', stay:'Stay', car:'Car rental', transport:'Transport', insurance:'Insurance', event:'Event', journal:'Journal' }

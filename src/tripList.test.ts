@@ -16,6 +16,8 @@ describe('trip list tab storage',()=>{
     expect(loadTripListTab()).toBe('favourites')
     saveTripListTab('local-only')
     expect(loadTripListTab()).toBe('local-only')
+    saveTripListTab('shared-with-me')
+    expect(loadTripListTab()).toBe('shared-with-me')
   })
 
   it('ignores an unknown stored tab',()=>{

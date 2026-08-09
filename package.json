@@ -10,6 +10,7 @@
     "prebuild": "npm run generate:version",
     "build": "tsc -b && vite build",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "validate:version": "node validate-version.mjs"
   },
   "dependencies": {
@@ -23,11 +24,15 @@
     "vite": "latest"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.3",
     "@types/jsbarcode": "^3.11.4",
     "@types/node": "latest",
     "@types/qrcode": "^1.5.6",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "jsdom": "^30.0.1",
     "typescript": "latest",
     "vitest": "latest"
   }
