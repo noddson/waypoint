@@ -125,7 +125,7 @@ export function buildTripCalendar(trip:Trip,options:CalendarBuildOptions={}) {
     'METHOD:PUBLISH',
     'X-WAYPOINT-DATA-FLOW:ITINERARY-JSON-TO-CALENDAR',
     `X-WR-CALNAME:${escapeText(trip.name)}`,
-    ...sortTripItems(trip.items).flatMap(item=>eventLines(item,trip,options)),
+    ...sortTripItems(trip.items).filter(item=>item.type!=='journal').flatMap(item=>eventLines(item,trip,options)),
     'END:VCALENDAR',
   ]
   return `${lines.flatMap(foldLine).join('\r\n')}\r\n`

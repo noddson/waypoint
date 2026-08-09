@@ -427,7 +427,7 @@ Choose **Subscription** and then **Publish calendar subscription**. Waypoint:
 
 1. Connects to Google Drive.
 2. Creates or refreshes an `.ics` file in **Waypoint travel planner → Published Calendars**.
-3. Keeps that shared folder public and read-only.
+3. Keeps the folder private and shares only that `.ics` file through an anonymous, read-only URL.
 4. Stores the subscription URL with the synchronized trip.
 5. Pushes later itinerary changes to the calendar feed while Drive is connected.
 
@@ -442,6 +442,8 @@ Calendar entries can contain:
 - Quantity, flight number, duration, notes, and locations.
 - Booking or virtual-event links.
 - A deep link back to the relevant Waypoint item.
+
+Journal entries are never included in either one-time `.ics` exports or published calendar subscriptions.
 
 Virtual-event links from supported Zoom, Google Meet, Microsoft Teams, Webex, and GoToMeeting hosts are used as the primary calendar URL. Otherwise, the calendar URL points back to the Waypoint item.
 
@@ -474,11 +476,13 @@ Google Drive is optional. Without a configured Google OAuth client ID, all local
 
 Choose **Sync to Google Drive** to create a private folder for the trip under **Waypoint travel planner** in the current Google account. The folder contains the authoritative `.waypoint.json` itinerary and an on-demand `journal-media` folder for collected photos and audio.
 
-The trip folder is the collaboration boundary: the itinerary and journal-media files inherit its permissions. Published `.ics` feeds are kept outside trip folders in the public read-only **Published Calendars** folder directly under **Waypoint travel planner**.
+The trip folder is the collaboration boundary: the itinerary and journal-media files inherit its permissions. Published `.ics` feeds are kept outside trip folders in the private **Published Calendars** folder directly under **Waypoint travel planner**. Each published feed has its own anonymous read-only file permission; the folder itself is not shared.
 
 Waypoint requests the narrow `https://www.googleapis.com/auth/drive.file` scope. This scope is intended for files created or opened by the application rather than unrestricted access to every Drive file.
 
 Owners of trips created with an earlier Drive layout are migrated lazily on their next synchronization. Waypoint creates or retains the trip folder, transfers its sharing permissions, keeps the itinerary and media there, moves existing calendar files into **Published Calendars** without changing their file IDs, removes obsolete published-calendar folders from the trip, and removes redundant itinerary file permissions. Existing live links and subscription URLs therefore remain valid. Collaborators can continue opening an unmigrated trip, but its owner must synchronize once before journal-media uploads become available.
+
+If a published `.ics` file has been removed from Drive, the next connected refresh removes its stale subscription reference from the itinerary JSON so the calendar can be published again.
 
 After synchronization:
 

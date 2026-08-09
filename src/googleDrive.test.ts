@@ -218,16 +218,16 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
     expect(fetchMock.mock.calls[11][1]).toMatchObject({method:'DELETE'})
   })
 
-  it('publishes a calendar in the public read-only Published Calendars folder and removes the trip subfolder',async()=>{
+  it('publishes only the calendar file while keeping the Published Calendars folder private',async()=>{
     replies.push(
       {body:{files:[{id:'waypoint-root'}]}},
       {body:{files:[]}},
       {body:{id:'calendar-folder',name:'Published Calendars',resourceKey:'folder-key'}},
-      {body:{permissions:[]}},
-      {body:{id:'public-reader'}},
       {body:{files:[]}},
       {body:{id:'calendar-file',resourceKey:'calendar-key'}},
       {body:{id:'calendar-file',resourceKey:'calendar-key',webContentLink:'https://drive.google.com/calendar-feed',modifiedTime:'2026-08-07T12:00:00.000Z'}},
+      {body:{permissions:[]}},
+      {body:{id:'public-reader'}},
       {body:{files:[{id:'old-trip-calendar-folder',resourceKey:'old-folder-key'}]}},
       {body:{id:'old-trip-calendar-folder',trashed:true}},
       {body:{id:'calendar-file',resourceKey:'calendar-key',webContentLink:'https://drive.google.com/calendar-feed',modifiedTime:'2026-08-07T12:00:00.000Z'}},
@@ -236,10 +236,30 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
     const subscription=await publishDriveCalendarSubscription(trip,'BEGIN:VCALENDAR\r\nEND:VCALENDAR',{tripFolderId:'trip-folder-1'})
     expect(subscription.fileId).toBe('calendar-file')
     expect(fetchMock.mock.calls[2][1]).toMatchObject({method:'POST',body:JSON.stringify({name:'Published Calendars',mimeType:'application/vnd.google-apps.folder',parents:['waypoint-root'],appProperties:{waypoint:'published-calendars'}})})
-    expect(fetchMock.mock.calls[4][1]).toMatchObject({method:'POST',body:JSON.stringify({type:'anyone',role:'reader',allowFileDiscovery:false})})
-    const uploadBody=fetchMock.mock.calls[6][1]?.body as Blob
+    const uploadBody=fetchMock.mock.calls[4][1]?.body as Blob
     expect(await uploadBody.text()).toContain('"parents":["calendar-folder"]')
+    expect(String(fetchMock.mock.calls[7][0])).toContain('/files/calendar-file/permissions')
+    expect(fetchMock.mock.calls[7][1]).toMatchObject({method:'POST',body:JSON.stringify({type:'anyone',role:'reader',allowFileDiscovery:false})})
     expect(fetchMock.mock.calls[9][1]).toMatchObject({method:'PATCH',body:JSON.stringify({trashed:true})})
+  })
+
+  it('removes a stale calendar reference from the Drive itinerary when its ICS file is gone',async()=>{
+    const calendarSubscription={provider:'google-drive',format:'ics',mimeType:'text/calendar',access:'public-read-only',fileId:'missing-calendar',publicUrl:'https://drive.google.com/missing-calendar',linkedAt:'2026-08-07T12:00:00.000Z'} as const
+    replies.push(
+      {body:{id:'file-1',name:'Ireland 2026.waypoint.json',version:'2',ownedByMe:true}},
+      {body:{schemaVersion:4,exportedAt:trip.updatedAt,trip,calendarSubscription,collaboration:{revision:'revision-1'}}},
+      {body:{id:'file-1'}},
+      {body:{id:'file-1',version:'3',modifiedTime:'2026-08-09T14:00:00.000Z'}},
+    )
+    const {unlinkMissingDriveCalendarSubscription,getDriveSyncRecord}=await import('./googleDrive')
+    const record={tripId:trip.id,fileId:'file-1',ownedByMe:true,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:trip.updatedAt,calendarSubscription}
+    const unlinked=await unlinkMissingDriveCalendarSubscription(record)
+
+    expect(unlinked.calendarSubscription).toBeUndefined()
+    expect(getDriveSyncRecord(trip.id)?.calendarSubscription).toBeUndefined()
+    const uploaded=JSON.parse(String(fetchMock.mock.calls[2][1]?.body))
+    expect(uploaded.calendarSubscription).toBeUndefined()
+    expect(fetchMock.mock.calls[3][1]).toMatchObject({method:'PATCH',body:JSON.stringify({appProperties:{waypoint:'trip',tripId:trip.id,travelStart:'',travelEnd:'',archived:'false',shared:'false',hasCalendar:'false'}})})
   })
 
   it('moves an existing calendar out of a structured trip and removes its published folder on the next owner sync',async()=>{
@@ -247,9 +267,10 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
       {body:{files:[{id:'calendar-file',resourceKey:'calendar-key',webContentLink:'https://drive.google.com/calendar-feed'}]}},
       {body:{files:[{id:'waypoint-root'}]}},
       {body:{files:[{id:'calendar-folder',name:'Published Calendars',resourceKey:'folder-key'}]}},
-      {body:{permissions:[{id:'public-reader',type:'anyone',role:'reader'}]}},
       {body:{id:'calendar-file',parents:['old-trip-calendar-folder'],resourceKey:'calendar-key'}},
       {body:{id:'calendar-file',parents:['calendar-folder'],resourceKey:'calendar-key'}},
+      {body:{permissions:[]}},
+      {body:{id:'public-reader'}},
       {body:{files:[{id:'old-trip-calendar-folder',resourceKey:'old-folder-key'}]}},
       {body:{id:'old-trip-calendar-folder',trashed:true}},
     )
@@ -258,9 +279,10 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
     const migrated=await ensureDriveTripStructure(record,trip)
 
     expect(migrated.calendarStorageMigrated).toBe(true)
-    expect(String(fetchMock.mock.calls[5][0])).toContain('addParents=calendar-folder')
-    expect(String(fetchMock.mock.calls[5][0])).toContain('removeParents=old-trip-calendar-folder')
-    expect(fetchMock.mock.calls[7][1]).toMatchObject({method:'PATCH',body:JSON.stringify({trashed:true})})
+    expect(String(fetchMock.mock.calls[4][0])).toContain('addParents=calendar-folder')
+    expect(String(fetchMock.mock.calls[4][0])).toContain('removeParents=old-trip-calendar-folder')
+    expect(fetchMock.mock.calls[6][1]).toMatchObject({method:'POST',body:JSON.stringify({type:'anyone',role:'reader',allowFileDiscovery:false})})
+    expect(fetchMock.mock.calls[8][1]).toMatchObject({method:'PATCH',body:JSON.stringify({trashed:true})})
   })
 
   it('uploads journal photos into the inherited trip media folder',async()=>{

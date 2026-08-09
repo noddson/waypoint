@@ -91,6 +91,15 @@ describe('iCalendar itinerary export',()=>{
     expect(buildTripCalendar(noTimeTrip)).not.toContain('BEGIN:VALARM')
   })
 
+  it('excludes journal entries from exported and published calendar content',()=>{
+    const journalTrip:Trip={...trip,items:[...trip.items,{id:'journal-1',type:'journal',title:'Private arrival notes',start:'2026-07-19T09:00',timeZone:'Europe/Dublin',status:'planned',notes:'Personal journal text.'}]}
+    const calendar=buildTripCalendar(journalTrip)
+    expect(calendar).not.toContain('UID:journal-1@waypoint.travel')
+    expect(calendar).not.toContain('Private arrival notes')
+    expect(calendar).not.toContain('Personal journal text')
+    expect(calendar).toContain('UID:flight-1@waypoint.travel')
+  })
+
   it('omits binary attachments and folds every content line',()=>{
     const calendar=buildTripCalendar(trip)
     expect(calendar).not.toContain('ATTACH')
