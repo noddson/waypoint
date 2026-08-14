@@ -1118,10 +1118,11 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
   it('validates LINKS.JSON policies against their audience and fails closed on unknown fields',async()=>{
     const {isLinksManifestV1,saveDriveLinksManifest}=await import('./googleDrive')
     const publicPolicy={version:1 as const,audience:'public-trip' as const,preset:'simplified' as const,itemTypes:['flight' as const,'stay' as const],fields:['type' as const,'title' as const],includePhotos:false,includeAudio:false}
-    const valid={schemaVersion:1 as const,updatedAt:'2026-08-09T12:00:00.000Z',trips:{[trip.id]:{publicTrip:{enabled:true,policy:publicPolicy,fileId:'public-file'}}}}
+    const valid={schemaVersion:1 as const,updatedAt:'2026-08-09T12:00:00.000Z',trips:{[trip.id]:{publicTrip:{enabled:true,policy:publicPolicy,fileId:'public-file',reviewRequired:false}}}}
 
     expect(isLinksManifestV1(valid)).toBe(true)
     expect(isLinksManifestV1({...valid,trips:{[trip.id]:{namedTrip:{enabled:true,policy:publicPolicy}}}})).toBe(false)
+    expect(isLinksManifestV1({...valid,trips:{[trip.id]:{publicTrip:{...valid.trips[trip.id].publicTrip,reviewRequired:'yes'}}}})).toBe(false)
     expect(isLinksManifestV1({...valid,accessToken:'must-never-be-stored'})).toBe(false)
     await expect(saveDriveLinksManifest({...valid,accessToken:'must-never-be-stored'} as never)).rejects.toThrow('manifest is malformed')
     expect(fetchMock).not.toHaveBeenCalled()

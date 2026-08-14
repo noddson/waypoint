@@ -568,7 +568,7 @@ export function isLinksManifestV1(value:unknown):value is LinksManifestV1 {
   if(manifest.schemaVersion!==1||!isIsoInstant(manifest.updatedAt)||!manifest.trips||typeof manifest.trips!=='object'||Array.isArray(manifest.trips)||Object.keys(value).some(key=>key!=='schemaVersion'&&key!=='updatedAt'&&key!=='trips'))return false
   const tripEntries=Object.entries(manifest.trips)
   if(tripEntries.length>1_000)return false
-  const allowedEntryKeys=new Set(['enabled','policy','policyHash','fileId','resourceKey','publicUrl','publishedCanonicalRevision','publishedAt','stale','error'])
+  const allowedEntryKeys=new Set(['enabled','policy','policyHash','fileId','resourceKey','publicUrl','publishedCanonicalRevision','publishedAt','stale','reviewRequired','error'])
   const validEntry=(entry:unknown,audience:'public-trip'|'named-trip'|'public-calendar')=>{
     if(!entry||typeof entry!=='object'||Array.isArray(entry))return false
     const candidate=entry as DriveShareManifestEntry
@@ -579,7 +579,8 @@ export function isLinksManifestV1(value:unknown):value is LinksManifestV1 {
       if(fieldValue!==undefined&&(typeof fieldValue!=='string'||fieldValue.length>max))return false
     }
     if(candidate.publishedAt!==undefined&&!isIsoInstant(candidate.publishedAt))return false
-    return candidate.stale===undefined||typeof candidate.stale==='boolean'
+    if(candidate.stale!==undefined&&typeof candidate.stale!=='boolean')return false
+    return candidate.reviewRequired===undefined||typeof candidate.reviewRequired==='boolean'
   }
   return tripEntries.every(([tripId,entry])=>{
     if(!tripId||tripId.length>200||!entry||typeof entry!=='object'||Array.isArray(entry)||Object.keys(entry).some(key=>key!=='publicTrip'&&key!=='namedTrip'&&key!=='publicCalendar'))return false
