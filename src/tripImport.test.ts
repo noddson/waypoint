@@ -90,6 +90,21 @@ describe('Waypoint JSON validation', () => {
     expect(migrateTripExportToV2(legacy)).toBeNull()
   })
 
+  it('drops cleared v1 editor fields while converting a Drive trip to strict v2',()=>{
+    const legacy=exportData()
+    Object.assign(legacy.trip.items[0],{end:'',endTimeZone:'',createdAt:'',updatedAt:'',notes:' '})
+    const migrated=migrateTripExportToV2(legacy)
+
+    expect(migrated).not.toBeNull()
+    expect(migrated?.schemaVersion).toBe(2)
+    expect(migrated?.trip.items[0]).not.toHaveProperty('end')
+    expect(migrated?.trip.items[0]).not.toHaveProperty('endTimeZone')
+    expect(migrated?.trip.items[0]).not.toHaveProperty('createdAt')
+    expect(migrated?.trip.items[0]).not.toHaveProperty('updatedAt')
+    expect(migrated?.trip.items[0]).not.toHaveProperty('notes')
+    expect(validTripExport(migrated)).toBe(true)
+  })
+
   it('rejects unknown or legacy envelope data in canonical v2 while v1 remains migratable',()=>{
     const v1=exportData() as ReturnType<typeof exportData>&Record<string,unknown>
     v1.futureMigrationField='ignored during migration'

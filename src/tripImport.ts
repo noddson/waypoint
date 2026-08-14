@@ -79,7 +79,10 @@ const audioCopy = (value:JournalAudio):JournalAudio => ({id:value.id,driveFileId
 function itemCopy(value:TripItem):TripItem {
   const item:TripItem={id:value.id,type:value.type,title:value.title,start:value.start,timeZone:value.timeZone,status:value.status}
   const strings=['provider','confirmation','end','endTimeZone','location','endLocation','notes','link','emailLink','bookedBy','quantity','flightNumber','relatedItemId','createdAt','updatedAt','conflictOf'] as const
-  for(const key of strings)if(value[key]!==undefined)(item[key] as string|undefined)=value[key]
+  // Schema v1 editors retained cleared optional inputs as empty strings. They
+  // have no meaning, and semantic v2 fields such as end/endTimeZone reject
+  // them, so omit them at the canonical boundary.
+  for(const key of strings)if(value[key]!==undefined&&value[key]!.trim()!=='')(item[key] as string|undefined)=value[key]
   if(value.durationMinutes!==undefined)item.durationMinutes=value.durationMinutes
   if(value.allDay!==undefined)item.allDay=value.allDay
   if(value.photos!==undefined)item.photos=value.photos.map(photoCopy)
@@ -114,7 +117,7 @@ function canonicalTripCopy(value:Trip):Trip {
     destination:value.destination,
     createdAt:value.createdAt,
     updatedAt:value.updatedAt,
-    ...(value.archivedAt!==undefined?{archivedAt:value.archivedAt}:{}),
+    ...(value.archivedAt?.trim()?{archivedAt:value.archivedAt}:{}),
     ...(value.createdBy?{createdBy:authorCopy(value.createdBy)}:{}),
     ...(value.updatedBy?{updatedBy:authorCopy(value.updatedBy)}:{}),
     items:value.items.map(itemCopy),
