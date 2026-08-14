@@ -64,17 +64,30 @@ describe('Waypoint JSON validation', () => {
   })
 
   it('strictly validates dates, time zones, identifiers, and aggregate size',()=>{
-    const invalidExportTime=exportData();invalidExportTime.exportedAt='2026-02-31T12:00:00.000Z'
+    const invalidExportTime={...exportData(),schemaVersion:2};invalidExportTime.exportedAt='2026-02-31T12:00:00.000Z'
     expect(validTripExport(invalidExportTime)).toBe(false)
-    const invalidStart=exportData();invalidStart.trip.items[0].start='2026-02-30T20:50'
+    const invalidStart={...exportData(),schemaVersion:2};invalidStart.trip.items[0].start='2026-02-30T20:50'
     expect(validTripExport(invalidStart)).toBe(false)
-    const invalidZone=exportData();invalidZone.trip.items[0].timeZone='Mars/Olympus_Mons'
+    const invalidZone={...exportData(),schemaVersion:2};invalidZone.trip.items[0].timeZone='Mars/Olympus_Mons'
     expect(validTripExport(invalidZone)).toBe(false)
     const emptyId=exportData();emptyId.trip.items[0].id=''
     expect(validTripExport(emptyId)).toBe(false)
     const oversized=exportData()
     oversized.trip.items=Array.from({length:450},(_,index)=>({...oversized.trip.items[0],id:`item-${index}`,notes:'x'.repeat(12_000)}))
     expect(validTripExport(oversized)).toBe(false)
+  })
+
+  it('keeps schema v1 Drive trips loadable under the validation contract that wrote them',()=>{
+    const legacy=exportData()
+    legacy.exportedAt='generated before strict timestamp validation'
+    legacy.trip.createdAt='created before strict timestamp validation'
+    legacy.trip.updatedAt='updated before strict timestamp validation'
+    legacy.trip.items[0].start='July 18 at 8:50 PM'
+    legacy.trip.items[0].timeZone='Dublin time'
+    expect(validTripExport(legacy)).toBe(true)
+
+    expect(validTripExport({...legacy,schemaVersion:2})).toBe(false)
+    expect(migrateTripExportToV2(legacy)).toBeNull()
   })
 
   it('rejects unknown or legacy envelope data in canonical v2 while v1 remains migratable',()=>{

@@ -26,23 +26,24 @@ export const safeHttpsLink = (value?:string) => {
 export const tripNameWithoutImportedSuffix = (value:string) => value.replace(/\s+\(imported\)$/,'')
 
 export function validTripExport(value:unknown): value is TripExport {
-  if(!object(value)||(value.schemaVersion!==LEGACY_SCHEMA_VERSION&&value.schemaVersion!==SCHEMA_VERSION)||!serializedUtf8SizeAtMost(value,5_000_000)||!isIsoInstant(value.exportedAt)||!object(value.trip))return false
+  if(!object(value)||(value.schemaVersion!==LEGACY_SCHEMA_VERSION&&value.schemaVersion!==SCHEMA_VERSION)||!serializedUtf8SizeAtMost(value,5_000_000)||!object(value.trip))return false
   const strictKeys=value.schemaVersion===SCHEMA_VERSION
+  if(strictKeys?!isIsoInstant(value.exportedAt):!string(value.exportedAt,100))return false
   if(strictKeys&&!exactKeys(value,ENVELOPE_KEYS))return false
   if(value.calendarSubscription!==undefined){
     const calendar=value.calendarSubscription
-    if(!object(calendar)||calendar.provider!=='google-drive'||calendar.format!=='ics'||calendar.mimeType!=='text/calendar'||calendar.access!=='public-read-only'||!string(calendar.fileId,500)||!calendar.fileId.trim()||!optionalString(calendar.resourceKey,500)||!string(calendar.publicUrl,4_000)||!safeHttpsLink(calendar.publicUrl)||!isIsoInstant(calendar.linkedAt))return false
+    if(!object(calendar)||calendar.provider!=='google-drive'||calendar.format!=='ics'||calendar.mimeType!=='text/calendar'||calendar.access!=='public-read-only'||!string(calendar.fileId,500)||!calendar.fileId.trim()||!optionalString(calendar.resourceKey,500)||!string(calendar.publicUrl,4_000)||!safeHttpsLink(calendar.publicUrl)||(strictKeys?!isIsoInstant(calendar.linkedAt):!string(calendar.linkedAt,100)))return false
   }
   const trip=value.trip
-  if(strictKeys&&!exactKeys(trip,TRIP_KEYS)||!string(trip.id,200)||!trip.id.trim()||!string(trip.name,300)||!trip.name.trim()||!string(trip.destination,500)||!isIsoInstant(trip.createdAt)||!isIsoInstant(trip.updatedAt)||trip.archivedAt!==undefined&&!isIsoInstant(trip.archivedAt)||!Array.isArray(trip.items)||trip.items.length>5000)return false
+  if(strictKeys&&!exactKeys(trip,TRIP_KEYS)||!string(trip.id,200)||!trip.id.trim()||!string(trip.name,300)||!trip.name.trim()||!string(trip.destination,500)||(strictKeys?(!isIsoInstant(trip.createdAt)||!isIsoInstant(trip.updatedAt)||trip.archivedAt!==undefined&&!isIsoInstant(trip.archivedAt)):(!string(trip.createdAt,100)||!string(trip.updatedAt,100)||!optionalString(trip.archivedAt,100)))||!Array.isArray(trip.items)||trip.items.length>5000)return false
   if(trip.createdBy!==undefined&&!validAuthorRef(trip.createdBy)||trip.updatedBy!==undefined&&!validAuthorRef(trip.updatedBy))return false
   const ids=new Set<string>(),attachmentIds=new Set<string>()
   const validItems=trip.items.every(raw=>{
-    if(!object(raw)||strictKeys&&!exactKeys(raw,ITEM_KEYS)||!string(raw.id,200)||!raw.id.trim()||ids.has(raw.id)||!types.includes(raw.type as ItemType)||!string(raw.title,500)||!raw.title.trim()||!isLocalDateTime(raw.start)||!isIanaTimeZone(raw.timeZone)||!statuses.includes(raw.status as Status))return false
+    if(!object(raw)||strictKeys&&!exactKeys(raw,ITEM_KEYS)||!string(raw.id,200)||!raw.id.trim()||ids.has(raw.id)||!types.includes(raw.type as ItemType)||!string(raw.title,500)||!raw.title.trim()||(strictKeys?(!isLocalDateTime(raw.start)||!isIanaTimeZone(raw.timeZone)):(!string(raw.start,50)||!string(raw.timeZone,100)))||!statuses.includes(raw.status as Status))return false
     ids.add(raw.id)
     const safeOptionalStrings=['provider','confirmation','end','endTimeZone','location','endLocation','notes','bookedBy','quantity','flightNumber','relatedItemId','createdAt','updatedAt','conflictOf']
     if(!safeOptionalStrings.every(key=>optionalString(raw[key],key==='notes'?12_000:2_000)))return false
-    if(raw.end!==undefined&&!isLocalDateTime(raw.end)||raw.endTimeZone!==undefined&&!isIanaTimeZone(raw.endTimeZone)||raw.createdAt!==undefined&&!isIsoInstant(raw.createdAt)||raw.updatedAt!==undefined&&!isIsoInstant(raw.updatedAt))return false
+    if(strictKeys&&(raw.end!==undefined&&!isLocalDateTime(raw.end)||raw.endTimeZone!==undefined&&!isIanaTimeZone(raw.endTimeZone)||raw.createdAt!==undefined&&!isIsoInstant(raw.createdAt)||raw.updatedAt!==undefined&&!isIsoInstant(raw.updatedAt)))return false
     if(raw.link!==undefined&&(!string(raw.link,4_000)||!safeHttpsLink(raw.link)))return false
     if(raw.emailLink!==undefined&&(!string(raw.emailLink,4_000)||!safeHttpsLink(raw.emailLink)))return false
     if(raw.allDay!==undefined&&typeof raw.allDay!=='boolean')return false
@@ -62,7 +63,7 @@ export function validTripExport(value:unknown): value is TripExport {
   if(!Array.isArray(trip.journalEntries)||trip.journalEntries.length>5000)return false
   const entryIds=new Set<string>()
   return trip.journalEntries.every(raw=>{
-    if(!object(raw)||strictKeys&&!exactKeys(raw,JOURNAL_ENTRY_KEYS)||!string(raw.id,200)||!raw.id.trim()||entryIds.has(raw.id)||!isCalendarDate(raw.date)||!optionalString(raw.text,50_000)||!optionalString(raw.relatedItemId,200)||!isIsoInstant(raw.createdAt)||!isIsoInstant(raw.updatedAt)||!Array.isArray(raw.photos)||raw.photos.length>500||raw.audio!==undefined&&(!Array.isArray(raw.audio)||raw.audio.length>500))return false
+    if(!object(raw)||strictKeys&&!exactKeys(raw,JOURNAL_ENTRY_KEYS)||!string(raw.id,200)||!raw.id.trim()||entryIds.has(raw.id)||(strictKeys?!isCalendarDate(raw.date):!string(raw.date,10)||!/^\d{4}-\d{2}-\d{2}$/.test(raw.date))||!optionalString(raw.text,50_000)||!optionalString(raw.relatedItemId,200)||(strictKeys?(!isIsoInstant(raw.createdAt)||!isIsoInstant(raw.updatedAt)):(!string(raw.createdAt,100)||!string(raw.updatedAt,100)))||!Array.isArray(raw.photos)||raw.photos.length>500||raw.audio!==undefined&&(!Array.isArray(raw.audio)||raw.audio.length>500))return false
     entryIds.add(raw.id)
     if((!raw.text||!raw.text.trim())&&raw.photos.length===0&&(!Array.isArray(raw.audio)||raw.audio.length===0))return false
     if(!optionalString(raw.conflictOf,2_000)||raw.conflictSource!==undefined&&raw.conflictSource!=='local'&&raw.conflictSource!=='drive')return false
@@ -124,7 +125,8 @@ function canonicalTripCopy(value:Trip):Trip {
 /** Converts either supported import envelope to the private-data-only v2 envelope. */
 export function migrateTripExportToV2(value:unknown):CanonicalTripExportV2|null {
   if(!validTripExport(value))return null
-  return {schemaVersion:SCHEMA_VERSION,exportedAt:value.exportedAt,trip:canonicalTripCopy(value.trip)}
+  const migrated:CanonicalTripExportV2={schemaVersion:SCHEMA_VERSION,exportedAt:value.exportedAt,trip:canonicalTripCopy(value.trip)}
+  return validTripExport(migrated)?migrated:null
 }
 
 /** Creates a v2 export while dropping runtime-only or future unknown properties. */
