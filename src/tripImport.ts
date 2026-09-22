@@ -1,3 +1,4 @@
+import { validExtractionParameters } from './emailExtractionPrompt'
 import { AuthorRef, CanonicalTripExportV2, ItemType, JournalAudio, JournalEntry, JournalPhoto, LEGACY_SCHEMA_VERSION, SCHEMA_VERSION, Status, Trip, TripExport, TripItem, types } from './types'
 import { isCalendarDate, isIanaTimeZone, isIsoInstant, isLocalDateTime, serializedUtf8SizeAtMost } from './schemaValidation'
 
@@ -7,7 +8,7 @@ const string = (value:unknown,max=12_000): value is string => typeof value === '
 const optionalString = (value:unknown,max?:number) => value === undefined || string(value,max)
 const exactKeys = (value:Record<string,unknown>,allowed:readonly string[]) => Object.keys(value).every(key=>allowed.includes(key))
 const ENVELOPE_KEYS=['schemaVersion','exportedAt','trip'] as const
-const TRIP_KEYS=['id','name','destination','createdAt','updatedAt','archivedAt','createdBy','updatedBy','items','journalEntries'] as const
+const TRIP_KEYS=['id','name','destination','createdAt','updatedAt','archivedAt','createdBy','updatedBy','items','journalEntries','extractionParameters'] as const
 const ITEM_KEYS=['id','type','title','provider','confirmation','start','end','timeZone','endTimeZone','location','endLocation','notes','link','emailLink','bookedBy','status','quantity','flightNumber','durationMinutes','allDay','relatedItemId','photos','audio','createdAt','updatedAt','createdBy','updatedBy','conflictOf','conflictSource'] as const
 const JOURNAL_ENTRY_KEYS=['id','date','text','relatedItemId','photos','audio','createdAt','updatedAt','createdBy','updatedBy','conflictOf','conflictSource'] as const
 const ATTACHMENT_KEYS=['id','driveFileId','resourceKey','name','mimeType','size','createdAt'] as const
@@ -37,6 +38,7 @@ export function validTripExport(value:unknown): value is TripExport {
   const trip=value.trip
   if(strictKeys&&!exactKeys(trip,TRIP_KEYS)||!string(trip.id,200)||!trip.id.trim()||!string(trip.name,300)||!trip.name.trim()||!string(trip.destination,500)||(strictKeys?(!isIsoInstant(trip.createdAt)||!isIsoInstant(trip.updatedAt)||trip.archivedAt!==undefined&&!isIsoInstant(trip.archivedAt)):(!string(trip.createdAt,100)||!string(trip.updatedAt,100)||!optionalString(trip.archivedAt,100)))||!Array.isArray(trip.items)||trip.items.length>5000)return false
   if(trip.createdBy!==undefined&&!validAuthorRef(trip.createdBy)||trip.updatedBy!==undefined&&!validAuthorRef(trip.updatedBy))return false
+  if(trip.extractionParameters!==undefined&&!validExtractionParameters(trip.extractionParameters))return false
   const ids=new Set<string>(),attachmentIds=new Set<string>()
   const validItems=trip.items.every(raw=>{
     if(!object(raw)||strictKeys&&!exactKeys(raw,ITEM_KEYS)||!string(raw.id,200)||!raw.id.trim()||ids.has(raw.id)||!types.includes(raw.type as ItemType)||!string(raw.title,500)||!raw.title.trim()||(strictKeys?(!isLocalDateTime(raw.start)||!isIanaTimeZone(raw.timeZone)):(!string(raw.start,50)||!string(raw.timeZone,100)))||!statuses.includes(raw.status as Status))return false
@@ -120,6 +122,7 @@ function canonicalTripCopy(value:Trip):Trip {
     ...(value.archivedAt?.trim()?{archivedAt:value.archivedAt}:{}),
     ...(value.createdBy?{createdBy:authorCopy(value.createdBy)}:{}),
     ...(value.updatedBy?{updatedBy:authorCopy(value.updatedBy)}:{}),
+    ...(value.extractionParameters?{extractionParameters:{...value.extractionParameters,...(value.extractionParameters.searchCategories?{searchCategories:{...value.extractionParameters.searchCategories}}:{})}}:{}),
     items:value.items.map(itemCopy),
     ...(value.journalEntries!==undefined?{journalEntries:value.journalEntries.map(journalEntryCopy)}:{}),
   }

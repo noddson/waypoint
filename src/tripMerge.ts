@@ -43,7 +43,7 @@ export function mergeTripVersions(baseInput:Trip,localInput:Trip,remoteInput:Tri
 
   const sortedItems=sortTripItems(items)
   return {
-    trip:{...remote,name:chooseField(base.name,local.name,remote.name),destination:tripRouteStops(sortedItems).map(stop=>stop.label).join(' → '),archivedAt:chooseField(base.archivedAt,local.archivedAt,remote.archivedAt),updatedAt:new Date().toISOString(),items:sortedItems},
+    trip:{...remote,extractionParameters:same(local.extractionParameters,base.extractionParameters)?remote.extractionParameters:local.extractionParameters,name:chooseField(base.name,local.name,remote.name),destination:tripRouteStops(sortedItems).map(stop=>stop.label).join(' → '),archivedAt:chooseField(base.archivedAt,local.archivedAt,remote.archivedAt),updatedAt:new Date().toISOString(),items:sortedItems},
     conflicts,
   }
 }

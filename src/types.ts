@@ -1,3 +1,5 @@
+import type { EmailExtractionPromptInput } from './emailExtractionPrompt'
+
 export const LEGACY_SCHEMA_VERSION = 1 as const
 export const SCHEMA_VERSION = 2 as const
 export type SupportedSchemaVersion = typeof LEGACY_SCHEMA_VERSION | typeof SCHEMA_VERSION
@@ -46,7 +48,7 @@ export interface JournalEntry {
   conflictOf?: string
   conflictSource?: 'local'|'drive'
 }
-export interface Trip { id: string; name: string; destination: string; createdAt: string; updatedAt: string; archivedAt?: string; createdBy?: AuthorRef; updatedBy?: AuthorRef; items: TripItem[]; journalEntries?: JournalEntry[] }
+export interface Trip { id: string; name: string; destination: string; createdAt: string; updatedAt: string; archivedAt?: string; createdBy?: AuthorRef; updatedBy?: AuthorRef; items: TripItem[]; journalEntries?: JournalEntry[]; extractionParameters?: EmailExtractionPromptInput }
 
 export interface ProfileV1 {
   schemaVersion: 1

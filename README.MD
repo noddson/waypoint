@@ -391,6 +391,12 @@ Waypoint itself does not request mailbox permission. Instead, **Build email extr
 9. Paste it into the separately authorized assistant.
 10. Review and import the returned Waypoint JSON.
 
+Choose **Save search settings**, or **Copy prompt**, to save the current parameters with the trip. Reopening the builder restores the trip name, route, travel dates, mailbox date window, categories, people/providers, and search hints. For example, change a saved January 1–April 30 mailbox window to May 1–June 1 while keeping the travel dates and other criteria. Save or copy again to retain the revised settings; this stores the latest settings, not a history or proof of completed searches.
+
+Generated prompts include `trip.extractionParameters` in the requested JSON, so importing that JSON also retains its search criteria. Settings survive private JSON export/import and Drive synchronization; public, named-viewer, and snapshot projections omit them. Older JSON without this optional field still imports, but its original extraction settings cannot be recovered automatically.
+
+Full-trip **Import returned JSON** creates a separate trip. To append newly extracted reservations to the existing trip, use **Add item → JSON** with only the new items. Changing the mailbox window alone does not guarantee that the results contain no previously imported bookings.
+
 ### Privacy behavior of the generated prompt
 
 The prompt instructs the assistant to:

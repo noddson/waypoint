@@ -1,3 +1,4 @@
+import { isCalendarDate } from './schemaValidation'
 import { tripJsonFilename } from './tripFilename'
 
 export interface EmailExtractionPromptInput {
@@ -29,6 +30,26 @@ export const defaultEmailSearchCategories: Record<EmailSearchCategory, boolean> 
   car: true,
   hotel: true,
   events: true,
+}
+
+/** Only complete, bounded extraction settings may be persisted or imported. */
+export function validExtractionParameters(value:unknown): value is EmailExtractionPromptInput {
+  if(!value||typeof value!=='object'||Array.isArray(value))return false
+  const input=value as Record<string,unknown>
+  const limits:Record<string,number>={tripName:300,destination:500,travelStart:10,travelEnd:10,emailStart:10,emailEnd:10,people:12000,clues:12000}
+  if(Object.keys(input).some(key=>!Object.prototype.hasOwnProperty.call(limits,key)&&key!=='searchCategories'))return false
+  for(const [key,max] of Object.entries(limits)){
+    if(input[key]===undefined&&(key==='people'||key==='clues'))continue
+    if(typeof input[key]!=='string'||(input[key] as string).length>max)return false
+  }
+  if(!(input.tripName as string).trim()||!(input.destination as string).trim())return false
+  if(!['travelStart','travelEnd','emailStart','emailEnd'].every(key=>isCalendarDate(input[key])))return false
+  if((input.travelStart as string)>(input.travelEnd as string)||(input.emailStart as string)>(input.emailEnd as string))return false
+  if(input.searchCategories!==undefined){
+    if(!input.searchCategories||typeof input.searchCategories!=='object'||Array.isArray(input.searchCategories))return false
+    if(Object.entries(input.searchCategories).some(([key,value])=>!emailSearchCategories.includes(key as EmailSearchCategory)||typeof value!=='boolean'))return false
+  }
+  return true
 }
 
 const bookingSearchTerms: Array<{ term: string; category?: EmailSearchCategory }> = [
@@ -172,6 +193,8 @@ DETAIL AND LINK RULES
 OUTPUT
 Create a file named ${outputFilename} containing only one valid JSON object. The filename must be derived from the trip's primary destination plus its travel-start month and year, using filesystem-safe words separated by hyphens; do not use a fixed generic filename. If this environment cannot create a file, reply with the raw JSON object only. Do not use Markdown fences and do not add commentary before or after the JSON.
 
+Copy extractionParameters exactly as shown below so Waypoint can reopen the search settings later. These are saved settings, not evidence that a search completed.
+
 Use exactly this Waypoint schema (schemaVersion must remain 2):
 {
   "schemaVersion": 2,
@@ -182,6 +205,7 @@ Use exactly this Waypoint schema (schemaVersion must remain 2):
     "destination": "destination or route summary",
     "createdAt": "ISO-8601 timestamp",
     "updatedAt": "ISO-8601 timestamp",
+    "extractionParameters": ${JSON.stringify(input,null,2).replace(/\n/g,'\n    ')},
     "items": [
       {
         "id": "globally unique UUID",
