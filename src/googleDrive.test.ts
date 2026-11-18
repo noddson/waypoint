@@ -23,7 +23,7 @@ const privateRootListReply = (id:string):Reply => ({body:{files:[privateRoot(id)
 
 describe.sequential('Google Drive bootstrap revision cleanup',()=>{
   let replies:Reply[]
-  let fetchMock:ReturnType<typeof vi.fn>
+  let fetchMock:ReturnType<typeof vi.fn<(url:string,init?:RequestInit)=>Promise<Response>>>
 
   beforeEach(()=>{
     vi.resetModules()
@@ -39,7 +39,16 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
       const body=status===204?null:reply.rawBody??JSON.stringify(reply.body??{})
       return new Response(body,{status,headers:status===204?undefined:{'Content-Type':'application/json',...reply.headers}})
     })
-    vi.stubGlobal('fetch',fetchMock)
+    // Existing fixtures describe the content/ACL protocol. Identity lookups are
+    // exercised with full request assertions in googleDriveIdentity.test.ts.
+    vi.stubGlobal('fetch',async(url:string,init?:RequestInit)=>{
+      const request=new URL(String(url)),q=request.searchParams.get('q')||''
+      if(request.pathname==='/drive/v3/files'&&q.includes("'me' in owners")&&q.includes("key='tripId'")){
+        const record=JSON.parse(localStorage.getItem('waypoint-drive-sync')||'{}')[trip.id]
+        return new Response(JSON.stringify({files:record?[{id:record.fileId,name:'Restored trip.waypoint.json'}]:[]}),{headers:{'Content-Type':'application/json'}})
+      }
+      return fetchMock(url,init)
+    })
   })
 
   afterEach(()=>vi.unstubAllGlobals())
@@ -141,6 +150,32 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
     expect(cleaned.pendingBootstrapRevisionId).toBeUndefined()
     expect(cleaned.bootstrapCleanupAttempts).toBeUndefined()
     expect(cleaned.bootstrapCleanupRetryAt).toBeUndefined()
+  })
+
+  it('shares overlapping initial saves instead of creating two files',async()=>{
+    replies.push(...creationReplies())
+    const {createDriveTrip}=await import('./googleDrive')
+    const first=createDriveTrip(trip),second=createDriveTrip(trip)
+    expect(second).toBe(first)
+    const [left,right]=await Promise.all([first,second])
+    expect(left.fileId).toBe(right.fileId)
+    expect(fetchMock.mock.calls.filter(call=>call[1]?.method==='POST'&&call[1]?.body instanceof Blob)).toHaveLength(1)
+    expect(await createDriveTrip(trip)).toMatchObject({fileId:left.fileId})
+    expect(fetchMock.mock.calls.filter(call=>call[1]?.method==='POST'&&call[1]?.body instanceof Blob)).toHaveLength(1)
+  })
+
+  it('detects a cross-device creation race after upload without creating another copy',async()=>{
+    replies.push(...creationReplies())
+    let searches=0
+    vi.stubGlobal('fetch',async(url:string,init?:RequestInit)=>{
+      const q=new URL(url).searchParams.get('q')||''
+      if(q.includes("'me' in owners")&&q.includes("key='tripId'"))return new Response(JSON.stringify({files:++searches===1?[]:[{id:'file-1',name:'Workshop.waypoint.json'},{id:'other-device-file',name:'Workshop.waypoint.json'}]}),{headers:{'Content-Type':'application/json'}})
+      return fetchMock(url,init)
+    })
+    const {createDriveTrip,updateDriveTrip,getDriveSyncRecord}=await import('./googleDrive')
+    await expect(createDriveTrip(trip)).rejects.toMatchObject({name:'DriveTripIdentityError'})
+    await expect(updateDriveTrip(getDriveSyncRecord(trip.id)!,trip)).rejects.toMatchObject({name:'DriveTripIdentityError'})
+    expect(fetchMock.mock.calls.filter(call=>call[1]?.method==='POST'&&call[1]?.body instanceof Blob)).toHaveLength(1)
   })
 
   it('finishes cleanup when deletion succeeded but its metadata marker remained',async()=>{

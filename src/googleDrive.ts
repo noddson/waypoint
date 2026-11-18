@@ -32,6 +32,8 @@ const TOKEN_STORAGE_KEY = 'waypoint-drive-session'
 const BOOTSTRAP_REVISION_PROPERTY = 'waypointBootstrapRevision'
 const BOOTSTRAP_CLEANUP_RETRY_BASE_MS = 5*60*1000
 const BOOTSTRAP_CLEANUP_RETRY_MAX_MS = 24*60*60*1000
+const CANONICAL_TRIP_PROPERTY = 'waypointCanonicalTrip'
+const tripCreations = new Map<string,Promise<DriveSyncRecord>>()
 
 type TokenResponse = {access_token?:string;expires_in?:number;error?:string;error_description?:string}
 type TokenClient = {requestAccessToken:(options?:{prompt?:string})=>void}
@@ -46,6 +48,21 @@ type GoogleIdentity = {
 type GoogleApiLoader={load:(name:string,options:(()=>void)|{callback:()=>void;onerror?:()=>void;timeout?:number;ontimeout?:()=>void})=>void}
 export class DriveRequestError extends Error {
   constructor(message:string,readonly status:number,readonly reason?:string){super(message);this.name='DriveRequestError'}
+}
+
+export interface DriveTripIdentityFile {
+  id:string
+  name:string
+  resourceKey?:string
+  modifiedTime?:string
+  canonical:boolean
+}
+
+export class DriveTripIdentityError extends Error {
+  constructor(readonly tripId:string,readonly files:DriveTripIdentityFile[],readonly preferredFileId?:string){
+    super(preferredFileId?'This trip uses a different current Drive file. Open the selected copy before syncing.':'Multiple Drive files have the same trip ID. Compare the copies and choose one for all devices before syncing.')
+    this.name='DriveTripIdentityError'
+  }
 }
 
 declare global { interface Window { google?:GoogleIdentity;gapi?:GoogleApiLoader } }
@@ -264,11 +281,21 @@ export async function listDriveTrips():Promise<DriveTripSummary[]> {
     q:"appProperties has { key='waypoint' and value='trip' } and trashed=false",
     spaces:'drive',
     pageSize:'1000',
-    fields:'files(id,name,modifiedTime,resourceKey,ownedByMe,capabilities(canEdit,canShare,canAddChildren),appProperties)',
+    fields:'nextPageToken,incompleteSearch,files(id,name,modifiedTime,resourceKey,ownedByMe,capabilities(canEdit,canShare,canAddChildren),appProperties)',
   })
   type ListedDriveFile={id:string;name:string;modifiedTime?:string;resourceKey?:string;ownedByMe?:boolean;capabilities?:DriveFileCapabilities;appProperties?:{tripId?:string;travelStart?:string;travelEnd?:string;archived?:string;shared?:string;hasCalendar?:string}}
-  const result=await driveFetch(`${DRIVE_API}/files?${query}`).then(response=>response.json()) as {files?:ListedDriveFile[]}
-  const trips=(result.files||[]).map(file=>({id:file.id,name:file.name.replace(/\.waypoint\.json$/i,''),modifiedTime:file.modifiedTime,travelStart:file.appProperties?.travelStart,travelEnd:file.appProperties?.travelEnd,archived:file.appProperties?.archived==='true',shared:file.appProperties?.shared==='true',hasCalendar:file.appProperties?.hasCalendar==='true',resourceKey:file.resourceKey,tripId:file.appProperties?.tripId,ownedByMe:file.ownedByMe,canEdit:file.capabilities?.canEdit,canShare:file.capabilities?.canShare,canAddChildren:file.capabilities?.canAddChildren}))
+  const files:ListedDriveFile[]=[],tokens=new Set<string>()
+  let pageToken:string|undefined
+  do{
+    if(pageToken)query.set('pageToken',pageToken)
+    const page=await driveFetch(`${DRIVE_API}/files?${query}`).then(response=>response.json()) as {files?:ListedDriveFile[];nextPageToken?:string;incompleteSearch?:boolean}
+    if(page.incompleteSearch)throw new Error('Google Drive could not list every trip. Retry before choosing a copy.')
+    files.push(...page.files||[])
+    pageToken=page.nextPageToken
+    if(pageToken&&tokens.has(pageToken))throw new Error('Google Drive repeated a trip-list page. Please retry.')
+    if(pageToken)tokens.add(pageToken)
+  }while(pageToken)
+  const trips=files.map(file=>({id:file.id,name:file.name.replace(/\.waypoint\.json$/i,''),modifiedTime:file.modifiedTime,travelStart:file.appProperties?.travelStart,travelEnd:file.appProperties?.travelEnd,archived:file.appProperties?.archived==='true',shared:file.appProperties?.shared==='true',hasCalendar:file.appProperties?.hasCalendar==='true',resourceKey:file.resourceKey,tripId:file.appProperties?.tripId,ownedByMe:file.ownedByMe,canEdit:file.capabilities?.canEdit,canShare:file.capabilities?.canShare,canAddChildren:file.capabilities?.canAddChildren}))
   await Promise.all(trips.filter(trip=>!trip.travelStart||!trip.travelEnd).map(async trip=>{
     try{
       const data=await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(trip.id)}?alt=media`,{headers:resourceKeyHeaders(trip.id,trip.resourceKey)}).then(response=>readDriveTripExport(response,'The Google Drive trip summary'))
@@ -414,6 +441,56 @@ export function getDriveSyncRecord(tripId:string){return readSyncRecords()[tripI
 export function getDriveSyncRecordByFileId(fileId:string){return Object.values(readSyncRecords()).find(record=>record.fileId===fileId)}
 export function saveDriveSyncRecord(record:DriveSyncRecord){const records=readSyncRecords();records[record.tripId]=record;localStorage.setItem(SYNC_STORAGE_KEY,JSON.stringify(records));return record}
 export function removeDriveSyncRecord(tripId:string){const records=readSyncRecords();delete records[tripId];localStorage.setItem(SYNC_STORAGE_KEY,JSON.stringify(records))}
+
+/** Search the account, not just a particular root/folder or this browser's links. */
+export async function findOwnedDriveTripFiles(tripId:string):Promise<DriveTripIdentityFile[]> {
+  const files=new Map<string,DriveTripIdentityFile>()
+  let pageToken:string|undefined
+  const tokens=new Set<string>()
+  do{
+    const query=new URLSearchParams({q:[appPropertyQuery('waypoint','trip'),appPropertyQuery('tripId',tripId),"'me' in owners","mimeType='application/json'",'trashed=false'].join(' and '),spaces:'drive',pageSize:'1000',fields:'nextPageToken,incompleteSearch,files(id,name,resourceKey,modifiedTime,appProperties)'})
+    if(pageToken)query.set('pageToken',pageToken)
+    const page=await driveFetch(`${DRIVE_API}/files?${query}`).then(response=>response.json()) as {files?:Array<{id:string;name:string;resourceKey?:string;modifiedTime?:string;appProperties?:Record<string,string>}>;nextPageToken?:string;incompleteSearch?:boolean}
+    if(page.incompleteSearch)throw new Error('Google Drive could not finish checking for an existing trip. Retry before creating or syncing a file.')
+    for(const file of page.files||[])files.set(file.id,{id:file.id,name:file.name,resourceKey:file.resourceKey,modifiedTime:file.modifiedTime,canonical:file.appProperties?.[CANONICAL_TRIP_PROPERTY]==='true'})
+    pageToken=page.nextPageToken
+    if(pageToken&&tokens.has(pageToken))throw new Error('Google Drive repeated a trip-search page. Retry before creating or syncing a file.')
+    if(pageToken)tokens.add(pageToken)
+  }while(pageToken)
+  return [...files.values()]
+}
+
+function currentDriveTripFile(tripId:string,files:DriveTripIdentityFile[]) {
+  if(files.length<=1)return files[0]
+  const selected=files.filter(file=>file.canonical)
+  if(selected.length===1)return selected[0]
+  throw new DriveTripIdentityError(tripId,files)
+}
+
+async function checkDriveTripIdentity(tripId:string,fileId:string) {
+  const files=await findOwnedDriveTripFiles(tripId),current=currentDriveTripFile(tripId,files)
+  if(current&&current.id!==fileId)throw new DriveTripIdentityError(tripId,files,current.id)
+}
+
+export async function inspectDriveTripCopy(tripId:string,file:DriveTripIdentityFile) {
+  const {data,details}=await loadDriveTrip(file.id,file.resourceKey)
+  if(details.ownedByMe!==true||details.waypointKind!=='trip'||details.tripId!==tripId||data.trip.id!==tripId)throw new Error('This file could not be verified as your copy of this trip.')
+  return {file,trip:data.trip}
+}
+
+/** Explicit choice only: leave all JSON copies intact and record which one to use. */
+export async function selectCurrentDriveTripFile(tripId:string,fileId:string) {
+  const files=await findOwnedDriveTripFiles(tripId),selected=files.find(file=>file.id===fileId)
+  if(!selected)throw new Error('The selected trip copy is no longer available in your Drive.')
+  await inspectDriveTripCopy(tripId,selected)
+  for(const file of files.filter(file=>file.canonical&&file.id!==fileId)){
+    await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(file.id)}?fields=id`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(file.id,file.resourceKey)},body:JSON.stringify({appProperties:{[CANONICAL_TRIP_PROPERTY]:null}})})
+  }
+  await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=id`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(fileId,selected.resourceKey)},body:JSON.stringify({appProperties:{[CANONICAL_TRIP_PROPERTY]:'true'}})})
+  const verified=await findOwnedDriveTripFiles(tripId),current=currentDriveTripFile(tripId,verified)
+  if(current?.id!==fileId||!current.canonical)throw new DriveTripIdentityError(tripId,verified,current?.id)
+  return current
+}
 
 export async function trashDriveTrip(record:DriveSyncRecord) {
   await verifyDriveSyncRecordBindings(record,false)
@@ -1090,7 +1167,34 @@ export async function trashDriveCalendarSubscription(tripId:string) {
   if(subscription)await driveFetch(`${DRIVE_API}/files/${encodeURIComponent(subscription.fileId)}?fields=id,trashed`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(subscription.fileId,subscription.resourceKey)},body:JSON.stringify({trashed:true})})
 }
 
-export async function createDriveTrip(trip:Trip) {
+async function recoverDriveTrip(file:DriveTripIdentityFile,tripId:string):Promise<DriveSyncRecord> {
+  const {data,details}=await loadDriveTrip(file.id,file.resourceKey)
+  if(details.ownedByMe!==true||details.waypointKind!=='trip'||details.tripId!==tripId||data.trip.id!==tripId)throw new Error('The existing Google Drive file could not be verified for this trip. No new file was created.')
+  return saveDriveSyncRecord(synchronizedRecord({tripId,fileId:file.id,resourceKey:details.resourceKey||file.resourceKey,ownedByMe:true,canonicalSchemaVersion:data.schemaVersion,canonicalSchemaMigrated:data.schemaVersion===SCHEMA_VERSION,lastSyncedUpdatedAt:data.trip.updatedAt,lastSynchronizedAt:new Date().toISOString(),baseTrip:data.trip,calendarSubscription:data.calendarSubscription,bootstrapRevisionId:details.bootstrapRevisionId,canEdit:details.capabilities?.canEdit,canShare:details.capabilities?.canShare,canAddChildren:details.capabilities?.canAddChildren,canReadRevisions:details.capabilities?.canReadRevisions,canDownload:details.capabilities?.canDownload},details))
+}
+
+export function createDriveTrip(trip:Trip):Promise<DriveSyncRecord> {
+  const pending=tripCreations.get(trip.id)
+  if(pending)return pending
+  const create=async()=>{
+    // Recheck after acquiring the cross-tab lock: another tab may have finished.
+    const linked=getDriveSyncRecord(trip.id)
+    if(linked)return linked
+    const validated=createTripExport(trip,new Date().toISOString()).trip
+    const files=await findOwnedDriveTripFiles(trip.id),existing=currentDriveTripFile(trip.id,files)
+    if(existing)return recoverDriveTrip(existing,trip.id)
+    const record=await createNewDriveTrip(validated)
+    // Drive has no unique constraint on appProperties. Detect cross-device races
+    // after creation, and again before subsequent writes; never choose by date.
+    await checkDriveTripIdentity(trip.id,record.fileId)
+    return record
+  }
+  const promise=(typeof navigator!=='undefined'&&navigator.locks?navigator.locks.request(`waypoint-create-trip:${trip.id}`,create):create()).finally(()=>{if(tripCreations.get(trip.id)===promise)tripCreations.delete(trip.id)})
+  tripCreations.set(trip.id,promise)
+  return promise
+}
+
+async function createNewDriveTrip(trip:Trip) {
   const folder=await findOrCreateTripFolder(trip)
   const boundary=`waypoint-${crypto.randomUUID()}`
   const metadata={name:`${driveSafeName(trip.name,'Trip')}.waypoint.json`,mimeType:'application/json',parents:[folder.id],appProperties:{waypoint:'trip',tripId:trip.id,travelStart:tripFirstTravelDate(trip),travelEnd:tripLastTravelDate(trip),archived:String(!!trip.archivedAt),shared:'false',hasCalendar:'false'},writersCanShare:false}
@@ -1326,6 +1430,9 @@ const tripReferencesJournalMedia = (trip:Trip) => trip.items.some(item=>item.typ
 export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
   if(record.tripId!==trip.id)throw new Error('Sync stopped because the selected trip does not match this Google Drive file.')
   try{trip=createTripExport(migrateLegacyJournalEntries(trip),new Date().toISOString()).trip}catch{throw new Error('Sync stopped because the local trip is malformed or too large.')}
+  const binding=getDriveSyncRecord(trip.id)
+  if(binding&&binding.fileId!==record.fileId)throw new Error('This browser linked the trip to a different Drive file in another tab. Reload this tab before syncing. Your local changes have not been uploaded.')
+  if(record.ownedByMe===true)await checkDriveTripIdentity(trip.id,record.fileId)
   const cleanupWasPending=!!record.pendingBootstrapRevisionId
   record=await retryDriveBootstrapRevisionCleanup(record)
   const cleanupCompleted=cleanupWasPending&&!record.pendingBootstrapRevisionId
@@ -1338,6 +1445,7 @@ export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
   }
   if(details.waypointKind&&details.waypointKind!=='trip')throw new Error('Sync stopped because the linked Drive file is not a Waypoint trip.')
   if(details.tripId&&details.tripId!==trip.id)throw new Error('Sync stopped because this Google Drive file belongs to a different trip.')
+  if(record.ownedByMe!==true&&details.ownedByMe===true)await checkDriveTripIdentity(trip.id,record.fileId)
   let preloadedRemote:TripExport|undefined
   if(!details.waypointKind||!details.tripId){
     const candidate=await downloadDriveTrip(record.fileId,record.resourceKey) as TripExport

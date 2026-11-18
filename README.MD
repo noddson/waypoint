@@ -528,6 +528,14 @@ After synchronization:
 
 There is no separate reconnect/disconnect control in the panel. **Sync and Update** reconnects when needed, reloads private profile/link metadata, revalidates access, and synchronizes the active linked trip. Owners can use **Stop syncing this trip** without touching the Drive copy; recipients use **Remove from My Trips** to remove only their saved descriptor and cache.
 
+### Trip identity and duplicate Drive files
+
+A Waypoint trip ID identifies the itinerary; a Drive file ID identifies its storage file. Starting sync without a browser link now searches all accessible, owner-controlled Waypoint JSON files for that trip ID before creating anything. A single match is reopened without overwriting it with the local copy; different local details are kept as a separate local backup. Overlapping creation requests share one operation, and browsers supporting Web Locks also serialize initial creation across tabs. An interrupted save can recover its existing file on retry.
+
+Drive does not enforce uniqueness of Waypoint's trip-ID property. If multiple files claim the same ID, creation and owner synchronization pause and show their actual last-edit dates and item lists. **Use this copy on all devices** records an app-private marker on the chosen file; other JSON copies remain intact. Other devices detect that choice before uploading and offer **Open current copy**, preserving different local details in a local backup. Conflicting simultaneous file selections stop for another review. Other Drive copies remain visible in Your Trips, rather than being hidden just because their trip ID matches a local trip.
+
+These identity checks detect cross-device creation races after creation and before later owner syncs. They are not an atomic uniqueness constraint across devices. No new OAuth scope or backend is used.
+
 ### Refresh and merge outcomes
 
 Waypoint compares the local trip's `updatedAt`, its last synchronized checkpoint, and Drive's current `headRevisionId` before deciding how much work is needed.
@@ -540,6 +548,8 @@ Waypoint compares the local trip's `updatedAt`, its last synchronized checkpoint
 | Changed | Changed | Waypoint downloads Drive and performs a three-way merge against the last synchronized base, then uploads the merged trip. |
 
 The item and journal merge combines independent additions and one-sided edits. If the same item or journal entry was changed differently on both sides, both copies are kept and labeled **local conflict** and **Drive conflict** for manual resolution. A deletion beats an unchanged object, while an edit beats a deletion so changed information is not silently lost. Drive metadata-only changes, including retaining a revision, do not trigger an itinerary merge when the content head is unchanged.
+
+The merge reconciles changes visible at download time. The current canonical content upload has no verified, server-enforced compare-and-swap contract: two devices can read the same head and then upload in succession, leaving the later upload current. Three-way merging alone does not prevent that write race. Duplicate-file recovery does not claim to solve simultaneous content replacement; fully lossless concurrent uploads need a separately verified conditional-write mechanism or an immutable change-log design.
 
 ### Open a saved Drive trip
 
