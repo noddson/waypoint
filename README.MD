@@ -245,7 +245,7 @@ Flight details now include **Passenger last name** and an optional **Check-in UR
 
 ### Save a boarding pass
 
-Select **Add boarding pass** on a flight card, or choose **Boarding pass** when adding an item. A boarding pass is its own record, linked to the flight through **Related flight**. This supports separate passes for several passengers on the same flight.
+Select **Add boarding pass** on a flight card, or choose **Boarding pass** when adding an item. The flight action is hidden once a pass is linked; use **Add item → Boarding pass** to add another passenger’s pass. A boarding pass is its own record, linked to the flight through **Related flight**. This supports separate passes for several passengers on the same flight.
 
 Paste the **Boarding pass URL**, attach a PNG, JPEG, or WebP image up to 2 MB, or save both. The image is embedded in the trip for offline viewing, JSON backups, and canonical Drive sync; Google Drive is not required to attach or view it. Tap **View boarding pass image** to enlarge it. Boarding-pass images contain the actual carrier-issued pass, separate from Waypoint's generated confirmation-reference QR codes.
 

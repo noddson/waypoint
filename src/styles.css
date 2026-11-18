@@ -25,4 +25,4 @@
 .boarding-pass-preview { max-width: 100%; margin: 10px 0; }
 .boarding-pass-image { display: grid; gap: 8px; padding: 10px; background: #fff; color: #164e63; border: 1px solid #d7e0e5; border-radius: 10px; max-width: 100%; }
 .boarding-pass-image img { display: block; max-width: 100%; max-height: 240px; object-fit: contain; }
-.item-links .boarding-pass-add { font-size: inherit; }
+.boarding-pass-add { padding: 0; border-radius: 0; background: transparent; text-align: left; }
