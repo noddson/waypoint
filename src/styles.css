@@ -23,6 +23,8 @@
 .item.boarding-pass { border-left-color: #207c89; }
 .boarding-pass-fields { border: 1px solid var(--border, #d7e0e5); border-radius: 10px; padding: 14px; display: grid; gap: 12px; min-width: 0; }
 .boarding-pass-preview { max-width: 100%; margin: 10px 0; }
-.boarding-pass-image { display: grid; gap: 8px; padding: 10px; background: #fff; color: #164e63; border: 1px solid #d7e0e5; border-radius: 10px; max-width: 100%; }
+.boarding-pass-image { display: block; padding: 0; border: 0; border-radius: 0; background: transparent; max-width: 100%; -webkit-tap-highlight-color: transparent; }
+.boarding-pass-image:hover { filter: none; }
+.boarding-pass-image:focus-visible { outline: 3px solid #a7c9ad; outline-offset: 3px; }
 .boarding-pass-image img { display: block; max-width: 100%; max-height: 240px; object-fit: contain; }
 .boarding-pass-add { padding: 0; border-radius: 0; background: transparent; text-align: left; }

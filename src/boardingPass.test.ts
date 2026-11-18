@@ -22,9 +22,26 @@ describe('personalized check-in links',()=>{
     expect(url.origin+url.pathname).toBe('https://checkin.aircanada.com/ac/ssci')
     expect(Object.fromEntries(url.searchParams)).toEqual({ln:'en-CA',orderId:'AB+123',lastName:"D'Example & Co"})
   })
-  it('keeps the generic link when the passenger name or reference is missing',()=>{
-    for(const missing of [{passengerLastName:undefined},{confirmation:undefined},{passengerLastName:' '}])expect(airlineCheckInUrl({...flight,...missing})).toBe('https://www.aircanada.com/home/ca/en/aco/checkin')
+  it('uses every known booking detail rather than dropping back to the generic Air Canada page',()=>{
+    for(const passengerLastName of [undefined,' ']){
+      const url=new URL(airlineCheckInUrl({...flight,passengerLastName})!)
+      expect(url.origin+url.pathname).toBe('https://checkin.aircanada.com/ac/ssci')
+      expect(url.searchParams.get('orderId')).toBe('ABC123')
+      expect(url.searchParams.has('lastName')).toBe(false)
+    }
+    const surnameOnly=new URL(airlineCheckInUrl({...flight,confirmation:undefined})!)
+    expect(surnameOnly.searchParams.get('lastName')).toBe('Example')
+    expect(surnameOnly.searchParams.has('orderId')).toBe(false)
+    expect(airlineCheckInUrl({...flight,confirmation:undefined,passengerLastName:undefined})).toBe('https://www.aircanada.com/home/ca/en/aco/checkin')
     expect(airlineCheckInUrl({...flight,flightNumber:'WS 1',provider:'WestJet'})).toBe('https://checkin.westjet.com')
+  })
+  it('enhances saved generic Air Canada links while preserving personalized links from the carrier',()=>{
+    const generated=airlineCheckInUrl(flight)
+    expect(airlineCheckInUrl({...flight,checkInUrl:'https://www.aircanada.com/home/ca/en/aco/checkin'})).toBe(generated)
+    const carrierUrl='https://checkin.aircanada.com/ac/ssci?ln=en-CA&orderId=DEF456&lastName=Other'
+    expect(airlineCheckInUrl({...flight,checkInUrl:carrierUrl})).toBe(carrierUrl)
+    const suppliedPage='https://www.aircanada.com/home/ca/en/aco/checkin?orderId=DEF456&lastName=Other'
+    expect(airlineCheckInUrl({...flight,checkInUrl:suppliedPage})).toBe(suppliedPage)
   })
   it('prefers an HTTPS link from the carrier and supports otherwise unknown airlines',()=>{
     const item={...flight,flightNumber:'ZZ 12',provider:'Example Airline',checkInUrl:'https://carrier.example/checkin?booking=example'}

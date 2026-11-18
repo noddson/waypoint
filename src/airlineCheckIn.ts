@@ -247,18 +247,21 @@ export function airlineCheckInForItem(item:Pick<TripItem,'type'|'flightNumber'|'
   }))
 }
 
-/** Use an explicit carrier link first; personalize only known URL formats. */
+/** Preserve carrier-issued links while enhancing known generic check-in pages. */
 export function airlineCheckInUrl(item:TripItem):string|undefined {
   if(item.type!=='flight')return undefined
-  if(item.checkInUrl){try{const url=new URL(item.checkInUrl);if(url.protocol==='https:')return url.toString()}catch{/* Fall back to the registry. */}}
   const airline=airlineCheckInForItem(item)
-  if(!airline)return undefined
-  if(airline.iataCodes.includes('AC')&&item.confirmation?.trim()&&item.passengerLastName?.trim()){
+  let supplied:URL|undefined
+  if(item.checkInUrl){try{const url=new URL(item.checkInUrl);if(url.protocol==='https:')supplied=url}catch{/* Fall back to the registry. */}}
+  const genericAirCanadaLink=supplied?.hostname==='www.aircanada.com'&&/\/aco\/checkin\/?$/.test(supplied.pathname)&&!supplied.search&&!supplied.hash
+  if(supplied&&!genericAirCanadaLink)return supplied.toString()
+  const reference=item.confirmation?.trim(),lastName=item.passengerLastName?.trim()
+  if((airline?.iataCodes.includes('AC')||genericAirCanadaLink)&&(reference||lastName)){
     const url=new URL('https://checkin.aircanada.com/ac/ssci')
     url.searchParams.set('ln','en-CA')
-    url.searchParams.set('orderId',item.confirmation.trim())
-    url.searchParams.set('lastName',item.passengerLastName.trim())
+    if(reference)url.searchParams.set('orderId',reference)
+    if(lastName)url.searchParams.set('lastName',lastName)
     return url.toString()
   }
-  return airline.checkInUrl
+  return supplied?.toString()||airline?.checkInUrl
 }

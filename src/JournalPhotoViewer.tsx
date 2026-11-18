@@ -58,7 +58,7 @@ function exposureDetails(metadata:NonNullable<DriveJournalPhotoMetadata['imageMe
 
 function stopViewerEvent(event:MouseEvent) { event.stopPropagation() }
 
-export function PhotoViewer({photo,url,metadata,language,onClose}:{photo:ViewerPhoto;url:string;metadata?:DriveJournalPhotoMetadata|null;language:LanguageCode;onClose:()=>void}) {
+export function PhotoViewer({photo,url,metadata,language,imageOnly=false,onClose}:{photo:ViewerPhoto;url:string;metadata?:DriveJournalPhotoMetadata|null;language:LanguageCode;imageOnly?:boolean;onClose:()=>void}) {
   const titleId=useId(),closeRef=useRef<HTMLButtonElement>(null),[naturalSize,setNaturalSize]=useState<NaturalSize|null>(null)
   const locale=languageMetadata[language].locale
   const imageMetadata=metadata?.imageMediaMetadata
@@ -99,20 +99,21 @@ export function PhotoViewer({photo,url,metadata,language,onClose}:{photo:ViewerP
   if(exposure)details.push({label:'Exposure',value:exposure})
 
   return createPortal(<div
-    className="photo-viewer-backdrop"
+    className={`photo-viewer-backdrop${imageOnly?' photo-viewer-image-only':''}`}
     role="dialog"
     aria-modal="true"
-    aria-labelledby={titleId}
+    aria-labelledby={imageOnly?undefined:titleId}
+    aria-label={imageOnly?photo.name:undefined}
     onClick={event=>{event.stopPropagation();if(event.target===event.currentTarget)onClose()}}
     onDoubleClick={stopViewerEvent}
   >
     <section className="photo-viewer" onClick={stopViewerEvent} onDoubleClick={stopViewerEvent}>
-      <header className="photo-viewer-header">
+      {imageOnly?<button ref={closeRef} type="button" className="photo-viewer-close" aria-label={uiText('Close',language)} onClick={onClose}>×</button>:<header className="photo-viewer-header">
         <div><h2 id={titleId}>{photo.name}</h2><p>{[formatPhotoSize(photo.size,locale),photo.mimeType].filter(Boolean).join(' · ')}</p></div>
         <button ref={closeRef} type="button" className="photo-viewer-close" aria-label={uiText('Close',language)} onClick={onClose}>×</button>
-      </header>
+      </header>}
       <div className="photo-viewer-stage"><img src={url} alt={photo.name} onLoad={event=>setNaturalSize({width:event.currentTarget.naturalWidth,height:event.currentTarget.naturalHeight})}/></div>
-      {details.length>0&&<dl className="photo-viewer-details">{details.map(detail=><div key={detail.label}><dt>{uiText(detail.label,language)}</dt><dd>{detail.value}</dd></div>)}</dl>}
+      {!imageOnly&&details.length>0&&<dl className="photo-viewer-details">{details.map(detail=><div key={detail.label}><dt>{uiText(detail.label,language)}</dt><dd>{detail.value}</dd></div>)}</dl>}
     </section>
   </div>,document.body)
 }

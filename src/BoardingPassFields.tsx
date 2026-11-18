@@ -7,8 +7,8 @@ import { LanguageCode, uiText } from './i18n'
 export function BoardingPassPreview({image,language}:{image:BoardingPassImage;language:LanguageCode}) {
   const [expanded,setExpanded]=useState(false),t=(value:string)=>uiText(value,language)
   return <div className="boarding-pass-preview" onClick={event=>event.stopPropagation()} onDoubleClick={event=>event.stopPropagation()}>
-    <button type="button" className="boarding-pass-image" aria-label={t('View boarding pass image')} onClick={()=>setExpanded(true)}><img src={image.dataUrl} alt={image.name}/><span>{t('View boarding pass image')}</span></button>
-    {expanded&&<PhotoViewer photo={{name:image.name,mimeType:image.mimeType,size:0}} url={image.dataUrl} language={language} onClose={()=>setExpanded(false)}/>}
+    <button type="button" className="boarding-pass-image" aria-label={t('View boarding pass image')} onClick={()=>setExpanded(true)}><img src={image.dataUrl} alt={image.name}/></button>
+    {expanded&&<PhotoViewer photo={{name:image.name,mimeType:image.mimeType,size:0}} url={image.dataUrl} language={language} imageOnly onClose={()=>setExpanded(false)}/>}
   </div>
 }
 

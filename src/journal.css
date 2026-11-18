@@ -728,3 +728,29 @@
     flex-direction: row;
   }
 }
+
+/* Boarding-pass documents use the full viewer without photo metadata or a frame. */
+.photo-viewer-image-only {
+  padding: 0;
+  background: #000;
+}
+.photo-viewer-image-only .photo-viewer {
+  position: relative;
+  grid-template-rows: minmax(0, 1fr);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.photo-viewer-image-only .photo-viewer-stage {
+  background: transparent;
+}
+.photo-viewer-image-only .photo-viewer-stage img {
+  padding: 0;
+}
+.photo-viewer-image-only .photo-viewer-close {
+  position: absolute;
+  z-index: 1;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+}
