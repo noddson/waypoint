@@ -6,6 +6,7 @@ import {
   FULL_SHARE_FIELDS,
   PUBLIC_SHARE_FIELDS,
   SHARE_FIELD_CATALOG,
+  SHAREABLE_ITEM_TYPES,
   buildShareProjection,
   canonicalSharePolicyJson,
   isSharePolicyV1,
@@ -15,7 +16,7 @@ import {
   sharePolicyForPreset,
   sharePolicyHash,
 } from './sharePolicy'
-import { type SharePolicyV1,type Trip,types } from './types'
+import { type SharePolicyV1,type Trip } from './types'
 
 const publishedAt='2026-08-09T15:00:00.000Z'
 const author={profileId:'profile-1',displayName:'Alex Traveller'}
@@ -63,7 +64,7 @@ describe('share policy defaults and validation',()=>{
 
   it('builds simplified, full, and editable custom presets without enabling media',()=>{
     expect(sharePolicyForPreset('named-trip','simplified')).toMatchObject({audience:'named-trip',preset:'simplified',itemTypes:['flight','stay'],fields:[...PUBLIC_SHARE_FIELDS]})
-    expect(sharePolicyForPreset('public-trip','full')).toEqual({version:1,audience:'public-trip',preset:'full',itemTypes:types,fields:[...SHARE_FIELD_CATALOG],includePhotos:false,includeAudio:false})
+    expect(sharePolicyForPreset('public-trip','full')).toEqual({version:1,audience:'public-trip',preset:'full',itemTypes:SHAREABLE_ITEM_TYPES,fields:[...SHARE_FIELD_CATALOG],includePhotos:false,includeAudio:false})
     expect(sharePolicyForPreset('named-trip','custom')).toEqual({...DEFAULT_NAMED_SHARE_POLICY})
   })
 
@@ -118,7 +119,7 @@ describe('deny-by-default share projections',()=>{
 
   it('projects all item types and user-facing fields for Full while still stripping canonical controls and media publicly',()=>{
     const projection=buildShareProjection(richTrip,sharePolicyForPreset('public-trip','full'),{publishedAt})
-    expect(projection.trip.items).toHaveLength(types.length)
+    expect(projection.trip.items).toHaveLength(SHAREABLE_ITEM_TYPES.length)
     const flight=projection.trip.items.find(item=>item.flightNumber==='EI126')!
     expect(flight).toMatchObject({confirmation:'PRIVATE123',notes:'Private booking note',createdBy:author,updatedBy:author})
     expect(flight).not.toHaveProperty('id')

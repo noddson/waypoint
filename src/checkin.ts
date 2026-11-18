@@ -1,5 +1,5 @@
 import { TripItem } from './types'
-import { AIRLINE_CHECK_IN_MAPPINGS, airlineCheckInForItem } from './airlineCheckIn'
+import { AIRLINE_CHECK_IN_MAPPINGS, airlineCheckInUrl } from './airlineCheckIn'
 
 export const AIR_CANADA_CHECK_IN_URL = AIRLINE_CHECK_IN_MAPPINGS.find(mapping=>mapping.iataCodes.includes('AC'))!.checkInUrl
 const FLIGHT_STATUS_LEAD_TIME = 12*60*60*1000
@@ -23,7 +23,7 @@ export function isAirCanadaCheckInOpen(item:TripItem,now=Date.now()) {
 }
 
 export function isAirlineCheckInOpen(item:TripItem,now=Date.now()) {
-  if(!airlineCheckInForItem(item))return false
+  if(!airlineCheckInUrl(item))return false
   const departure=zonedDateTimeEpoch(item.start,item.timeZone)
   return Number.isFinite(departure)&&now>=departure-24*60*60*1000&&now<departure
 }

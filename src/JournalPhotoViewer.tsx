@@ -58,7 +58,7 @@ function exposureDetails(metadata:NonNullable<DriveJournalPhotoMetadata['imageMe
 
 function stopViewerEvent(event:MouseEvent) { event.stopPropagation() }
 
-function PhotoViewer({photo,url,metadata,language,onClose}:{photo:ViewerPhoto;url:string;metadata?:DriveJournalPhotoMetadata|null;language:LanguageCode;onClose:()=>void}) {
+export function PhotoViewer({photo,url,metadata,language,onClose}:{photo:ViewerPhoto;url:string;metadata?:DriveJournalPhotoMetadata|null;language:LanguageCode;onClose:()=>void}) {
   const titleId=useId(),closeRef=useRef<HTMLButtonElement>(null),[naturalSize,setNaturalSize]=useState<NaturalSize|null>(null)
   const locale=languageMetadata[language].locale
   const imageMetadata=metadata?.imageMediaMetadata

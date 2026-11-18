@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createTripExportV2, migrateTripExportToV2, safeHttpsLink, tripNameWithoutImportedSuffix, validTripExport } from './tripImport'
+import { createTripExport, migrateTripExport, safeHttpsLink, tripNameWithoutImportedSuffix, validTripExport } from './tripImport'
 import { SCHEMA_VERSION, type Trip } from './types'
 
 const exportData = () => ({
@@ -12,8 +12,8 @@ const exportData = () => ({
 })
 
 describe('Waypoint JSON validation', () => {
-  it('emits schema v2 while continuing to accept schema v1 imports',()=>{
-    expect(SCHEMA_VERSION).toBe(2)
+  it('emits schema v3 while continuing to accept schema v1 and v2 imports',()=>{
+    expect(SCHEMA_VERSION).toBe(3)
     expect(validTripExport(exportData())).toBe(true)
     expect(validTripExport({...exportData(),schemaVersion:2})).toBe(true)
   })
@@ -87,16 +87,16 @@ describe('Waypoint JSON validation', () => {
     expect(validTripExport(legacy)).toBe(true)
 
     expect(validTripExport({...legacy,schemaVersion:2})).toBe(false)
-    expect(migrateTripExportToV2(legacy)).toBeNull()
+    expect(migrateTripExport(legacy)).toBeNull()
   })
 
-  it('drops cleared v1 editor fields while converting a Drive trip to strict v2',()=>{
+  it('drops cleared v1 editor fields while converting a Drive trip to strict v3',()=>{
     const legacy=exportData()
     Object.assign(legacy.trip.items[0],{end:'',endTimeZone:'',createdAt:'',updatedAt:'',notes:' '})
-    const migrated=migrateTripExportToV2(legacy)
+    const migrated=migrateTripExport(legacy)
 
     expect(migrated).not.toBeNull()
-    expect(migrated?.schemaVersion).toBe(2)
+    expect(migrated?.schemaVersion).toBe(3)
     expect(migrated?.trip.items[0]).not.toHaveProperty('end')
     expect(migrated?.trip.items[0]).not.toHaveProperty('endTimeZone')
     expect(migrated?.trip.items[0]).not.toHaveProperty('createdAt')
@@ -144,25 +144,25 @@ describe('Waypoint JSON validation', () => {
     expect(validTripExport(value)).toBe(false)
   })
 
-  it('migrates legacy envelopes to a private-data-only v2 canonical export',()=>{
+  it('migrates legacy envelopes to a private-data-only v3 canonical export',()=>{
     const legacy=exportData() as ReturnType<typeof exportData>&Record<string,unknown>
     legacy.calendarSubscription={provider:'google-drive',format:'ics',mimeType:'text/calendar',access:'public-read-only',fileId:'calendar-file',publicUrl:'https://drive.example/calendar',linkedAt:'2026-08-09T00:00:00.000Z'}
     legacy.collaboration={revision:'revision-1',drive:{fileId:'private-drive-id'}}
     ;(legacy.trip as unknown as Record<string,unknown>).futureTripSecret='drop me'
     ;(legacy.trip.items[0] as unknown as Record<string,unknown>).futureItemSecret='drop me too'
-    const migrated=migrateTripExportToV2(legacy)
-    expect(migrated).toMatchObject({schemaVersion:2,exportedAt:legacy.exportedAt,trip:{id:'trip-1',items:[{id:'item-1'}]}})
+    const migrated=migrateTripExport(legacy)
+    expect(migrated).toMatchObject({schemaVersion:3,exportedAt:legacy.exportedAt,trip:{id:'trip-1',items:[{id:'item-1'}]}})
     expect(migrated).not.toHaveProperty('calendarSubscription')
     expect(migrated).not.toHaveProperty('collaboration')
     expect(migrated?.trip).not.toHaveProperty('futureTripSecret')
     expect(migrated?.trip.items[0]).not.toHaveProperty('futureItemSecret')
   })
 
-  it('creates sanitized v2 exports from current trip data',()=>{
+  it('creates sanitized v3 exports from current trip data',()=>{
     const source=exportData().trip as Trip
     ;(source.items[0] as unknown as Record<string,unknown>).runtimeOnly='secret'
-    const created=createTripExportV2(source,'2026-08-09T15:00:00.000Z')
-    expect(created.schemaVersion).toBe(2)
+    const created=createTripExport(source,'2026-08-09T15:00:00.000Z')
+    expect(created.schemaVersion).toBe(3)
     expect(created).not.toHaveProperty('calendarSubscription')
     expect(created.trip.items[0]).not.toHaveProperty('runtimeOnly')
     expect(source.items[0]).toHaveProperty('runtimeOnly','secret')

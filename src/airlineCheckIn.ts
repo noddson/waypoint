@@ -246,3 +246,19 @@ export function airlineCheckInForItem(item:Pick<TripItem,'type'|'flightNumber'|'
     return provider===candidate||provider.startsWith(`${candidate} `)||provider.endsWith(` ${candidate}`)
   }))
 }
+
+/** Use an explicit carrier link first; personalize only known URL formats. */
+export function airlineCheckInUrl(item:TripItem):string|undefined {
+  if(item.type!=='flight')return undefined
+  if(item.checkInUrl){try{const url=new URL(item.checkInUrl);if(url.protocol==='https:')return url.toString()}catch{/* Fall back to the registry. */}}
+  const airline=airlineCheckInForItem(item)
+  if(!airline)return undefined
+  if(airline.iataCodes.includes('AC')&&item.confirmation?.trim()&&item.passengerLastName?.trim()){
+    const url=new URL('https://checkin.aircanada.com/ac/ssci')
+    url.searchParams.set('ln','en-CA')
+    url.searchParams.set('orderId',item.confirmation.trim())
+    url.searchParams.set('lastName',item.passengerLastName.trim())
+    return url.toString()
+  }
+  return airline.checkInUrl
+}

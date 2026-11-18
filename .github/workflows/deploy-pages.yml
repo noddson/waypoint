@@ -23,6 +23,21 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Validate Google browser configuration
+        shell: bash
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          VITE_GOOGLE_API_KEY: ${{ vars.VITE_GOOGLE_API_KEY }}
+          VITE_GOOGLE_APP_ID: ${{ vars.VITE_GOOGLE_APP_ID }}
+        run: |
+          missing=0
+          for variable in VITE_GOOGLE_CLIENT_ID VITE_GOOGLE_API_KEY VITE_GOOGLE_APP_ID; do
+            if [[ -z "${!variable//[[:space:]]/}" ]]; then
+              echo "::error::Missing repository variable $variable. Set it under Settings > Secrets and variables > Actions > Variables, then rerun this workflow."
+              missing=1
+            fi
+          done
+          exit "$missing"
       - run: npm ci
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium

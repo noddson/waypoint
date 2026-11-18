@@ -195,9 +195,11 @@ Create a file named ${outputFilename} containing only one valid JSON object. The
 
 Copy extractionParameters exactly as shown below so Waypoint can reopen the search settings later. These are saved settings, not evidence that a search completed.
 
-Use exactly this Waypoint schema (schemaVersion must remain 2):
+Boarding passes are separate boarding-pass items, linked to their flight using relatedItemId (the flight item UUID), with the same departure start and timeZone. Store a pass URL as boardingPass: {"url":"https://..."}. Do not use a check-in URL as a boarding pass URL. Only include links found in evidence; do not invent URL formats or infer a passenger surname from bookedBy. Images can be attached in Waypoint after import.
+
+Use exactly this Waypoint schema (schemaVersion must remain 3):
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "exportedAt": "ISO-8601 timestamp",
   "trip": {
     "id": "globally unique UUID",
@@ -209,7 +211,7 @@ Use exactly this Waypoint schema (schemaVersion must remain 2):
     "items": [
       {
         "id": "globally unique UUID",
-        "type": "flight | stay | car | transport | insurance | event",
+        "type": "flight | stay | car | transport | insurance | event | boarding-pass",
         "title": "short human-readable title",
         "provider": "provider name (optional)",
         "confirmation": "confirmation/ticket/order/policy reference (optional)",
@@ -226,6 +228,8 @@ Use exactly this Waypoint schema (schemaVersion must remain 2):
         "status": "confirmed | pending | planned",
         "quantity": "ticket/room/vehicle quantity description (optional)",
         "flightNumber": "flight number (optional)",
+        "passengerLastName": "surname from the flight booking (flight only, optional)",
+        "checkInUrl": "personalized carrier https:// check-in URL from evidence (flight only, optional)",
         "durationMinutes": 385,
         "allDay": false
       }

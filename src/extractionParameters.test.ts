@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildEmailExtractionPrompt, validExtractionParameters, type EmailExtractionPromptInput } from './emailExtractionPrompt'
-import { createTripExportV2, migrateTripExportToV2, validTripExport } from './tripImport'
+import { createTripExport, migrateTripExport, validTripExport } from './tripImport'
 import { mergeTripVersions } from './tripMerge'
 import { buildShareProjection, DEFAULT_PUBLIC_SHARE_POLICY, DEFAULT_NAMED_SHARE_POLICY } from './sharePolicy'
 import type { Trip } from './types'
@@ -11,12 +11,12 @@ const later={...parameters,emailStart:'2025-05-01',emailEnd:'2025-06-01'}
 
 describe('saved extraction parameters',()=>{
   it('round trips all settings through private export and import without sharing references',()=>{
-    const exported=createTripExportV2(trip,trip.updatedAt)
-    const imported=migrateTripExportToV2(JSON.parse(JSON.stringify(exported)))!
+    const exported=createTripExport(trip,trip.updatedAt)
+    const imported=migrateTripExport(JSON.parse(JSON.stringify(exported)))!
     expect(imported.trip.extractionParameters).toEqual(parameters)
     exported.trip.extractionParameters!.searchCategories!.flight=true
     expect(parameters.searchCategories!.flight).toBe(false)
-    expect(validTripExport(createTripExportV2({...trip,extractionParameters:undefined},trip.updatedAt))).toBe(true)
+    expect(validTripExport(createTripExport({...trip,extractionParameters:undefined},trip.updatedAt))).toBe(true)
   })
 
   it.each([

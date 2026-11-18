@@ -1,5 +1,6 @@
+import { alignBoardingPassesWithFlights, validBoardingPass } from './boardingPass'
 import { validExtractionParameters } from './emailExtractionPrompt'
-import { AuthorRef, CanonicalTripExportV2, ItemType, JournalAudio, JournalEntry, JournalPhoto, LEGACY_SCHEMA_VERSION, SCHEMA_VERSION, Status, Trip, TripExport, TripItem, types } from './types'
+import { AuthorRef, CanonicalTripExport, ItemType, JournalAudio, JournalEntry, JournalPhoto, LEGACY_SCHEMA_VERSION, SCHEMA_VERSION, Status, Trip, TripExport, TripItem, types } from './types'
 import { isCalendarDate, isIanaTimeZone, isIsoInstant, isLocalDateTime, serializedUtf8SizeAtMost } from './schemaValidation'
 
 const statuses:Status[] = ['confirmed','pending','planned']
@@ -9,7 +10,7 @@ const optionalString = (value:unknown,max?:number) => value === undefined || str
 const exactKeys = (value:Record<string,unknown>,allowed:readonly string[]) => Object.keys(value).every(key=>allowed.includes(key))
 const ENVELOPE_KEYS=['schemaVersion','exportedAt','trip'] as const
 const TRIP_KEYS=['id','name','destination','createdAt','updatedAt','archivedAt','createdBy','updatedBy','items','journalEntries','extractionParameters'] as const
-const ITEM_KEYS=['id','type','title','provider','confirmation','start','end','timeZone','endTimeZone','location','endLocation','notes','link','emailLink','bookedBy','status','quantity','flightNumber','durationMinutes','allDay','relatedItemId','photos','audio','createdAt','updatedAt','createdBy','updatedBy','conflictOf','conflictSource'] as const
+const ITEM_KEYS=['id','type','title','provider','confirmation','start','end','timeZone','endTimeZone','location','endLocation','notes','link','emailLink','bookedBy','status','quantity','flightNumber','durationMinutes','allDay','relatedItemId','photos','audio','createdAt','updatedAt','createdBy','updatedBy','conflictOf','conflictSource','passengerLastName','checkInUrl','boardingPass'] as const
 const JOURNAL_ENTRY_KEYS=['id','date','text','relatedItemId','photos','audio','createdAt','updatedAt','createdBy','updatedBy','conflictOf','conflictSource'] as const
 const ATTACHMENT_KEYS=['id','driveFileId','resourceKey','name','mimeType','size','createdAt'] as const
 const validAuthorRef = (value:unknown): value is AuthorRef => object(value)&&string(value.profileId,200)&&value.profileId.length>0&&string(value.displayName,300)&&value.displayName.length>0&&Object.keys(value).every(key=>key==='profileId'||key==='displayName')
@@ -27,8 +28,8 @@ export const safeHttpsLink = (value?:string) => {
 export const tripNameWithoutImportedSuffix = (value:string) => value.replace(/\s+\(imported\)$/,'')
 
 export function validTripExport(value:unknown): value is TripExport {
-  if(!object(value)||(value.schemaVersion!==LEGACY_SCHEMA_VERSION&&value.schemaVersion!==SCHEMA_VERSION)||!serializedUtf8SizeAtMost(value,5_000_000)||!object(value.trip))return false
-  const strictKeys=value.schemaVersion===SCHEMA_VERSION
+  if(!object(value)||(value.schemaVersion!==LEGACY_SCHEMA_VERSION&&value.schemaVersion!==2&&value.schemaVersion!==SCHEMA_VERSION)||!serializedUtf8SizeAtMost(value,5_000_000)||!object(value.trip))return false
+  const strictKeys=value.schemaVersion!==LEGACY_SCHEMA_VERSION
   if(strictKeys?!isIsoInstant(value.exportedAt):!string(value.exportedAt,100))return false
   if(strictKeys&&!exactKeys(value,ENVELOPE_KEYS))return false
   if(value.calendarSubscription!==undefined){
@@ -41,13 +42,17 @@ export function validTripExport(value:unknown): value is TripExport {
   if(trip.extractionParameters!==undefined&&!validExtractionParameters(trip.extractionParameters))return false
   const ids=new Set<string>(),attachmentIds=new Set<string>()
   const validItems=trip.items.every(raw=>{
-    if(!object(raw)||strictKeys&&!exactKeys(raw,ITEM_KEYS)||!string(raw.id,200)||!raw.id.trim()||ids.has(raw.id)||!types.includes(raw.type as ItemType)||!string(raw.title,500)||!raw.title.trim()||(strictKeys?(!isLocalDateTime(raw.start)||!isIanaTimeZone(raw.timeZone)):(!string(raw.start,50)||!string(raw.timeZone,100)))||!statuses.includes(raw.status as Status))return false
+    if(!object(raw)||strictKeys&&!exactKeys(raw,value.schemaVersion===2?ITEM_KEYS.filter(key=>!['passengerLastName','checkInUrl','boardingPass'].includes(key)):ITEM_KEYS)||!string(raw.id,200)||!raw.id.trim()||ids.has(raw.id)||!types.includes(raw.type as ItemType)||!string(raw.title,500)||!raw.title.trim()||(strictKeys?(!isLocalDateTime(raw.start)||!isIanaTimeZone(raw.timeZone)):(!string(raw.start,50)||!string(raw.timeZone,100)))||!statuses.includes(raw.status as Status))return false
+    if(value.schemaVersion===2&&raw.type==='boarding-pass')return false
     ids.add(raw.id)
     const safeOptionalStrings=['provider','confirmation','end','endTimeZone','location','endLocation','notes','bookedBy','quantity','flightNumber','relatedItemId','createdAt','updatedAt','conflictOf']
     if(!safeOptionalStrings.every(key=>optionalString(raw[key],key==='notes'?12_000:2_000)))return false
     if(strictKeys&&(raw.end!==undefined&&!isLocalDateTime(raw.end)||raw.endTimeZone!==undefined&&!isIanaTimeZone(raw.endTimeZone)||raw.createdAt!==undefined&&!isIsoInstant(raw.createdAt)||raw.updatedAt!==undefined&&!isIsoInstant(raw.updatedAt)))return false
     if(raw.link!==undefined&&(!string(raw.link,4_000)||!safeHttpsLink(raw.link)))return false
     if(raw.emailLink!==undefined&&(!string(raw.emailLink,4_000)||!safeHttpsLink(raw.emailLink)))return false
+    if(raw.passengerLastName!==undefined&&(raw.type!=='flight'||!optionalString(raw.passengerLastName,200)))return false
+    if(raw.checkInUrl!==undefined&&(raw.type!=='flight'||!string(raw.checkInUrl,4_000)||!safeHttpsLink(raw.checkInUrl)))return false
+    if(raw.boardingPass!==undefined&&(raw.type!=='boarding-pass'||!validBoardingPass(raw.boardingPass)))return false
     if(raw.allDay!==undefined&&typeof raw.allDay!=='boolean')return false
     if(raw.durationMinutes!==undefined&&(!Number.isInteger(raw.durationMinutes)||Number(raw.durationMinutes)<0))return false
     if(raw.conflictSource!==undefined&&raw.conflictSource!=='local'&&raw.conflictSource!=='drive')return false
@@ -80,11 +85,12 @@ const audioCopy = (value:JournalAudio):JournalAudio => ({id:value.id,driveFileId
 
 function itemCopy(value:TripItem):TripItem {
   const item:TripItem={id:value.id,type:value.type,title:value.title,start:value.start,timeZone:value.timeZone,status:value.status}
-  const strings=['provider','confirmation','end','endTimeZone','location','endLocation','notes','link','emailLink','bookedBy','quantity','flightNumber','relatedItemId','createdAt','updatedAt','conflictOf'] as const
+  const strings=['provider','confirmation','end','endTimeZone','location','endLocation','notes','link','emailLink','bookedBy','quantity','flightNumber','relatedItemId','createdAt','updatedAt','conflictOf','passengerLastName','checkInUrl'] as const
   // Schema v1 editors retained cleared optional inputs as empty strings. They
   // have no meaning, and semantic v2 fields such as end/endTimeZone reject
   // them, so omit them at the canonical boundary.
   for(const key of strings)if(value[key]!==undefined&&value[key]!.trim()!=='')(item[key] as string|undefined)=value[key]
+  if(value.boardingPass)item.boardingPass={...(value.boardingPass.url?{url:value.boardingPass.url}:{}),...(value.boardingPass.image?{image:{...value.boardingPass.image}}:{})}
   if(value.durationMinutes!==undefined)item.durationMinutes=value.durationMinutes
   if(value.allDay!==undefined)item.allDay=value.allDay
   if(value.photos!==undefined)item.photos=value.photos.map(photoCopy)
@@ -123,21 +129,21 @@ function canonicalTripCopy(value:Trip):Trip {
     ...(value.createdBy?{createdBy:authorCopy(value.createdBy)}:{}),
     ...(value.updatedBy?{updatedBy:authorCopy(value.updatedBy)}:{}),
     ...(value.extractionParameters?{extractionParameters:{...value.extractionParameters,...(value.extractionParameters.searchCategories?{searchCategories:{...value.extractionParameters.searchCategories}}:{})}}:{}),
-    items:value.items.map(itemCopy),
+    items:alignBoardingPassesWithFlights(value.items).map(itemCopy),
     ...(value.journalEntries!==undefined?{journalEntries:value.journalEntries.map(journalEntryCopy)}:{}),
   }
 }
 
-/** Converts either supported import envelope to the private-data-only v2 envelope. */
-export function migrateTripExportToV2(value:unknown):CanonicalTripExportV2|null {
+/** Converts either supported import envelope to the private-data-only current envelope. */
+export function migrateTripExport(value:unknown):CanonicalTripExport|null {
   if(!validTripExport(value))return null
-  const migrated:CanonicalTripExportV2={schemaVersion:SCHEMA_VERSION,exportedAt:value.exportedAt,trip:canonicalTripCopy(value.trip)}
+  const migrated:CanonicalTripExport={schemaVersion:SCHEMA_VERSION,exportedAt:value.exportedAt,trip:canonicalTripCopy(value.trip)}
   return validTripExport(migrated)?migrated:null
 }
 
-/** Creates a v2 export while dropping runtime-only or future unknown properties. */
-export function createTripExportV2(trip:Trip,exportedAt:string):CanonicalTripExportV2 {
-  const value:CanonicalTripExportV2={schemaVersion:SCHEMA_VERSION,exportedAt,trip:canonicalTripCopy(trip)}
+/** Creates a current export while dropping runtime-only or future unknown properties. */
+export function createTripExport(trip:Trip,exportedAt:string):CanonicalTripExport {
+  const value:CanonicalTripExport={schemaVersion:SCHEMA_VERSION,exportedAt,trip:canonicalTripCopy(trip)}
   if(!validTripExport(value))throw new Error('Cannot create an export from invalid trip data.')
   return value
 }

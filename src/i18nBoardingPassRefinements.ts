@@ -1,0 +1,18 @@
+const phrases=[
+  'Boarding pass','Add boarding pass','View boarding pass image','Open boarding pass ↗','Boarding pass URL',
+  'Remove image','Replace boarding pass image','Add boarding pass image',
+  'PNG, JPEG, or WebP, up to 2 MB. Saved with your trip for offline use.',
+  'Related flight','Passenger last name','Check-in URL (optional)',
+] as const
+const translations={
+  en:[...phrases],
+  de:['Bordkarte','Bordkarte hinzufügen','Bordkartenbild ansehen','Bordkarte öffnen ↗','Bordkarten-URL','Bild entfernen','Bordkartenbild ersetzen','Bordkartenbild hinzufügen','PNG, JPEG oder WebP, bis zu 2 MB. Wird für die Offline-Nutzung mit Ihrer Reise gespeichert.','Zugehöriger Flug','Nachname des Passagiers','Check-in-URL (optional)'],
+  el:['Κάρτα επιβίβασης','Προσθήκη κάρτας επιβίβασης','Προβολή εικόνας κάρτας επιβίβασης','Άνοιγμα κάρτας επιβίβασης ↗','URL κάρτας επιβίβασης','Αφαίρεση εικόνας','Αντικατάσταση εικόνας κάρτας επιβίβασης','Προσθήκη εικόνας κάρτας επιβίβασης','PNG, JPEG ή WebP, έως 2 MB. Αποθηκεύεται με το ταξίδι σας για χρήση εκτός σύνδεσης.','Σχετική πτήση','Επώνυμο επιβάτη','URL check-in (προαιρετικό)'],
+  es:['Tarjeta de embarque','Añadir tarjeta de embarque','Ver imagen de la tarjeta de embarque','Abrir tarjeta de embarque ↗','URL de la tarjeta de embarque','Eliminar imagen','Reemplazar imagen de la tarjeta de embarque','Añadir imagen de la tarjeta de embarque','PNG, JPEG o WebP, hasta 2 MB. Se guarda con el viaje para usarla sin conexión.','Vuelo relacionado','Apellido del pasajero','URL de facturación (opcional)'],
+  fr:["Carte d’embarquement","Ajouter une carte d’embarquement","Voir l’image de la carte d’embarquement","Ouvrir la carte d’embarquement ↗","URL de la carte d’embarquement","Supprimer l’image","Remplacer l’image de la carte d’embarquement","Ajouter une image de la carte d’embarquement","PNG, JPEG ou WebP, jusqu’à 2 Mo. Enregistrée avec votre voyage pour une utilisation hors ligne.",'Vol associé','Nom de famille du passager',"URL d’enregistrement (facultatif)"],
+  is:['Brottfararspjald','Bæta við brottfararspjaldi','Skoða mynd af brottfararspjaldi','Opna brottfararspjald ↗','Vefslóð brottfararspjalds','Fjarlægja mynd','Skipta um mynd af brottfararspjaldi','Bæta við mynd af brottfararspjaldi','PNG, JPEG eða WebP, allt að 2 MB. Vistað með ferðinni til notkunar án nettengingar.','Tengt flug','Eftirnafn farþega','Vefslóð innritunar (valfrjálst)'],
+  it:["Carta d’imbarco","Aggiungi carta d’imbarco","Visualizza immagine della carta d’imbarco","Apri carta d’imbarco ↗","URL della carta d’imbarco","Rimuovi immagine","Sostituisci immagine della carta d’imbarco","Aggiungi immagine della carta d’imbarco","PNG, JPEG o WebP, fino a 2 MB. Salvata con il viaggio per l’uso offline.",'Volo collegato','Cognome del passeggero','URL del check-in (facoltativo)'],
+  jp:['搭乗券','搭乗券を追加','搭乗券の画像を表示','搭乗券を開く ↗','搭乗券のURL','画像を削除','搭乗券の画像を置き換え','搭乗券の画像を追加','PNG、JPEG、WebP形式、2 MBまで。オフラインで使えるよう旅行と一緒に保存します。','関連するフライト','搭乗者の姓','チェックインURL（任意）'],
+  xx:['Boardin’ pass','Add boardin’ pass','Spy boardin’ pass image','Open boardin’ pass ↗','Boardin’ pass URL','Scuttle image','Replace boardin’ pass image','Add boardin’ pass image','PNG, JPEG, or WebP, up to 2 MB. Stowed with yer voyage for offline use.','Related sky ship','Passenger’s family name','Check-in URL (optional)'],
+} satisfies Record<string,readonly string[]>
+export const boardingPassRefinements=Object.fromEntries(Object.entries(translations).map(([language,values])=>[language,Object.fromEntries(phrases.map((phrase,index)=>[phrase,values[index]]))])) as Record<keyof typeof translations,Record<string,string>>

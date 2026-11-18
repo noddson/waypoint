@@ -19,6 +19,9 @@ import {
   types,
 } from './types'
 
+// Boarding-pass credentials and images stay in the owner/collaborator trip.
+export const SHAREABLE_ITEM_TYPES=types.filter(type=>type!=='boarding-pass')
+
 export const SHARE_FIELD_CATALOG = [
   'type','title','provider','confirmation','start','end','timeZone','endTimeZone','location','endLocation',
   'notes','link','emailLink','bookedBy','status','quantity','flightNumber','durationMinutes','allDay',
@@ -75,7 +78,7 @@ const presets:SharePolicyPreset[] = ['simplified','full','custom']
 
 export function isSharePolicyV1(value:unknown): value is SharePolicyV1 {
   if(!object(value)||!exactKeys(value,POLICY_KEYS)||value.version!==1||!audiences.includes(value.audience as ShareAudience)||!presets.includes(value.preset as SharePolicyPreset))return false
-  if(!uniqueKnown(value.itemTypes,types)||!uniqueKnown(value.fields,SHARE_FIELD_CATALOG)||typeof value.includePhotos!=='boolean'||typeof value.includeAudio!=='boolean')return false
+  if(!uniqueKnown(value.itemTypes,SHAREABLE_ITEM_TYPES)||!uniqueKnown(value.fields,SHARE_FIELD_CATALOG)||typeof value.includePhotos!=='boolean'||typeof value.includeAudio!=='boolean')return false
   if(value.audience!=='named-trip'&&(value.includePhotos||value.includeAudio))return false
   if((value.includePhotos||value.includeAudio)&&!value.itemTypes.includes('journal'))return false
   return true
@@ -85,7 +88,7 @@ const defaultPolicy = (audience:ShareAudience) => audience==='named-trip'?DEFAUL
 
 export function sharePolicyForPreset(audience:ShareAudience,preset:SharePolicyPreset):SharePolicyV1 {
   if(preset==='simplified')return normalizeSharePolicy({...DEFAULT_PUBLIC_SHARE_POLICY,audience})
-  if(preset==='full')return normalizeSharePolicy({version:1,audience,preset,itemTypes:[...types],fields:[...FULL_SHARE_FIELDS],includePhotos:false,includeAudio:false})
+  if(preset==='full')return normalizeSharePolicy({version:1,audience,preset,itemTypes:[...SHAREABLE_ITEM_TYPES],fields:[...FULL_SHARE_FIELDS],includePhotos:false,includeAudio:false})
   return normalizeSharePolicy({...defaultPolicy(audience),audience,preset:'custom'})
 }
 
@@ -96,7 +99,7 @@ export function normalizeSharePolicy(policy:SharePolicyV1):SharePolicyV1 {
     version:1,
     audience:policy.audience,
     preset:policy.preset,
-    itemTypes:types.filter(type=>selectedTypes.has(type)),
+    itemTypes:SHAREABLE_ITEM_TYPES.filter(type=>selectedTypes.has(type)),
     fields:SHARE_FIELD_CATALOG.filter(field=>selectedFields.has(field)),
     includePhotos:policy.includePhotos,
     includeAudio:policy.includeAudio,

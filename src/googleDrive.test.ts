@@ -114,7 +114,7 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
     expect(String(fetchMock.mock.calls[2][0])).toContain('fields=id,resourceKey,headRevisionId')
 
     const completeBody=JSON.parse(String(fetchMock.mock.calls[5][1]?.body))
-    expect(completeBody).toMatchObject({schemaVersion:2,trip:{id:trip.id}})
+    expect(completeBody).toMatchObject({schemaVersion:3,trip:{id:trip.id}})
     expect(completeBody.collaboration).toBeUndefined()
     expect(completeBody.calendarSubscription).toBeUndefined()
     expect(JSON.stringify(completeBody)).not.toContain('resource-key')
@@ -199,7 +199,7 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
       folderBindingReply('trip-folder-1','trip-folder'),
     )
     const {updateDriveTrip}=await import('./googleDrive')
-    const record={tripId:trip.id,fileId:'file-1',tripFolderId:'trip-folder-1',tripFolderName:trip.name,calendarStorageMigrated:true,accessModelMigrated:true,canonicalSchemaMigrated:true,ownedByMe:true,headRevisionId:'rev-2',lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:trip.updatedAt,baseTrip:trip}
+    const record={tripId:trip.id,fileId:'file-1',tripFolderId:'trip-folder-1',tripFolderName:trip.name,calendarStorageMigrated:true,accessModelMigrated:true,canonicalSchemaMigrated:true,canonicalSchemaVersion:3,ownedByMe:true,headRevisionId:'rev-2',lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:trip.updatedAt,baseTrip:trip}
 
     const result=await updateDriveTrip(record,trip)
     expect(result.record.bootstrapRevisionId).toBe('rev-1')
@@ -980,7 +980,7 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
       folderBindingReply('trip-folder','trip-folder'),
     )
     const {updateDriveTrip}=await import('./googleDrive')
-    const record={tripId:trip.id,fileId:'canonical-file',tripFolderId:'trip-folder',tripFolderName:trip.name,calendarStorageMigrated:true,canonicalSchemaMigrated:true,ownedByMe:true,headRevisionId:'revision-4',baseTrip:trip,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:trip.updatedAt}
+    const record={tripId:trip.id,fileId:'canonical-file',tripFolderId:'trip-folder',tripFolderName:trip.name,calendarStorageMigrated:true,canonicalSchemaMigrated:true,canonicalSchemaVersion:3,ownedByMe:true,headRevisionId:'revision-4',baseTrip:trip,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:trip.updatedAt}
     const result=await updateDriveTrip(record,trip)
 
     expect(result.record).toMatchObject({accessModelMigrated:true,shared:false})
@@ -988,24 +988,24 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
     expect(fetchMock.mock.calls.some(call=>String(call[1]?.body).includes('"type":"anyone","role":"writer"'))).toBe(false)
   })
 
-  it('rewrites an unchanged owner canonical from v1 to v2 exactly once',async()=>{
+  it.each([1,2])('rewrites an unchanged owner canonical from v%s to v3 exactly once',async(schemaVersion)=>{
     replies.push(
       {body:{id:'canonical-file',name:'Trip.waypoint.json',parents:['trip-folder'],version:'4',headRevisionId:'revision-4',ownedByMe:true,appProperties:{waypoint:'trip',tripId:trip.id},capabilities:{canEdit:true,canShare:true}}},
-      {body:{schemaVersion:1,exportedAt:trip.updatedAt,trip}},
+      {body:{schemaVersion,exportedAt:trip.updatedAt,trip}},
       canonicalBindingReply('canonical-file','trip-folder'),
       folderBindingReply('trip-folder','trip-folder'),
       {body:{id:'canonical-file'}},
       {body:{id:'canonical-file',version:'5',headRevisionId:'revision-5',modifiedTime:'2026-08-09T14:00:00.000Z',capabilities:{canEdit:true,canShare:true}}},
     )
     const {updateDriveTrip}=await import('./googleDrive')
-    const record={tripId:trip.id,fileId:'canonical-file',tripFolderId:'trip-folder',tripFolderName:trip.name,calendarStorageMigrated:true,accessModelMigrated:true,journalMediaStorageMigrated:true,ownedByMe:true,version:'4',headRevisionId:'revision-4',baseTrip:trip,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:trip.updatedAt}
+    const record={tripId:trip.id,fileId:'canonical-file',tripFolderId:'trip-folder',tripFolderName:trip.name,calendarStorageMigrated:true,accessModelMigrated:true,journalMediaStorageMigrated:true,canonicalSchemaMigrated:true,ownedByMe:true,version:'4',headRevisionId:'revision-4',baseTrip:trip,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:trip.updatedAt}
     const migrated=await updateDriveTrip(record,trip)
 
-    expect(migrated.record).toMatchObject({canonicalSchemaMigrated:true,version:'5',headRevisionId:'revision-5'})
+    expect(migrated.record).toMatchObject({canonicalSchemaMigrated:true,canonicalSchemaVersion:3,version:'5',headRevisionId:'revision-5'})
     expect(migrated.changed).toBe(true)
     const canonicalWrite=fetchMock.mock.calls.find(call=>String(call[0]).includes('uploadType=media'))
     expect(canonicalWrite).toBeTruthy()
-    expect(JSON.parse(String(canonicalWrite![1]?.body))).toEqual(expect.objectContaining({schemaVersion:2,trip:expect.objectContaining({id:trip.id})}))
+    expect(JSON.parse(String(canonicalWrite![1]?.body))).toEqual(expect.objectContaining({schemaVersion:3,trip:expect.objectContaining({id:trip.id})}))
 
     const callsAfterMigration=fetchMock.mock.calls.length
     replies.push(
@@ -1046,7 +1046,7 @@ describe.sequential('Google Drive bootstrap revision cleanup',()=>{
       {body:{files:[]}},
     )
     const {updateDriveTrip}=await import('./googleDrive')
-    const record={tripId:trip.id,fileId:'canonical-file',tripFolderId:'trip-folder',tripFolderName:trip.name,calendarStorageMigrated:true,accessModelMigrated:true,canonicalSchemaMigrated:true,journalMediaFolderId:'media-folder',journalPhotoFolderId:'photo-folder',journalAudioFolderId:'audio-folder',ownedByMe:true,version:'4',headRevisionId:'revision-4',baseTrip:journalTrip,lastSyncedUpdatedAt:journalTrip.updatedAt,lastSynchronizedAt:journalTrip.updatedAt}
+    const record={tripId:trip.id,fileId:'canonical-file',tripFolderId:'trip-folder',tripFolderName:trip.name,calendarStorageMigrated:true,accessModelMigrated:true,canonicalSchemaMigrated:true,canonicalSchemaVersion:3,journalMediaFolderId:'media-folder',journalPhotoFolderId:'photo-folder',journalAudioFolderId:'audio-folder',ownedByMe:true,version:'4',headRevisionId:'revision-4',baseTrip:journalTrip,lastSyncedUpdatedAt:journalTrip.updatedAt,lastSynchronizedAt:journalTrip.updatedAt}
     const result=await updateDriveTrip(record,journalTrip)
 
     expect(result.record.journalMediaStorageMigrated).toBe(true)

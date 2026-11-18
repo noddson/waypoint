@@ -102,7 +102,7 @@ export function localWeatherDate(now=Date.now()) {
 }
 
 const tripBounds = (items:TripItem[]) => {
-  const itinerary=items.filter(item=>item.type!=='journal')
+  const itinerary=items.filter(item=>item.type!=='journal'&&item.type!=='boarding-pass')
   if(!itinerary.length)return undefined
   let start=itinerary[0].start.slice(0,10),end=(itinerary[0].end||itinerary[0].start).slice(0,10)
   for(const item of itinerary){
@@ -264,7 +264,7 @@ export function weatherTargetFromAddress(address?:string,venueNames:string[]=[])
 }
 
 export function weatherPlansForItem(item:TripItem,weatherDate?:string):ItemWeatherPlan[] {
-  if(item.type==='insurance'||item.type==='journal')return []
+  if(item.type==='insurance'||(item.type==='journal'||item.type==='boarding-pass'))return []
   const agendaDate=item.start.slice(0,10),startDate=weatherDate||agendaDate,endDate=item.end?.slice(0,10)||startDate
   const candidates=[
     ...(item.location?[{address:item.location,date:startDate}]:[]),
@@ -320,7 +320,7 @@ type LocatedCandidate = {address:string;time:string;priority:number;item:TripIte
 
 const itemCandidatesForDate = (item:TripItem,date:string):LocatedCandidate[] => {
   const candidates:LocatedCandidate[]=[]
-  if(item.type==='journal')return candidates
+  if((item.type==='journal'||item.type==='boarding-pass'))return candidates
   const startDate=item.start.slice(0,10),endDate=item.end?.slice(0,10)
   if(item.type==='stay'&&item.location&&startDate<=date&&(!endDate||date<=endDate))candidates.push({address:item.location,time:startDate===date?item.start.slice(11,16)||'12:00':'00:00',priority:1,item})
   if(startDate===date&&item.type!=='insurance'){
@@ -335,7 +335,7 @@ const previousLocation = (items:TripItem[],date:string) => {
   let candidate:Pick<LocatedCandidate,'address'|'item'>|undefined
   for(const item of sortTripItems(items)){
     if(item.start.slice(0,10)>date)break
-    if(item.type==='insurance'||item.type==='journal')continue
+    if(item.type==='insurance'||(item.type==='journal'||item.type==='boarding-pass'))continue
     if(item.type==='flight'&&item.endLocation&&(item.end||item.start).slice(0,10)<=date)candidate={address:item.endLocation,item}
     else if(item.endLocation)candidate={address:item.endLocation,item}
     else if(item.location)candidate={address:item.location,item}
@@ -345,7 +345,7 @@ const previousLocation = (items:TripItem[],date:string) => {
 
 const nextLocation = (items:TripItem[],date:string) => {
   for(const item of sortTripItems(items)){
-    if(item.start.slice(0,10)<date||item.type==='insurance'||item.type==='journal')continue
+    if(item.start.slice(0,10)<date||item.type==='insurance'||(item.type==='journal'||item.type==='boarding-pass'))continue
     const address=item.type==='flight'?item.endLocation||item.location:item.location||item.endLocation
     if(address)return {address,item}
   }

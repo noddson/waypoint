@@ -1,6 +1,6 @@
 # Event-only email extraction prompt — draft
 
-This is a test variant of the trip-oriented email extraction prompt. Replace the bracketed values before using it. It produces a current Waypoint schemaVersion 2 import containing only event items, without requiring any application changes.
+This is a test variant of the trip-oriented email extraction prompt. Replace the bracketed values before using it. It produces a current Waypoint schemaVersion 3 import containing only event items, without requiring any application changes.
 
 ---
 
@@ -154,11 +154,11 @@ Put every event in one flat trip.items array. Sort the array by local start date
 
 Create a filesystem-safe JSON file named from the collection name and the first included event's month and year, using words separated by hyphens and ending in `.json`. If no events are found, use the collection name and extraction date. The file must contain only one valid JSON object. If the environment cannot create a file, reply with the raw JSON object only. Do not use Markdown fences or add commentary before or after the JSON.
 
-Use exactly this current Waypoint import schema; schemaVersion must be 2. Do not add mailboxScope, eventScope, groups, eventType, recordType, or any other keys that are not shown:
+Use exactly this current Waypoint import schema; schemaVersion must be 3. Do not add mailboxScope, eventScope, groups, eventType, recordType, or any other keys that are not shown:
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "exportedAt": "ISO-8601 timestamp",
   "trip": {
     "id": "globally unique UUID",

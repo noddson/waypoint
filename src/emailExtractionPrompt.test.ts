@@ -249,8 +249,8 @@ describe('email extraction prompt', () => {
   it('asks for importable Waypoint JSON without prose', () => {
     expect(prompt).toContain('Ireland-July-2026.json')
     expect(prompt).toContain("primary destination plus its travel-start month and year")
-    expect(prompt).toContain('"schemaVersion": 2')
-    expect(prompt).toContain('"type": "flight | stay | car | transport | insurance | event"')
+    expect(prompt).toContain('"schemaVersion": 3')
+    expect(prompt).toContain('"type": "flight | stay | car | transport | insurance | event | boarding-pass"')
     expect(prompt).not.toContain('event | plan | reference')
     expect(prompt).toContain('Do not use Markdown fences')
     expect(prompt).toContain('start\": \"YYYY-MM-DDTHH:mm')

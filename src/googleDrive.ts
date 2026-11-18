@@ -1,6 +1,6 @@
-import { CalendarSubscriptionMetadata, CanonicalTripExportV2, DrivePermissionSnapshot, JournalAudio, JournalPhoto, SharePolicyV1, Trip, TripExport, sortTripItems } from './types'
+import { SCHEMA_VERSION, CalendarSubscriptionMetadata, CanonicalTripExport, DrivePermissionSnapshot, JournalAudio, JournalPhoto, SharePolicyV1, Trip, TripExport, sortTripItems } from './types'
 import { migrateLegacyJournalEntries } from './journalItems'
-import { createTripExportV2, validTripExport } from './tripImport'
+import { createTripExport, validTripExport } from './tripImport'
 import { isSharePolicyV1, isShareProjectionV1 } from './sharePolicy'
 import type { ShareProjectionV1 } from './types'
 import { mergeTripVersions } from './tripMerge'
@@ -68,6 +68,7 @@ export interface DriveSyncRecord {
   journalAudioFolderResourceKey?: string
   journalMediaStorageMigrated?: boolean
   canonicalSchemaMigrated?: boolean
+  canonicalSchemaVersion?: number
   version?: string
   headRevisionId?: string
   canReadRevisions?: boolean
@@ -210,7 +211,7 @@ let accessTokenExpiresAt = storedToken.expiresAt||0
 let googleScriptPromise: Promise<void> | null = null
 let googlePickerPromise: Promise<void> | null = null
 
-const tripExport = (source:Trip):CanonicalTripExportV2 => {const trip=migrateLegacyJournalEntries(source);return createTripExportV2({...trip,items:sortTripItems(trip.items)},new Date().toISOString())}
+const tripExport = (source:Trip):CanonicalTripExport => {const trip=migrateLegacyJournalEntries(source);return createTripExport({...trip,items:sortTripItems(trip.items)},new Date().toISOString())}
 const resourceKeyHeaders = (fileId:string,resourceKey?:string):Record<string,string> => resourceKey?{'X-Goog-Drive-Resource-Keys':`${fileId}/${resourceKey}`}:{ }
 type DriveFileCapabilities = {canReadRevisions?:boolean;canDownload?:boolean;canEdit?:boolean;canShare?:boolean;canAddChildren?:boolean}
 type DriveFileCheckpoint = {version?:string;modifiedTime?:string;headRevisionId?:string;capabilities?:DriveFileCapabilities}
@@ -332,7 +333,7 @@ async function readDriveTripExport(response:Response,label='The Google Drive tri
 
 export async function loadPublicDriveJson<T=unknown>(fileId:string,resourceKey?:string,apiKey=import.meta.env.VITE_GOOGLE_API_KEY,validator?:(value:unknown)=>value is T):Promise<T> {
   if(!fileId)throw new Error('The public trip link is missing its Google Drive file ID.')
-  if(!apiKey)throw new Error('Anonymous live-trip loading is not configured for this deployment.')
+  if(!apiKey)throw new Error('Anonymous live-trip loading is not configured for this deployment. The site owner must set VITE_GOOGLE_API_KEY and redeploy Waypoint.')
   const query=new URLSearchParams({alt:'media',key:apiKey})
   const response=await fetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${query}`,{headers:resourceKeyHeaders(fileId,resourceKey)})
   if(!response.ok){
@@ -1096,7 +1097,7 @@ export async function createDriveTrip(trip:Trip) {
   const body=new Blob([`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(tripExport(trip))}\r\n--${boundary}--`],{type:`multipart/related; boundary=${boundary}`})
   const file=await driveFetch(`${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,resourceKey,headRevisionId`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body}).then(response=>response.json()) as {id:string;resourceKey?:string;headRevisionId?:string}
   const details=await getDriveFileDetails(file.id,file.resourceKey)
-  let record:DriveSyncRecord={tripId:trip.id,fileId:file.id,ownedByMe:details.ownedByMe??true,resourceKey:details.resourceKey||file.resourceKey,tripFolderId:folder.id,tripFolderResourceKey:folder.resourceKey,tripFolderName:driveSafeName(trip.name,'Trip'),calendarStorageMigrated:true,accessModelMigrated:true,canonicalSchemaMigrated:true,version:details.version,headRevisionId:details.headRevisionId,canReadRevisions:details.capabilities?.canReadRevisions,canDownload:details.capabilities?.canDownload,canEdit:details.capabilities?.canEdit,canShare:details.capabilities?.canShare,canAddChildren:details.capabilities?.canAddChildren,bootstrapRevisionId:file.headRevisionId||details.headRevisionId,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:new Date().toISOString(),driveModifiedTime:details.modifiedTime,revision:details.headRevisionId||details.version,baseTrip:trip}
+  let record:DriveSyncRecord={tripId:trip.id,fileId:file.id,ownedByMe:details.ownedByMe??true,resourceKey:details.resourceKey||file.resourceKey,tripFolderId:folder.id,tripFolderResourceKey:folder.resourceKey,tripFolderName:driveSafeName(trip.name,'Trip'),calendarStorageMigrated:true,accessModelMigrated:true,canonicalSchemaMigrated:true,canonicalSchemaVersion:SCHEMA_VERSION,version:details.version,headRevisionId:details.headRevisionId,canReadRevisions:details.capabilities?.canReadRevisions,canDownload:details.capabilities?.canDownload,canEdit:details.capabilities?.canEdit,canShare:details.capabilities?.canShare,canAddChildren:details.capabilities?.canAddChildren,bootstrapRevisionId:file.headRevisionId||details.headRevisionId,lastSyncedUpdatedAt:trip.updatedAt,lastSynchronizedAt:new Date().toISOString(),driveModifiedTime:details.modifiedTime,revision:details.headRevisionId||details.version,baseTrip:trip}
   record.permissions=await listDrivePermissions(record)
   const updated=await uploadDriveExport(record,tripExport(trip),{bootstrapRevisionId:record.bootstrapRevisionId,shared:false,hasCalendar:false,canShareVerified:details.capabilities?.canShare===true})
   record=synchronizedRecord({...record,revision:updated.headRevisionId||updated.version||record.revision},updated)
@@ -1253,7 +1254,7 @@ async function patchDriveTripProperties(record:Pick<DriveSyncRecord,'fileId'|'re
   return driveFetch(`${DRIVE_API}/files/${encodeURIComponent(record.fileId)}?fields=id,version,headRevisionId,modifiedTime,capabilities(canReadRevisions,canDownload,canEdit,canShare,canAddChildren)`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify({appProperties,...(canShareVerified?{writersCanShare:false}:{})})}).then(response=>response.json()) as Promise<DriveFileCheckpoint>
 }
 
-async function uploadDriveExport(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>,value:CanonicalTripExportV2,options:DriveTripPropertyOptions={}){
+async function uploadDriveExport(record:Pick<DriveSyncRecord,'fileId'|'resourceKey'>,value:CanonicalTripExport,options:DriveTripPropertyOptions={}){
   await driveFetch(`${DRIVE_UPLOAD_API}/files/${encodeURIComponent(record.fileId)}?uploadType=media&fields=id`,{method:'PATCH',headers:{'Content-Type':'application/json',...resourceKeyHeaders(record.fileId,record.resourceKey)},body:JSON.stringify(value)})
   return patchDriveTripProperties(record,value.trip,options.shared===true,options.hasCalendar===true,options.bootstrapRevisionId,options.canShareVerified===true)
 }
@@ -1324,7 +1325,7 @@ const tripReferencesJournalMedia = (trip:Trip) => trip.items.some(item=>item.typ
 
 export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
   if(record.tripId!==trip.id)throw new Error('Sync stopped because the selected trip does not match this Google Drive file.')
-  try{trip=createTripExportV2(migrateLegacyJournalEntries(trip),new Date().toISOString()).trip}catch{throw new Error('Sync stopped because the local trip is malformed or too large.')}
+  try{trip=createTripExport(migrateLegacyJournalEntries(trip),new Date().toISOString()).trip}catch{throw new Error('Sync stopped because the local trip is malformed or too large.')}
   const cleanupWasPending=!!record.pendingBootstrapRevisionId
   record=await retryDriveBootstrapRevisionCleanup(record)
   const cleanupCompleted=cleanupWasPending&&!record.pendingBootstrapRevisionId
@@ -1344,7 +1345,7 @@ export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
     preloadedRemote=candidate
   }
   const ownerCanMigrate=(details.ownedByMe??record.ownedByMe)===true
-  if(ownerCanMigrate&&record.canonicalSchemaMigrated!==true&&!preloadedRemote)preloadedRemote=await downloadDriveTrip(record.fileId,record.resourceKey) as TripExport
+  if(ownerCanMigrate&&record.canonicalSchemaVersion!==SCHEMA_VERSION&&!preloadedRemote)preloadedRemote=await downloadDriveTrip(record.fileId,record.resourceKey) as TripExport
   // The first upgraded owner sync always audits the canonical boundary. Legacy
   // clients did not reliably persist a `shared` marker beside anyone/writer ACLs.
   if((details.ownedByMe??record.ownedByMe)===true&&record.accessModelMigrated!==true)record=await migrateLegacyDriveTripAccess({...record,ownedByMe:true})
@@ -1365,9 +1366,9 @@ export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
   }
   if(record.ownedByMe===true&&record.journalMediaStorageMigrated!==true&&(!!record.journalMediaFolderId||tripReferencesJournalMedia(trip)))record=await migrateDriveJournalMediaFolders(record,trip)
   let base:Trip|undefined
-  if(record.baseTrip){try{base=createTripExportV2(migrateLegacyJournalEntries(record.baseTrip),new Date().toISOString()).trip}catch{throw new Error('Sync stopped because the stored reconciliation base is malformed or too large.')}}
-  let canonicalNeedsUpgrade=ownerCanMigrate&&preloadedRemote?.schemaVersion===1
-  if(ownerCanMigrate&&preloadedRemote?.schemaVersion===2&&record.canonicalSchemaMigrated!==true)record=saveDriveSyncRecord({...record,canonicalSchemaMigrated:true})
+  if(record.baseTrip){try{base=createTripExport(migrateLegacyJournalEntries(record.baseTrip),new Date().toISOString()).trip}catch{throw new Error('Sync stopped because the stored reconciliation base is malformed or too large.')}}
+  let canonicalNeedsUpgrade=ownerCanMigrate&&!!preloadedRemote&&preloadedRemote.schemaVersion<SCHEMA_VERSION
+  if(ownerCanMigrate&&preloadedRemote?.schemaVersion===SCHEMA_VERSION)record=saveDriveSyncRecord({...record,canonicalSchemaMigrated:true,canonicalSchemaVersion:SCHEMA_VERSION})
   const localChanged=!base||JSON.stringify(trip)!==JSON.stringify(base)||structureChanged||canonicalNeedsUpgrade
   if(base&&!hasIncomingDriveUpdates(record,details)){
     if(!localChanged){
@@ -1375,13 +1376,13 @@ export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
       return {record:nextRecord,trip,conflicts:0,changed:false}
     }
     const updated=await uploadDriveExport(record,tripExport(trip),{shared:record.shared===true,hasCalendar:!!record.calendarSubscription,canShareVerified:details.capabilities?.canShare===true})
-    const nextRecord=saveDriveSyncRecord(synchronizedRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,canonicalSchemaMigrated:true,lastSyncedUpdatedAt:trip.updatedAt,revision:updated.headRevisionId||updated.version||record.revision,baseTrip:trip},updated))
+    const nextRecord=saveDriveSyncRecord(synchronizedRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,canonicalSchemaMigrated:true,canonicalSchemaVersion:SCHEMA_VERSION,lastSyncedUpdatedAt:trip.updatedAt,revision:updated.headRevisionId||updated.version||record.revision,baseTrip:trip},updated))
     return {record:nextRecord,trip,conflicts:0,changed:true}
   }
   const data=preloadedRemote||await downloadDriveTrip(record.fileId,record.resourceKey)
   const downloaded=data as TripExport
   if(!downloaded?.trip||!Array.isArray(downloaded.trip.items))throw new Error('The Drive file no longer contains a supported Waypoint trip.')
-  canonicalNeedsUpgrade=ownerCanMigrate&&downloaded.schemaVersion===1
+  canonicalNeedsUpgrade=ownerCanMigrate&&downloaded.schemaVersion<SCHEMA_VERSION
   const remote={...downloaded,trip:migrateLegacyJournalEntries(downloaded.trip)}
   if(remote.trip.id!==trip.id)throw new Error('Sync stopped because this Google Drive file belongs to a different trip.')
   record={...record,bootstrapRevisionId:record.bootstrapRevisionId||remote.collaboration?.drive?.bootstrapRevisionId,tripFolderId:record.tripFolderId||remote.collaboration?.drive?.tripFolderId,tripFolderResourceKey:record.tripFolderResourceKey||remote.collaboration?.drive?.tripFolderResourceKey,journalMediaFolderId:record.journalMediaFolderId||remote.collaboration?.drive?.journalMediaFolderId,journalMediaFolderResourceKey:record.journalMediaFolderResourceKey||remote.collaboration?.drive?.journalMediaFolderResourceKey}
@@ -1389,13 +1390,13 @@ export async function updateDriveTrip(record:DriveSyncRecord,trip:Trip) {
   const hasLocalUpdates=JSON.stringify(trip)!==JSON.stringify(mergeBase)||canonicalNeedsUpgrade
   const remoteChanged=JSON.stringify(remote.trip)!==JSON.stringify(mergeBase)
   if(!hasLocalUpdates){
-    const nextRecord=saveDriveSyncRecord(synchronizedRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,canonicalSchemaMigrated:downloaded.schemaVersion===2,lastSyncedUpdatedAt:remote.trip.updatedAt,revision:details.headRevisionId||details.version||remote.collaboration?.revision||record.revision,permissions:record.permissions||remote.collaboration?.drive?.permissions,calendarSubscription:record.calendarSubscription||remote.calendarSubscription,baseTrip:remote.trip},details))
+    const nextRecord=saveDriveSyncRecord(synchronizedRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,canonicalSchemaMigrated:downloaded.schemaVersion===SCHEMA_VERSION,canonicalSchemaVersion:downloaded.schemaVersion,lastSyncedUpdatedAt:remote.trip.updatedAt,revision:details.headRevisionId||details.version||remote.collaboration?.revision||record.revision,permissions:record.permissions||remote.collaboration?.drive?.permissions,calendarSubscription:record.calendarSubscription||remote.calendarSubscription,baseTrip:remote.trip},details))
     return {record:nextRecord,trip:remote.trip,conflicts:0,changed:remoteChanged}
   }
   const {trip:merged,conflicts}=remoteChanged?mergeTripVersions(mergeBase,trip,remote.trip):{trip,conflicts:0}
   const calendarSubscription=record.calendarSubscription||remote.calendarSubscription
   const updated=await uploadDriveExport(record,tripExport(merged),{shared:record.shared===true,hasCalendar:!!calendarSubscription,canShareVerified:details.capabilities?.canShare===true})
-  const nextRecord=saveDriveSyncRecord(synchronizedRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,canonicalSchemaMigrated:true,lastSyncedUpdatedAt:merged.updatedAt,revision:updated.headRevisionId||updated.version||record.revision,calendarSubscription,baseTrip:merged},updated))
+  const nextRecord=saveDriveSyncRecord(synchronizedRecord({...record,ownedByMe:details.ownedByMe??record.ownedByMe,canonicalSchemaMigrated:true,canonicalSchemaVersion:SCHEMA_VERSION,lastSyncedUpdatedAt:merged.updatedAt,revision:updated.headRevisionId||updated.version||record.revision,calendarSubscription,baseTrip:merged},updated))
   return {record:nextRecord,trip:merged,conflicts,changed:true}
 }
 

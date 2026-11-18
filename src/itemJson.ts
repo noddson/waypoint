@@ -1,11 +1,12 @@
 import { AuthorRef, ItemType, Status, TripItem, types, uid } from './types'
+import { validBoardingPass } from './boardingPass'
 import { safeHttpsLink } from './tripImport'
 
 const statuses:Status[] = ['confirmed','pending','planned']
 const object = (value:unknown): value is Record<string,unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const string = (value:unknown,max:number): value is string => typeof value === 'string' && value.length <= max
 const optionalString = (value:unknown,max:number) => value === undefined || string(value,max)
-const optionalStringFields = ['provider','confirmation','end','endTimeZone','location','endLocation','notes','bookedBy','quantity','flightNumber','relatedItemId','createdAt','updatedAt'] as const
+const optionalStringFields = ['provider','confirmation','end','endTimeZone','location','endLocation','notes','bookedBy','quantity','flightNumber','relatedItemId','createdAt','updatedAt','passengerLastName'] as const
 const validAuthorRef = (value:unknown):value is AuthorRef => object(value)&&Object.keys(value).every(key=>key==='profileId'||key==='displayName')&&string(value.profileId,200)&&!!value.profileId.trim()&&string(value.displayName,300)&&!!value.displayName.trim()
 
 export type ParsedItemJson = {ok:true;items:TripItem[]}|{ok:false;error:string}
@@ -24,6 +25,9 @@ function itemError(value:unknown,index:number) {
   }
   if(value.link!==undefined&&(!string(value.link,4_000)||!safeHttpsLink(value.link)))return `${prefix} link must be a secure https:// URL.`
   if(value.emailLink!==undefined&&(!string(value.emailLink,4_000)||!safeHttpsLink(value.emailLink)))return `${prefix} emailLink must be a secure https:// URL.`
+  if(value.passengerLastName!==undefined&&(value.type!=='flight'||!optionalString(value.passengerLastName,200)))return `${prefix} passengerLastName is only available for flights (up to 200 characters).`
+  if(value.checkInUrl!==undefined&&(value.type!=='flight'||!string(value.checkInUrl,4_000)||!safeHttpsLink(value.checkInUrl)))return `${prefix} checkInUrl must be a secure https:// flight URL.`
+  if(value.boardingPass!==undefined&&(value.type!=='boarding-pass'||!validBoardingPass(value.boardingPass)))return `${prefix} has invalid boarding pass data.`
   if(value.allDay!==undefined&&typeof value.allDay!=='boolean')return `${prefix} allDay must be true or false.`
   if(value.durationMinutes!==undefined&&(!Number.isInteger(value.durationMinutes)||Number(value.durationMinutes)<0))return `${prefix} durationMinutes must be a non-negative whole number.`
   for(const [field,label] of [['photos','photo'],['audio','audio']] as const){
@@ -55,6 +59,8 @@ function normalizedItem(value:Record<string,unknown>,createId:()=>string):TripIt
   for(const key of optionalStringFields)if(value[key]!==undefined)(item[key] as string|undefined)=value[key] as string
   if(value.link!==undefined)item.link=safeHttpsLink(value.link as string)
   if(value.emailLink!==undefined)item.emailLink=safeHttpsLink(value.emailLink as string)
+  if(value.checkInUrl!==undefined)item.checkInUrl=safeHttpsLink(value.checkInUrl as string)
+  if(validBoardingPass(value.boardingPass))item.boardingPass=structuredClone(value.boardingPass)
   if(value.allDay!==undefined)item.allDay=value.allDay as boolean
   if(value.durationMinutes!==undefined)item.durationMinutes=value.durationMinutes as number
   if(Array.isArray(value.photos))item.photos=value.photos.map(photo=>({...photo as NonNullable<TripItem['photos']>[number],id:uid()}))
