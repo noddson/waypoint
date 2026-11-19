@@ -21,6 +21,14 @@ describe('schedule overlap warnings',()=>{
     expect([...overlaps]).toEqual([])
   })
 
+  it('does not treat an untimed event’s placeholder hours as a schedule conflict',()=>{
+    const overlaps=overlappingEventIds([
+      {...item('untimed','event','2026-07-20T12:00','2026-07-20T12:00'),allDay:true},
+      item('morning','event','2026-07-20T09:00','2026-07-20T10:00'),
+    ])
+    expect([...overlaps]).toEqual([])
+  })
+
   it('does not flag adjacent events or events in different time zones',()=>{
     const overlaps=overlappingEventIds([
       item('first','event','2026-07-20T10:00','2026-07-20T11:00'),

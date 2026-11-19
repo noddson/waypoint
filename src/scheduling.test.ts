@@ -3,7 +3,7 @@ import { googleFlightStatusUrl, isAirCanadaCheckInOpen, isAirlineCheckInOpen, is
 import { sortTripItems, TripItem } from './types'
 
 describe('scheduling helpers', () => {
-  it('sorts rows explicitly by date and then time', () => {
+  it('sorts rows by date with untimed items before that day’s timed items', () => {
     const make = (id:string,start:string,allDay=false):TripItem => ({id,type:'event',title:id,start,timeZone:'Europe/Dublin',status:'confirmed',allDay})
     const sorted = sortTripItems([
       make('late','2026-07-28T18:00'),
@@ -11,7 +11,20 @@ describe('scheduling helpers', () => {
       make('early','2026-07-28T09:00'),
       make('unspecified','2026-07-28T12:00',true),
     ])
-    expect(sorted.map(item=>item.id)).toEqual(['early','unspecified','late','next day'])
+    expect(sorted.map(item=>item.id)).toEqual(['unspecified','early','late','next day'])
+  })
+
+  it('places untimed insurance before midnight while keeping each item on its own day',()=>{
+    const make=(id:string,start:string,allDay=false):TripItem=>({id,type:allDay?'insurance':'transport',title:id,start,timeZone:'America/Toronto',status:'confirmed',allDay})
+    const items=[
+      make('next-day insurance','2026-11-20T12:00',true),
+      make('taxi','2026-11-19T12:00'),
+      make('insurance','2026-11-19T12:00',true),
+      make('previous evening','2026-11-18T23:59'),
+      make('midnight','2026-11-19T00:00'),
+      make('next-day taxi','2026-11-20T08:00'),
+    ]
+    expect(sortTripItems(items).map(item=>item.id)).toEqual(['previous evening','insurance','midnight','taxi','next-day insurance','next-day taxi'])
   })
 
   it('places a linked journal item directly after its itinerary item',()=>{

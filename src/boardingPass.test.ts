@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { alignBoardingPassesWithFlights, boardingPassForFlight, MAX_BOARDING_PASS_IMAGE_BYTES, validBoardingPass, validBoardingPassImage } from './boardingPass'
-import { airlineCheckInUrl } from './airlineCheckIn'
+import { airlineCheckInUrl, passengerLastNameForCheckIn } from './airlineCheckIn'
 import { isAirlineCheckInOpen } from './checkin'
 import { createTripExport, migrateTripExport, validTripExport } from './tripImport'
 import { parseTripItemsJson } from './itemJson'
@@ -21,6 +21,26 @@ describe('personalized check-in links',()=>{
     const url=new URL(airlineCheckInUrl({...flight,passengerLastName:"D'Example & Co",confirmation:'AB+123'})!)
     expect(url.origin+url.pathname).toBe('https://checkin.aircanada.com/ac/ssci')
     expect(Object.fromEntries(url.searchParams)).toEqual({ln:'en-CA',orderId:'AB+123',lastName:"D'Example & Co"})
+  })
+  it.each([
+    ['Traveller: Avery Morgan. Booked through an agent.','Morgan'],
+    ["Passenger: Jamie O’Connor-Smith. Economy fare.",'O’Connor-Smith'],
+    ['Traveler name: Ana de la Cruz.','de la Cruz'],
+    ['Passenger name: Chen, Wei.','Chen'],
+    ['Passenger: Dr. Alex J. Example Jr.','Example'],
+  ])('derives a traveller surname from %s', (notes,lastName)=>{
+    const item={...flight,passengerLastName:undefined,notes}
+    const url=new URL(airlineCheckInUrl(item)!)
+    expect(url.searchParams.get('lastName')).toBe(lastName)
+    expect(url.searchParams.get('orderId')).toBe(flight.confirmation)
+  })
+  it('uses the saved surname first and does not mistake the booker for the passenger',()=>{
+    expect(passengerLastNameForCheckIn({...flight,passengerLastName:'García López',notes:'Passenger: Ana García López.'})).toBe('García López')
+    const item={...flight,passengerLastName:undefined,bookedBy:'Booking Contact',notes:'Passenger: Avery Morgan.'}
+    expect(new URL(airlineCheckInUrl(item)!).searchParams.get('lastName')).toBe('Morgan')
+    expect(passengerLastNameForCheckIn({...item,notes:'Booked by: Booking Contact.'})).toBeUndefined()
+    expect(passengerLastNameForCheckIn({...item,notes:'Passenger: Avery Morgan and Jamie Example.'})).toBeUndefined()
+    expect(passengerLastNameForCheckIn({...item,notes:'Passenger: Avery Morgan. Passenger: Jamie Example.'})).toBeUndefined()
   })
   it('uses every known booking detail rather than dropping back to the generic Air Canada page',()=>{
     for(const passengerLastName of [undefined,' ']){

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jvGQAAAAASUVORK5CYII='
-const flight={id:'flight-1',type:'flight',title:'Toronto to London',flightNumber:'AC 854',provider:'Air Canada',confirmation:'ABC123',start:'2026-11-19T18:00',end:'2026-11-20T06:00',timeZone:'America/Toronto',endTimeZone:'Europe/London',status:'confirmed'}
+const flight={id:'flight-1',type:'flight',title:'Toronto to London',flightNumber:'AC 854',provider:'Air Canada',confirmation:'ABC123',start:'2026-11-19T18:00',end:'2026-11-20T06:00',timeZone:'America/Toronto',endTimeZone:'Europe/London',status:'confirmed',notes:'Traveller: Riley Morgan.'}
 const trip={id:'boarding-pass-trip',name:'Boarding pass test',destination:'London',createdAt:'2026-11-18T12:00:00Z',updatedAt:'2026-11-18T12:00:00Z',items:[flight]}
 
 async function seedLegacyTrip(page:Page,mobile=false){
@@ -63,11 +63,11 @@ test('upgrades a legacy local trip and preserves a linked pass URL and image off
   await expect(viewer).toBeHidden()
 })
 
-test('edits personalized and explicit carrier check-in links',async({page})=>{
+test('derives passenger surnames and preserves explicit carrier check-in links',async({page})=>{
   await page.clock.setFixedTime(new Date('2026-11-19T12:00:00Z'))
   await seedLegacyTrip(page)
   const checkin=page.getByRole('link',{name:'Check in with Air Canada ↗'})
-  await expect(checkin).toHaveAttribute('href','https://checkin.aircanada.com/ac/ssci?ln=en-CA&orderId=ABC123')
+  await expect(checkin).toHaveAttribute('href','https://checkin.aircanada.com/ac/ssci?ln=en-CA&orderId=ABC123&lastName=Morgan')
   await page.getByRole('heading',{name:'Toronto to London'}).click()
   await page.getByLabel('Passenger last name').fill('Example & Co')
   await page.getByRole('button',{name:'Save item',exact:true}).click()

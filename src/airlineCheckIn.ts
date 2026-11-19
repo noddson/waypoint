@@ -247,6 +247,29 @@ export function airlineCheckInForItem(item:Pick<TripItem,'type'|'flightNumber'|'
   }))
 }
 
+export function passengerLastNameForCheckIn(item:Pick<TripItem,'passengerLastName'|'notes'>):string|undefined {
+  const saved=item.passengerLastName?.trim()
+  if(saved)return saved
+  // A booking contact can be someone else; use explicitly identified passengers.
+  const notes=item.notes||''
+  const names=[...notes.matchAll(/(?:^|[.;\n])\s*(?:travell?er|passenger)(?:\s+name)?\s*:\s*/gi)].map(match=>{
+    const name=notes.slice(match.index!+match[0].length).split(/[\n;]/)[0].trim()
+      .replace(/^(?:mr|mrs|ms|miss|mx|dr|prof)\.?\s+/i,'')
+      .replace(/\b(\p{L})\.(?=\s)/gu,'$1').split('.')[0].trim()
+      .replace(/,?\s+(?:jr|sr|ii|iii|iv)$/i,'')
+    if(!/^[\p{L}\p{M}\s,'’\-]+$/u.test(name)||/\b(?:and|or)\b/i.test(name))return undefined
+    const comma=name.indexOf(',')
+    if(comma>=0)return name.slice(0,comma).trim()||undefined
+    const words=name.split(/\s+/)
+    if(words.length<2)return undefined
+    let start=words.length-1
+    while(start>1&&/^(?:al|bin|binti|da|das|de|del|della|den|der|di|dos|du|el|la|le|van|von|ten|ter)$/i.test(words[start-1]))start--
+    return words.slice(start).join(' ')
+  })
+  const surnames=new Set(names.filter((name):name is string=>!!name))
+  return surnames.size===1&&!names.includes(undefined)?[...surnames][0]:undefined
+}
+
 /** Preserve carrier-issued links while enhancing known generic check-in pages. */
 export function airlineCheckInUrl(item:TripItem):string|undefined {
   if(item.type!=='flight')return undefined
@@ -255,7 +278,7 @@ export function airlineCheckInUrl(item:TripItem):string|undefined {
   if(item.checkInUrl){try{const url=new URL(item.checkInUrl);if(url.protocol==='https:')supplied=url}catch{/* Fall back to the registry. */}}
   const genericAirCanadaLink=supplied?.hostname==='www.aircanada.com'&&/\/aco\/checkin\/?$/.test(supplied.pathname)&&!supplied.search&&!supplied.hash
   if(supplied&&!genericAirCanadaLink)return supplied.toString()
-  const reference=item.confirmation?.trim(),lastName=item.passengerLastName?.trim()
+  const reference=item.confirmation?.trim(),lastName=passengerLastNameForCheckIn(item)
   if((airline?.iataCodes.includes('AC')||genericAirCanadaLink)&&(reference||lastName)){
     const url=new URL('https://checkin.aircanada.com/ac/ssci')
     url.searchParams.set('ln','en-CA')

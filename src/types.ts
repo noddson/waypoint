@@ -182,9 +182,20 @@ export const typeLabels: Record<ItemType,string> = { flight:'Flight', stay:'Stay
 export const uid = () => crypto.randomUUID()
 export function scheduleTime(value:string, allDay=false) { const match=value.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);if(!match)return Number.MAX_SAFE_INTEGER;const [,year,month,day,hour='00',minute='00']=match;return Date.UTC(Number(year),Number(month)-1,Number(day),allDay?12:Number(hour),allDay?0:Number(minute)) }
 const sameTimeTypeOrder:Record<ItemType,number>={flight:0,transport:1,car:2,event:3,stay:4,insurance:5,'boarding-pass':6,journal:7}
-export const sortTripItems = (items:TripItem[]) => [...items].sort((a,b)=>{const time=scheduleTime(a.start,a.allDay)-scheduleTime(b.start,b.allDay);if(time)return time;if((a.type==='journal'||a.type==='boarding-pass')&&a.relatedItemId===b.id)return 1;if((b.type==='journal'||b.type==='boarding-pass')&&b.relatedItemId===a.id)return -1;return sameTimeTypeOrder[a.type]-sameTimeTypeOrder[b.type]||a.title.localeCompare(b.title)})
+export const sortTripItems = (items:TripItem[]) => [...items].sort((a,b)=>{
+  const day=scheduleTime(a.start,true)-scheduleTime(b.start,true)
+  if(day)return day
+  // Untimed items describe the day; their stored noon value is only a placeholder.
+  const untimed=Number(!!b.allDay)-Number(!!a.allDay)
+  if(untimed)return untimed
+  const time=scheduleTime(a.start,a.allDay)-scheduleTime(b.start,b.allDay)
+  if(time)return time
+  if((a.type==='journal'||a.type==='boarding-pass')&&a.relatedItemId===b.id)return 1
+  if((b.type==='journal'||b.type==='boarding-pass')&&b.relatedItemId===a.id)return -1
+  return sameTimeTypeOrder[a.type]-sameTimeTypeOrder[b.type]||a.title.localeCompare(b.title)
+})
 export function overlappingEventIds(items:TripItem[]) {
-  const events=sortTripItems(items.filter(item=>item.type==='event'))
+  const events=sortTripItems(items.filter(item=>item.type==='event'&&!item.allDay))
   const overlaps=new Set<string>()
   for(const [index,event] of events.entries()){
     if(!event.end)continue

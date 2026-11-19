@@ -191,7 +191,7 @@ Waypoint validates the data and creates fresh item IDs. This is useful for impor
 
 ### Read the agenda
 
-The agenda groups items by local itinerary date and sorts them chronologically. Each card can show:
+The agenda groups items by local itinerary date. Items marked **Time not specified** appear first within their day, followed by timed items in chronological order. Each card can show:
 
 - Start time and, for flights, arrival time.
 - The departure and arrival time-zone context.
@@ -241,7 +241,7 @@ A flight with a flight number can receive a **Check flight status** action from 
 
 For supported airlines, **Check in with …** appears from 24 hours before departure until departure. Waypoint uses the flight number's two-character IATA prefix and falls back to the provider name for older items. The current registry contains verified mappings for 173 airline brands.
 
-Flight details now include **Passenger last name** and an optional **Check-in URL**. A saved personalized HTTPS check-in URL from the carrier takes priority. For Air Canada, Waypoint builds the supplied check-in format using every available value: the confirmation reference becomes `orderId` and **Passenger last name** becomes `lastName`. Legacy flights with only a reference still receive an `orderId` link; add the passenger surname to the flight for both fields to be populated. A saved generic Air Canada check-in page is enhanced in the same way. It falls back to the generic airline page when neither value is available; other airlines retain their registry link unless a check-in URL is supplied. The booking person's name is never assumed to be the passenger surname.
+Flight details include **Passenger last name** and an optional **Check-in URL**. A saved personalized HTTPS check-in URL from the carrier takes priority. For Air Canada, Waypoint builds the supplied check-in format using every available value: the confirmation reference becomes `orderId` and the passenger surname becomes `lastName`. A saved passenger surname takes priority; otherwise Waypoint derives it from an explicitly labelled traveller or passenger name in that flight's notes. It handles hyphens, apostrophes, surname prefixes, and surname-first comma notation, and leaves ambiguous passenger names unresolved. The booking person's name is never assumed to be the passenger surname. Flights with only a reference still receive an `orderId` link. A saved generic Air Canada check-in page is enhanced in the same way. It falls back to the generic airline page when neither value is available; other airlines retain their registry link unless a check-in URL is supplied.
 
 ### Save a boarding pass
 
